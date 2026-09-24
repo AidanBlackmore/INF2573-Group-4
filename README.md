@@ -1,6 +1,13 @@
 # Alternate Universe (prototype)
 
-A party game for 3–6 friends in the same room, each on their own phone. An AI Game Master drops the group into a fictional world (zombie apocalypse, reality TV villa, office…), gives everyone a role, and then asks questions that get friends reacting to *each other*: "Who would eat the last can of peaches?", "What will Sam do?". A recap at the end collects the surprising votes and moments that could become inside jokes.
+A party game for 3–6 friends in the same room, each on their own phone. An AI Game Master drops the group into a fictional world (zombie apocalypse, reality TV villa, office…).
+
+1. **Casting quiz.** Everyone votes on questions like "Who has the strongest execution?" or "Who is the most unpredictable?". Each player gets the trait the group voted them, and a role built on it.
+2. **Secret chapters.** Everyone shares one scene, but each player privately gets different information and a different decision based on their role. One player knows food is running out, another knows a dangerous route to more supplies, someone else decides who gets the last medicine. Each player chooses alone and can add a short "why".
+3. **The reveal.** The host reveals each player's secret, choice, reason and its consequence one at a time, and the group reacts. Those consequences open the next chapter.
+4. **Recap.** A recap at the end collects the secrets, choices and reactions that could become inside jokes.
+
+The AI acts as a Game Master: it sets up situations, adapts the story and connects earlier decisions to later events, but the important choices always come from the players.
 
 **Design principle:** the story is only a backdrop. Every feature should serve interaction between players, not the plot.
 
@@ -58,8 +65,9 @@ Then restart `npm start`. The footer of every screen shows where the last GM out
 |---|---|
 | **Tune the Game Master's personality and rules** | `server/prompts/gm-system.md` |
 | Change what the GM is asked for in each task (setup, each round type, recap) | `server/prompts/task-instructions.md` (one `## section` per task) |
+| Change the **casting quiz** questions and traits | `config/quiz.json` (each trait's `id` matches the `trait` on mock roles and secret-chapter briefs) |
 | Add or edit a **world** | `config/worlds.json` (live mode works with any world immediately) |
-| Write mock content for a world | `config/mock/<world id>.json` (copy `zombie.json`). Worlds without a file use `generic.json`. |
+| Write mock content for a world | `config/mock/<world id>.json` (copy `zombie.json`). Worlds without a file, or without a pool for a round type, use `generic.json`. |
 | Change the **number, order or type of rounds**, player limits, or reaction emoji | `config/round-plan.json` |
 | Change colours and sizes | `public/style.css` (tokens at the top) |
 
@@ -71,6 +79,7 @@ The prompt and config files are re-read on every use, so you can edit them while
 
 | Type | How it plays |
 |---|---|
+| `secret` (default) | A chapter: each player gets a private secret and their own decision, based on their role. Options are either written per player or "pick a player" (e.g. who gets the medicine). The host reveals decisions one player at a time; each shows the secret, choice, optional reason and consequence. Consequences are listed at the start of the next chapter and passed to the GM. |
 | `choice` | Everyone picks what they'd do. The reveal shows who picked what, by name. |
 | `vote_player` | "Who would…?" Everyone votes for a player (self-votes allowed). Tallies first; the host can then reveal who voted for whom. |
 | `predict` | The spotlight player answers honestly and everyone else guesses their answer. The target rotates to whoever has had the spotlight least. |
@@ -99,7 +108,7 @@ public/             Plain HTML/CSS/JS client, no build step
 scripts/simulate.js Bot smoke test
 ```
 
-Game flow: `lobby → world (everyone votes, host locks in) → roles → [answering → reveal + reactions] × rounds → recap`.
+Game flow: `lobby → world (everyone votes, host locks in) → quiz (casting votes) → roles → [answering → reveal + reactions] × rounds → recap`.
 
 The GM returns JSON like this for a round. The app adds the round type, the target, and, for votes, the player list:
 

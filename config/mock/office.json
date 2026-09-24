@@ -2,12 +2,12 @@
   "setup": {
     "intro": "Welcome to Dunmore Paper Supply, regional branch. Corporate has announced a mandatory team-building retreat, and someone's lunch has gone missing from the fridge. Again.",
     "roles": [
-      { "title": "The Manager Who Wants To Be Liked", "blurb": "Calls every meeting a 'jam session.'" },
-      { "title": "The Office Gossip", "blurb": "Knows about the layoffs before HR does." },
-      { "title": "The Overachiever", "blurb": "Colour-codes the shared calendar. Unprompted." },
-      { "title": "The One Who Is Always 'Working From Home'", "blurb": "Camera always off. Suspicious background noises." },
-      { "title": "The Prank Mastermind", "blurb": "Once put a stapler in jelly. Has not stopped since." },
-      { "title": "The IT Person", "blurb": "Can read everyone's emails. Chooses not to. Mostly." }
+      { "trait": "carer", "title": "The Manager Who Wants To Be Liked", "blurb": "Calls every meeting a 'jam session.'" },
+      { "trait": "talker", "title": "The Office Gossip", "blurb": "Knows about the layoffs before HR does." },
+      { "trait": "doer", "title": "The Overachiever", "blurb": "Colour-codes the shared calendar. Unprompted." },
+      { "trait": "risk", "title": "The One Who Is Always 'Working From Home'", "blurb": "Camera always off. Suspicious background noises." },
+      { "trait": "wildcard", "title": "The Prank Mastermind", "blurb": "Once put a stapler in jelly. Has not stopped since." },
+      { "trait": "planner", "title": "The IT Person", "blurb": "Can read everyone's emails. Chooses not to. Mostly." }
     ],
     "relationships": [
       "{a} is convinced {b} steals their lunch.",

@@ -3,16 +3,13 @@
   "maxPlayers": 6,
   "rounds": [
     {
-      "type": "choice"
+      "type": "secret"
     },
     {
-      "type": "vote_player"
+      "type": "secret"
     },
     {
-      "type": "predict"
-    },
-    {
-      "type": "vote_player"
+      "type": "secret"
     }
   ],
   "reactions": [

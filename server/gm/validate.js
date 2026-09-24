@@ -28,7 +28,51 @@ function setup(raw, { players }) {
   return { intro: str(raw.intro, 'intro', { max: 500 }), roles, relationships };
 }
 
-function round(raw, { players, plan }) {
+// Secret round: one private brief per player. Options are either written by the GM,
+// or (pickPlayer) every player in the group, e.g. "Who gets the last medicine?".
+function secretRound(raw, { players }) {
+  const ids = new Set(players.map((p) => p.id));
+  const briefs = {};
+  for (const b of raw.briefs || []) {
+    if (!ids.has(b.playerId) || briefs[b.playerId]) continue;
+    const brief = {
+      secret: str(b.secret, 'secret', { max: 300 }),
+      prompt: str(b.prompt, 'brief prompt', { max: 200 }),
+      pickPlayer: Boolean(b.pickPlayer),
+      outcome: str(b.outcome, 'outcome', { required: false, max: 240 }),
+      options: [],
+    };
+    if (brief.pickPlayer) {
+      brief.options = players.map((p) => ({ id: p.id, text: p.name }));
+    } else {
+      const seen = new Set();
+      for (const o of b.options || []) {
+        const text = typeof o === 'string' ? o : o && o.text;
+        if (typeof text !== 'string' || !text.trim() || seen.has(text.trim())) continue;
+        seen.add(text.trim());
+        const outcome = o && typeof o.outcome === 'string' ? o.outcome.trim().slice(0, 240) : '';
+        brief.options.push({ id: 'abcdef'[brief.options.length], text: text.trim().slice(0, 90), outcome });
+        if (brief.options.length === 4) break;
+      }
+      if (brief.options.length < 2) fail(`brief for ${b.playerId} needs 2-4 options`);
+    }
+    briefs[b.playerId] = brief;
+  }
+  for (const id of ids) if (!briefs[id]) fail(`no brief for ${id}`);
+  return {
+    type: 'secret',
+    prompt: str(raw.title, 'title', { max: 80 }), // the chapter title stands in for the round's prompt
+    scene: str(raw.scene, 'scene', { max: 500 }),
+    callback: str(raw.callback, 'callback', { required: false, max: 200 }),
+    targetPlayerId: '',
+    options: [],
+    briefs,
+  };
+}
+
+function round(raw, ctx) {
+  if (ctx.plan.type === 'secret') return secretRound(raw, ctx);
+  const { players, plan } = ctx;
   const out = {
     scene: str(raw.scene, 'scene', { max: 500 }),
     type: plan.type, // code decides the type, not the GM

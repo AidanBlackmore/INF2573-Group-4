@@ -2,12 +2,12 @@
   "setup": {
     "intro": "Welcome to Villa Paradiso, where eight weeks of sunshine, challenges and questionable decisions will be broadcast to millions. The host has promised 'a twist every night.'",
     "roles": [
-      { "title": "The Fan Favourite", "blurb": "The audience loves them. The other contestants are suspicious of that." },
-      { "title": "The Strategist", "blurb": "Says 'I'm not here to make friends' in every confessional." },
-      { "title": "The Late Arrival", "blurb": "Walked in on day 3 and immediately changed everything." },
-      { "title": "The Confessional Queen", "blurb": "Nice to everyone's face. Devastating in the diary room." },
-      { "title": "The One Who Is Actually Here For Love", "blurb": "Nobody knows what to do with this." },
-      { "title": "The Chaos Agent", "blurb": "Producers' favourite. Has 'accidentally' started three fights." }
+      { "trait": "carer", "title": "The Fan Favourite", "blurb": "The audience loves them. The other contestants are suspicious of that." },
+      { "trait": "planner", "title": "The Strategist", "blurb": "Says 'I'm not here to make friends' in every confessional." },
+      { "trait": "risk", "title": "The Late Arrival", "blurb": "Walked in on day 3 and immediately changed everything." },
+      { "trait": "talker", "title": "The Confessional Queen", "blurb": "Nice to everyone's face. Devastating in the diary room." },
+      { "trait": "doer", "title": "The One Who Is Actually Here For Love", "blurb": "Nobody knows what to do with this." },
+      { "trait": "wildcard", "title": "The Chaos Agent", "blurb": "Producers' favourite. Has 'accidentally' started three fights." }
     ],
     "relationships": [
       "{a} and {b} have a secret alliance that everyone knows about.",

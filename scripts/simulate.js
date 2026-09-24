@@ -58,17 +58,32 @@ async function main() {
     const key = `${st.phase}:${r ? r.number : ''}`;
     if (!seen.has(key)) {
       seen.add(key);
-      if (st.phase === 'answering') console.log(`  round ${r.number} [${r.type}] ${r.prompt}`);
-      if (st.phase === 'roles') console.log(`  world: ${st.world.name}\n  ${st.cast.intro}`);
+      if (st.phase === 'answering') console.log(`  round ${r.number} [${r.type}] ${r.type === 'secret' ? r.title : r.prompt}`);
+      if (st.phase === 'roles') {
+        console.log(`  world: ${st.world.name}\n  ${st.cast.intro}`);
+        for (const p of st.players) console.log(`   ${p.name}: ${st.traits[p.id].label} (${st.traits[p.id].votes}/${st.traits[p.id].of}) -> ${st.cast.roles[p.id].title}`);
+      }
     }
     if (st.phase === 'lobby' && host && st.players.length === BOTS) once(bot, key, () => emit(bot.s, 'start'));
     if (st.phase === 'world') {
       once(bot, key, () => emit(bot.s, 'voteWorld', { worldId: pick(st.worlds).id }));
       if (host && Object.keys(st.worldVotes).length === BOTS) once(bot, `${key}:lock`, () => emit(bot.s, 'lockWorld'));
     }
+    if (st.phase === 'quiz') {
+      once(bot, key, async () => {
+        for (const q of st.quiz.questions) await emit(bot.s, 'quizAnswer', { traitId: q.id, playerId: pick(st.players).id });
+      });
+    }
     if (st.phase === 'roles' && host) once(bot, key, () => emit(bot.s, 'next'));
-    if (st.phase === 'answering') once(bot, key, () => emit(bot.s, 'answer', { value: pick(r.options).id }));
-    if (st.phase === 'reveal') {
+    if (st.phase === 'answering') once(bot, key, () => emit(bot.s, 'answer', { value: pick(r.options).id, reason: `${bot.name} had reasons` }));
+    if (st.phase === 'reveal' && r.type === 'secret') {
+      // Host reveals one player at a time; everyone reacts to each newly revealed decision.
+      const latest = r.reveals[r.reveals.length - 1];
+      if (latest && latest.playerId !== st.you && latest.answered) once(bot, `${key}:react:${latest.playerId}`, () => emit(bot.s, 'react', { targetId: latest.playerId, emoji: pick(EMOJIS) }));
+      if (latest) once(bot, `${key}:log:${latest.playerId}`, () => host && console.log(`    ${st.players.find((p) => p.id === latest.playerId).name}: ${latest.choice} -> ${latest.outcome}`));
+      if (host && !r.allRevealed) once(bot, `${key}:reveal:${r.reveals.length}`, () => setTimeout(() => emit(bot.s, 'revealNext'), 150));
+      if (host && r.allRevealed) once(bot, `${key}:next`, () => setTimeout(() => emit(bot.s, 'next'), 300));
+    } else if (st.phase === 'reveal') {
       // Emoji reactions (ignored by the server until reactions exist).
       if (r.answers) {
         const targets = Object.keys(r.answers).filter((id) => id !== st.you);

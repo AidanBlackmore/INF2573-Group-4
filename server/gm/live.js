@@ -28,6 +28,20 @@ const RoundSchema = z.object({
   callback: z.string(),
 });
 
+const SecretSchema = z.object({
+  title: z.string(),
+  scene: z.string(),
+  briefs: z.array(z.object({
+    playerId: z.string(),
+    secret: z.string(),
+    prompt: z.string(),
+    pickPlayer: z.boolean(),
+    options: z.array(z.object({ text: z.string(), outcome: z.string() })),
+    outcome: z.string(),
+  })),
+  callback: z.string(),
+});
+
 const RecapSchema = z.object({
   titles: z.array(z.object({ playerId: z.string(), title: z.string(), reason: z.string() })),
   memories: z.array(z.string()),
@@ -47,12 +61,18 @@ function taskInstructions(name) {
   return match.slice(name.length + 1).trim();
 }
 
-function describeFacts({ world, players, cast, history }) {
+function describeFacts({ world, players, traits, quizTallies, cast, history }) {
   const name = (id) => (players.find((p) => p.id === id) || { name: id }).name;
   const lines = [
     `# World\n${world.name}: ${world.tagline}\nTone: ${world.tone}`,
     `# Players\n${players.map((p) => `- ${p.id}: ${p.name}`).join('\n')}`,
   ];
+  if (quizTallies) {
+    lines.push(`# How the group sees each other (casting quiz, everyone voted)\n${quizTallies.map((q) => `- "${q.question}" ${q.tally.map((t) => `${name(t.playerId)} ${t.count}`).join(', ') || 'no votes'}`).join('\n')}`);
+  }
+  if (traits) {
+    lines.push(`# Trait each player's role must be built on\n${players.map((p) => `- ${p.name} (${p.id}): ${traits[p.id].label} (${traits[p.id].votes} of ${traits[p.id].of} votes)`).join('\n')}`);
+  }
   if (cast) {
     lines.push(`# Cast\n${cast.intro}\n${players.map((p) => `- ${p.name} (${p.id}) is "${cast.roles[p.id].title}": ${cast.roles[p.id].blurb}`).join('\n')}`);
     if (cast.relationships.length) lines.push(`# Relationships\n${cast.relationships.map((r) => `- ${r.text}`).join('\n')}`);
@@ -103,7 +123,8 @@ async function round(ctx) {
     `This is round ${roundNumber} of ${totalRounds}.${roundNumber === totalRounds ? ' It is the final round, so make it a big one.' : ''}`,
     target ? `TARGET player: ${target.name} (${target.id}).` : '',
   ].filter(Boolean).join('\n');
-  const raw = await ask(RoundSchema, `${describeFacts(ctx)}\n\n# Your task\n${taskInstructions(plan.type)}\n\n${specifics}`);
+  const schema = plan.type === 'secret' ? SecretSchema : RoundSchema;
+  const raw = await ask(schema, `${describeFacts(ctx)}\n\n# Your task\n${taskInstructions(plan.type)}\n\n${specifics}`);
   return { ...raw, type: plan.type, targetPlayerId: plan.targetId || '' };
 }
 

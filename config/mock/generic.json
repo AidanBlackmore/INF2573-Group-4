@@ -2,12 +2,12 @@
   "setup": {
     "intro": "Your group has been dropped into a strange new world together. Nobody read the instructions, and something is already going wrong.",
     "roles": [
-      { "title": "The Unofficial Leader", "blurb": "Nobody picked them. They picked themselves." },
-      { "title": "The Wildcard", "blurb": "Nobody can predict them, including them." },
-      { "title": "The Voice of Reason", "blurb": "Ignored in every crisis so far." },
-      { "title": "The Snack Keeper", "blurb": "Controls the supplies, and therefore the group." },
-      { "title": "The Secret Keeper", "blurb": "Knows something about everyone." },
-      { "title": "The Hype Person", "blurb": "Believes in the group more than the group does." }
+      { "trait": "doer", "title": "The Unofficial Leader", "blurb": "Nobody picked them. They picked themselves." },
+      { "trait": "wildcard", "title": "The Wildcard", "blurb": "Nobody can predict them, including them." },
+      { "trait": "planner", "title": "The Voice of Reason", "blurb": "Ignored in every crisis so far." },
+      { "trait": "carer", "title": "The Snack Keeper", "blurb": "Controls the supplies, and therefore the group." },
+      { "trait": "talker", "title": "The Secret Keeper", "blurb": "Knows something about everyone." },
+      { "trait": "risk", "title": "The Hype Person", "blurb": "Believes in the group more than the group does." }
     ],
     "relationships": [
       "{a} owes {b} a favour, and {b} brings it up a lot.",
@@ -19,6 +19,300 @@
     ]
   },
   "rounds": {
+    "secret": [
+      {
+        "title": "Something's missing",
+        "scene": "Your group has one night before the big event everyone came here for. Things are already going wrong, and each of you knows something the others don't.",
+        "briefs": [
+          {
+            "trait": "planner",
+            "secret": "You checked the budget. The group has enough money for tonight, but not for tomorrow.",
+            "prompt": "What do you do with this?",
+            "options": [
+              {
+                "text": "Tell everyone now",
+                "outcome": "{name} announced the money problem. Tonight's plans got a lot cheaper."
+              },
+              {
+                "text": "Quietly cut costs",
+                "outcome": "{name} quietly cancelled the fancy dinner reservation. Nobody knows why yet."
+              },
+              {
+                "text": "Keep some money aside for yourself",
+                "outcome": "{name} has a secret emergency fund. Just for {name}."
+              }
+            ]
+          },
+          {
+            "trait": "risk",
+            "secret": "You heard about a shortcut that saves a whole day, but it goes somewhere you've been told never to go.",
+            "prompt": "Do you take it?",
+            "options": [
+              {
+                "text": "Go alone, tonight",
+                "outcome": "{name} took the shortcut and came back with a story they won't fully tell."
+              },
+              {
+                "text": "Drag {someone} along",
+                "outcome": "{name} took {someone} down the shortcut. They made it, and now they share a secret."
+              },
+              {
+                "text": "Forget you heard it",
+                "outcome": "{name} ignored the shortcut. Safe, and slightly bored."
+              }
+            ]
+          },
+          {
+            "trait": "carer",
+            "secret": "There's only one comfortable bed left, and two people are exhausted.",
+            "prompt": "Who gets the bed?",
+            "pickPlayer": true,
+            "outcome": "{name} gave the good bed to {choice}. Somebody else slept on a pile of coats."
+          },
+          {
+            "trait": "doer",
+            "secret": "The one thing everyone needs for tomorrow is broken. You can fix it tonight, but only by using someone else's stuff.",
+            "prompt": "What's your call?",
+            "options": [
+              {
+                "text": "Fix it with {someone}'s stuff",
+                "outcome": "{name} fixed it using {someone}'s belongings. {someone} hasn't noticed yet."
+              },
+              {
+                "text": "Stay up all night improvising",
+                "outcome": "{name} pulled an all-nighter and built something held together with tape and hope."
+              },
+              {
+                "text": "Leave it for tomorrow",
+                "outcome": "{name} left it broken. Tomorrow-{name} will deal with it."
+              }
+            ]
+          },
+          {
+            "trait": "talker",
+            "secret": "A stranger offered you a big favour, if you vouch for them to the group.",
+            "prompt": "What do you do?",
+            "options": [
+              {
+                "text": "Take the deal",
+                "outcome": "{name} vouched for the stranger. The group has a new, very smiley member."
+              },
+              {
+                "text": "Play along, then back out",
+                "outcome": "{name} took the favour and never vouched. The stranger is furious."
+              },
+              {
+                "text": "Tell the group everything",
+                "outcome": "{name} told the group about the stranger, who has now vanished."
+              }
+            ]
+          },
+          {
+            "trait": "wildcard",
+            "secret": "You accidentally broke something that belongs to {someone}. Nobody saw.",
+            "prompt": "What do you do?",
+            "options": [
+              {
+                "text": "Confess right away",
+                "outcome": "{name} confessed to breaking {someone}'s thing. It was awkward, but honest."
+              },
+              {
+                "text": "Hide it and act normal",
+                "outcome": "{name} hid the evidence. {someone} is still looking for it."
+              },
+              {
+                "text": "Blame it on the stranger",
+                "outcome": "{name} blamed the stranger. It was very convincing."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "The offer",
+        "scene": "Morning. Someone important has shown up with an offer that could change everything for the group. Before the meeting, you each get a moment alone.",
+        "briefs": [
+          {
+            "trait": "talker",
+            "secret": "You overheard the visitor say the offer is only for one person, not the whole group.",
+            "prompt": "How do you play this?",
+            "options": [
+              {
+                "text": "Tell the group",
+                "outcome": "{name} told everyone the offer was for one person. The room got very tense."
+              },
+              {
+                "text": "Quietly pitch yourself",
+                "outcome": "{name} pulled the visitor aside and pitched themselves. Hard."
+              },
+              {
+                "text": "Pitch {someone} instead",
+                "outcome": "{name} recommended {someone} for the offer. {someone} has no idea."
+              }
+            ]
+          },
+          {
+            "trait": "planner",
+            "secret": "You read the fine print. The offer comes with a catch nobody else has noticed.",
+            "prompt": "What do you do?",
+            "options": [
+              {
+                "text": "Point out the catch",
+                "outcome": "{name} found the catch, and the visitor looked very uncomfortable."
+              },
+              {
+                "text": "Keep it to yourself",
+                "outcome": "{name} said nothing about the catch. Somebody is going to find out the hard way."
+              }
+            ]
+          },
+          {
+            "trait": "doer",
+            "secret": "The visitor wants an answer by lunch. Somebody has to decide, and everyone is looking at you.",
+            "prompt": "What's your answer?",
+            "options": [
+              {
+                "text": "Yes, let's do it",
+                "outcome": "{name} said yes on everyone's behalf. Bold."
+              },
+              {
+                "text": "No, we're fine",
+                "outcome": "{name} turned the offer down. The visitor left looking insulted."
+              },
+              {
+                "text": "Stall for more time",
+                "outcome": "{name} stalled so well the visitor forgot what they were offering."
+              }
+            ]
+          },
+          {
+            "trait": "carer",
+            "secret": "One person in the group is clearly struggling and hasn't told anyone.",
+            "prompt": "Who do you check on?",
+            "pickPlayer": true,
+            "outcome": "{name} checked on {choice}, who was either very touched or very confused."
+          },
+          {
+            "trait": "risk",
+            "secret": "You could sneak a look at the visitor's bag while they're distracted.",
+            "prompt": "Do you look?",
+            "options": [
+              {
+                "text": "Look. Obviously.",
+                "outcome": "{name} looked in the bag and found something they can't stop thinking about."
+              },
+              {
+                "text": "Leave it",
+                "outcome": "{name} left the bag alone. Unusually restrained."
+              }
+            ]
+          },
+          {
+            "trait": "wildcard",
+            "secret": "You have a feeling you've met the visitor before, but you can't remember where.",
+            "prompt": "What do you do?",
+            "options": [
+              {
+                "text": "Ask them in front of everyone",
+                "outcome": "{name} asked the visitor where they'd met in front of everyone. Deeply awkward."
+              },
+              {
+                "text": "Pretend you know them well",
+                "outcome": "{name} greeted the visitor like an old friend. The visitor played along."
+              },
+              {
+                "text": "Ask {someone} if they remember",
+                "outcome": "{name} and {someone} are now investigating the visitor together."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "The final night",
+        "scene": "It's the last night. Everything the group did so far is catching up with you, and there's one last chance to get things right. Each of you holds one piece of the ending.",
+        "briefs": [
+          {
+            "trait": "doer",
+            "secret": "Someone has to stay behind and finish the job while everyone else celebrates.",
+            "prompt": "Who stays behind?",
+            "pickPlayer": true,
+            "outcome": "{name} decided {choice} would stay behind. {choice} will be bringing this up for years."
+          },
+          {
+            "trait": "planner",
+            "secret": "You have a backup plan nobody knows about, but it only works for some of the group.",
+            "prompt": "What do you do?",
+            "options": [
+              {
+                "text": "Share the backup plan",
+                "outcome": "{name} shared the backup plan. It half-worked, which is better than usual."
+              },
+              {
+                "text": "Keep it for yourself",
+                "outcome": "{name} kept their backup plan secret. Just in case."
+              }
+            ]
+          },
+          {
+            "trait": "carer",
+            "secret": "There's one last thank-you gift to hand out.",
+            "prompt": "Who gets it?",
+            "pickPlayer": true,
+            "outcome": "{name} gave the last gift to {choice}. Everyone else has opinions."
+          },
+          {
+            "trait": "risk",
+            "secret": "You could end the night with one huge, reckless gesture.",
+            "prompt": "Do it?",
+            "options": [
+              {
+                "text": "Go big",
+                "outcome": "{name} went big. Nobody will ever forget it, for better or worse."
+              },
+              {
+                "text": "Play it safe",
+                "outcome": "{name} played it safe for once. The group is still in shock."
+              }
+            ]
+          },
+          {
+            "trait": "talker",
+            "secret": "You get to give the final speech. You could say something nice or tell the truth about someone.",
+            "prompt": "What do you say?",
+            "options": [
+              {
+                "text": "Something heartfelt",
+                "outcome": "{name} gave a heartfelt speech. Two people cried."
+              },
+              {
+                "text": "Roast {someone}",
+                "outcome": "{name} roasted {someone} in the final speech. It was brutal and hilarious."
+              },
+              {
+                "text": "Reveal a secret",
+                "outcome": "{name} revealed a secret in the speech. The room went silent."
+              }
+            ]
+          },
+          {
+            "trait": "wildcard",
+            "secret": "You could leave without saying goodbye, and it would be very mysterious.",
+            "prompt": "What do you do?",
+            "options": [
+              {
+                "text": "Vanish mysteriously",
+                "outcome": "{name} vanished before the end. There is a note, and it's confusing."
+              },
+              {
+                "text": "Stay and hug everyone",
+                "outcome": "{name} stayed and hugged everyone. Twice."
+              }
+            ]
+          }
+        ]
+      }
+    ],
     "choice": [
       {
         "scene": "A mysterious door appears. A sign on it says 'ONE PERSON ONLY.'",

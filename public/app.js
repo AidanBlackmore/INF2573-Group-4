@@ -66,13 +66,16 @@ function hostBar(html) {
 }
 
 function waitingForHost(text = 'Waiting for the host…') {
-  return isHost() ? '' : `<p class="muted center">${esc(text)}</p>`;
+  if (isHost()) return '';
+  if (state.hostAway) return `<p class="muted center">${esc(nameOf(state.hostId))} (host) dropped out. Waiting for them to come back, or someone else takes over soon…</p>`;
+  return `<p class="muted center">${esc(text)}</p>`;
 }
 
 const ROUND_LABELS = {
   choice: 'Your choice',
   vote_player: 'Group vote',
   predict: 'Prediction',
+  secret: 'Secret decisions',
 };
 
 // ---------- screens ----------
@@ -129,6 +132,34 @@ function renderWorld() {
     ${hostBar(`<button class="primary" data-action="lockWorld" ${Object.keys(votes).length ? '' : 'disabled'}>Lock in the top world</button>`)}`;
 }
 
+function renderQuiz() {
+  const { questions, yourAnswers, doneIds } = state.quiz;
+  const answered = Object.keys(yourAnswers).length;
+  const waiting = state.players.filter((p) => p.connected && !doneIds.includes(p.id));
+  return `
+    <p class="tag">${esc(state.world.emoji)} ${esc(state.world.name)} · Casting</p>
+    <h1>Who's who?</h1>
+    <p class="muted">Before the Game Master hands out roles: who in this group fits each description? Your votes decide everyone's role. You can vote for yourself.</p>
+    ${questions.map((q, i) => `
+      <div class="card ${q.id in yourAnswers ? '' : 'highlight'}">
+        <p class="tag">${i + 1} of ${questions.length}</p>
+        <p><strong>${esc(q.question)}</strong></p>
+        <div class="choices">${state.players.map((p) => `<button class="chip ${yourAnswers[q.id] === p.id ? 'selected' : ''}" data-action="quizVote" data-trait="${esc(q.id)}" data-value="${esc(p.id)}">${esc(p.name)}${p.id === state.you ? ' <span class="muted">(you)</span>' : ''}</button>`).join('')}</div>
+      </div>`).join('')}
+    <p class="muted small center">${answered === questions.length ? 'All done. You can still change your votes until everyone finishes.' : `${answered} of ${questions.length} answered`}</p>
+    <p class="small">${waiting.length ? `Still voting: ${waiting.map((p) => `<span class="pill">${esc(p.name)}</span>`).join('')}` : ''}</p>
+    ${hostBar(`<button data-action="forceQuiz">Cast roles now (don't wait)</button>`)}`;
+}
+
+// "The group voted you: Gets things done (3 of 4 votes)"
+function traitLine(pid) {
+  const t = state.traits && state.traits[pid];
+  if (!t) return '';
+  return t.votes
+    ? `🗳️ The group says: <strong>${esc(t.label)}</strong> <span class="muted">(${t.votes} of ${t.of} votes)</span>`
+    : `🗳️ The group couldn't pin ${pid === state.you ? 'you' : 'them'} down, so: <strong>${esc(t.label)}</strong>`;
+}
+
 function renderLoading() {
   return `<div class="spinner"></div><p class="center">${esc(state.loadingText || 'Loading…')}</p>`;
 }
@@ -141,14 +172,15 @@ function renderRoles() {
     <p class="tag">${esc(state.world.emoji)} ${esc(state.world.name)}</p>
     <p class="scene">${esc(cast.intro)}</p>
     <div class="card highlight">
-      <p class="tag">You are</p>
+      <p class="small">${traitLine(state.you)}</p>
+      <p class="tag">So you are</p>
       <h2 style="margin-top:4px">${esc(mine.title)}</h2>
       <p>${esc(mine.blurb)}</p>
     </div>
     <p class="muted small">Take turns reading your role out loud.</p>
     <h2>The cast</h2>
     ${state.players.filter((p) => p.id !== state.you).map((p) => `
-      <div class="card"><strong>${esc(p.name)}</strong>: ${esc(cast.roles[p.id].title)}<br><span class="muted small">${esc(cast.roles[p.id].blurb)}</span></div>`).join('')}
+      <div class="card"><strong>${esc(p.name)}</strong>: ${esc(cast.roles[p.id].title)}<br><span class="muted small">${esc(cast.roles[p.id].blurb)}</span>${traitLine(p.id) ? `<p class="small" style="margin-bottom:0">${traitLine(p.id)}</p>` : ''}</div>`).join('')}
     ${rels.length ? `<h2>Relationships</h2>${rels.map((r) => `<div class="card ${r.from === state.you || r.to === state.you ? 'highlight' : ''}">${esc(r.text)}</div>`).join('')}` : ''}
     ${hostBar('<button class="primary" data-action="next">Start round 1</button>')}
     ${waitingForHost()}`;
@@ -158,11 +190,34 @@ function roundHeader(r) {
   const reader = r.readerId === state.you
     ? '📣 <strong>You</strong> read this one out loud!'
     : `📣 <strong>${esc(nameOf(r.readerId))}</strong> reads this one out loud`;
+  if (r.type === 'secret') {
+    return `
+      <p class="tag">Chapter ${r.number} of ${state.totalRounds} · ${esc(r.title)}</p>
+      ${r.previously.length ? `<div class="card"><p class="tag">Because of your last choices</p>${r.previously.map((o) => `<p class="small">→ ${esc(o)}</p>`).join('')}</div>` : ''}
+      <div class="reader">${reader}</div>
+      <p class="scene">${esc(r.scene)}</p>`;
+  }
   return `
     <p class="tag">Round ${r.number} of ${state.totalRounds} · ${esc(ROUND_LABELS[r.type] || r.type)}</p>
     <div class="reader">${reader}</div>
     <p class="scene">${esc(r.scene)}</p>
     <p class="prompt">${esc(r.prompt)}</p>`;
+}
+
+// Your private brief: only you see this until the reveal.
+function renderSecretAnswering(r) {
+  if (!r.brief) return '<p class="muted">You joined after this chapter was written. Sit this one out.</p>';
+  return `
+    <div class="card secret">
+      <p class="tag">🤫 Only you know this. Don't show your screen.</p>
+      <p>${esc(r.brief.secret)}</p>
+    </div>
+    <p class="prompt">${esc(r.brief.prompt)}</p>
+    <div class="stack">
+      ${r.options.map((o) => `<button class="${r.yourAnswer === o.id ? 'selected' : ''}" data-action="answer" data-value="${esc(o.id)}">${esc(o.text)}${r.brief.pickPlayer && o.id === state.you ? ' <span class="muted">(you)</span>' : ''}</button>`).join('')}
+    </div>
+    <p class="small" style="margin-top:14px">Why? <span class="muted">(optional, shown to everyone at the reveal)</span></p>
+    <input id="reason" data-keep maxlength="120" placeholder="Because…" autocomplete="off">`;
 }
 
 function renderAnswering() {
@@ -175,6 +230,14 @@ function renderAnswering() {
       : `<div class="card">🔮 Predict what <strong>${esc(nameOf(r.targetId))}</strong> will pick. They're answering for real.</div>`;
   } else if (r.type === 'vote_player') {
     instruction = '<p class="muted small">Vote for anyone, even yourself.</p>';
+  }
+  if (r.type === 'secret') {
+    return `
+      ${roundHeader(r)}
+      ${renderSecretAnswering(r)}
+      <p class="muted small center">${r.yourAnswer ? 'Locked in. You can still change it until everyone has decided.' : ''}</p>
+      <p class="small">${waiting.length ? `Still deciding: ${waiting.map((p) => `<span class="pill">${esc(p.name)}</span>`).join('')}` : ''}</p>
+      ${hostBar(`<button data-action="forceReveal">Reveal now (don't wait)</button>`)}`;
   }
   return `
     ${roundHeader(r)}
@@ -251,25 +314,55 @@ function renderReactions(r) {
   ids.sort((a, b) => (a === state.you) - (b === state.you));
   return `
     <h2>React</h2>
-    ${ids.map((pid) => {
-      const byReactor = (r.reactions && r.reactions[pid]) || {};
-      const count = (e) => Object.values(byReactor).filter((x) => x === e).length;
-      const yours = byReactor[state.you];
-      const own = pid === state.you;
-      const buttons = r.reactionEmojis.map((e) => {
-        const c = count(e);
-        if (own) return c ? `<span class="pill">${e} ${c}</span>` : '';
-        return `<button class="emoji ${yours === e ? 'selected' : ''}" data-action="react" data-target="${esc(pid)}" data-value="${e}">${e}${c ? `<small>${c}</small>` : ''}</button>`;
-      }).join('');
-      return `<div class="card">
-        <strong>${own ? 'You' : esc(nameOf(pid))}</strong> <span class="names">${esc(answerLabel(r, pid))}</span>
-        <div class="emoji-row">${buttons || (own ? '<span class="muted small">No reactions yet</span>' : '')}</div>
-      </div>`;
-    }).join('')}`;
+    ${ids.map((pid) => `<div class="card">
+        <strong>${pid === state.you ? 'You' : esc(nameOf(pid))}</strong> <span class="names">${esc(answerLabel(r, pid))}</span>
+        ${emojiRow(r, pid)}
+      </div>`).join('')}`;
+}
+
+function emojiRow(r, pid) {
+  const byReactor = (r.reactions && r.reactions[pid]) || {};
+  const count = (e) => Object.values(byReactor).filter((x) => x === e).length;
+  const yours = byReactor[state.you];
+  const own = pid === state.you;
+  const buttons = r.reactionEmojis.map((e) => {
+    const c = count(e);
+    if (own) return c ? `<span class="pill">${e} ${c}</span>` : '';
+    return `<button class="emoji ${yours === e ? 'selected' : ''}" data-action="react" data-target="${esc(pid)}" data-value="${e}">${e}${c ? `<small>${c}</small>` : ''}</button>`;
+  }).join('');
+  return `<div class="emoji-row">${buttons || (own ? '<span class="muted small">No reactions yet</span>' : '')}</div>`;
+}
+
+// Secret reveal: one card per player, newest last, each with what they knew, did, why, and what happened.
+function renderSecretReveal(r) {
+  const cards = r.reveals.map((x, i) => `
+    <div class="card reveal-card ${i === r.reveals.length - 1 ? 'highlight' : ''}">
+      <p class="tag">${x.playerId === state.you ? 'You' : esc(nameOf(x.playerId))} · ${esc(state.cast.roles[x.playerId].title)}</p>
+      <p class="small">🤫 <em>${esc(x.secret)}</em></p>
+      <p class="small muted">${esc(x.prompt)}</p>
+      ${x.answered ? `<p class="prompt" style="margin:6px 0">${esc(x.choice)}</p>` : '<p><strong>Didn\'t decide in time.</strong></p>'}
+      ${x.reason ? `<p>💬 "${esc(x.reason)}"</p>` : ''}
+      ${x.outcome ? `<p class="small">→ ${esc(x.outcome)}</p>` : ''}
+      ${x.answered ? emojiRow(r, x.playerId) : ''}
+    </div>`).join('');
+  const next = r.nextRevealId
+    ? `<p class="muted center">${r.reveals.length ? 'Next up' : 'First up'}: <strong>${esc(r.nextRevealId === state.you ? 'you' : nameOf(r.nextRevealId))}</strong>. Ask them why before you react.</p>`
+    : '';
+  return cards + next;
 }
 
 function renderReveal() {
   const r = state.round;
+  if (r.type === 'secret') {
+    return `
+      <p class="tag">Chapter ${r.number} of ${state.totalRounds} · ${esc(r.title)} · The reveal</p>
+      <p class="scene">${esc(r.scene)}</p>
+      ${renderSecretReveal(r)}
+      ${hostBar(r.allRevealed
+        ? `<button class="primary" data-action="next">${r.isLast ? 'See the recap' : 'Next chapter'}</button>`
+        : `<button class="primary" data-action="revealNext">Reveal ${esc(r.nextRevealId === state.you ? 'your' : `${nameOf(r.nextRevealId)}'s`)} decision</button>`)}
+      ${waitingForHost()}`;
+  }
   return `
     <p class="tag">Round ${r.number} of ${state.totalRounds} · Results</p>
     <p class="prompt">${esc(r.prompt)}</p>
@@ -292,6 +385,7 @@ function renderRecap() {
       const awards = stats.awards.filter((a) => a.playerIds.includes(p.id));
       return `<div class="card ${p.id === state.you ? 'highlight' : ''}">
         <strong>${esc(p.name)}</strong> <span class="muted small">(${esc(state.cast.roles[p.id].title)})</span>
+        ${state.traits ? `<br><span class="small muted">${esc(state.traits[p.id].label)}</span>` : ''}
         ${stats.signature[p.id] ? `<span style="float:right" title="Most-received reaction">${stats.signature[p.id].emoji}×${stats.signature[p.id].count}</span>` : ''}
         ${t ? `<h3 style="margin:6px 0 2px">🏆 ${esc(t.title)}</h3>${t.reason ? `<p class="small">${esc(t.reason)}</p>` : ''}` : ''}
         ${stats.seenAs[p.id].map((v) => `<p class="small">🗳️ ${esc(v.prompt)} <strong>${v.votes}/${v.of}</strong></p>`).join('')}
@@ -300,13 +394,14 @@ function renderRecap() {
     }).join('')}
     ${gm.memories.length ? `<h2>Memories</h2>${gm.memories.map((m) => `<div class="card">💬 ${esc(m)}</div>`).join('')}` : ''}
     <h2>Key moments</h2>
-    ${stats.moments.map((m) => `<div class="card"><p class="tag">Round ${m.round}</p><strong>${esc(m.prompt)}</strong><p class="small">${esc(m.outcome)}</p></div>`).join('')}
+    ${stats.moments.map((m) => `<div class="card"><p class="tag">${m.type === 'secret' ? 'Chapter' : 'Round'} ${m.round}</p><strong>${esc(m.prompt)}</strong>${m.lines ? m.lines.map((l) => `<p class="small">→ ${esc(l)}</p>`).join('') : `<p class="small">${esc(m.outcome)}</p>`}</div>`).join('')}
     ${hostBar('<button class="primary" data-action="playAgain">Play again (same group)</button>')}`;
 }
 
 const SCREENS = {
   lobby: renderLobby,
   world: renderWorld,
+  quiz: renderQuiz,
   loading: renderLoading,
   roles: renderRoles,
   answering: renderAnswering,
@@ -319,10 +414,28 @@ function render() {
     $app.innerHTML = renderHome();
     return;
   }
+  // State pushes re-render the whole screen; keep whatever the player is typing.
+  const kept = [...document.querySelectorAll('[data-keep]')].map((el) => ({ id: el.id, value: el.value, focused: el === document.activeElement, pos: el.selectionStart }));
   const screen = SCREENS[state.phase];
   const footer = `<div class="footer">Room ${esc(state.code)} · you are ${esc(me() ? me().name : '?')}${state.gmSource ? ` · GM: ${esc(state.gmSource)}` : ''}
     <br><button class="link" data-action="leave">Leave game</button></div>`;
   $app.innerHTML = (screen ? screen() : `<p>Unknown phase: ${esc(state.phase)}</p>`) + footer;
+  for (const k of kept) {
+    const el = document.getElementById(k.id);
+    if (!el) continue;
+    el.value = k.value;
+    if (k.focused) { el.focus(); el.setSelectionRange(k.pos, k.pos); }
+  }
+  // Bring each newly revealed decision into view (it's added at the bottom).
+  const revealKey = state.phase === 'reveal' && state.round && state.round.reveals ? `${state.round.number}:${state.round.reveals.length}` : null;
+  if (revealKey && revealKey !== render.lastReveal && state.round.reveals.length) {
+    const cards = $app.querySelectorAll('.reveal-card');
+    cards[cards.length - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  render.lastReveal = revealKey;
+  // First render of a secret round: prefill the reason you already sent (e.g. after a reload).
+  const reason = document.getElementById('reason');
+  if (reason && !kept.some((k) => k.id === 'reason') && state.round) reason.value = state.round.yourReason || '';
 }
 
 // ---------- input ----------
@@ -346,12 +459,27 @@ const ACTIONS = {
   voteWorld: (v) => send('voteWorld', { worldId: v }),
   lockWorld: () => send('lockWorld'),
   next: () => send('next'),
-  answer: (v) => send('answer', { value: v }),
+  answer: (v) => send('answer', { value: v, reason: reasonText() }),
+  quizVote: (v, btn) => send('quizAnswer', { traitId: btn.dataset.trait, playerId: v }),
+  forceQuiz: () => send('forceQuiz'),
+  revealNext: () => send('revealNext'),
   react: (v, btn) => send('react', { targetId: btn.dataset.target, emoji: v }),
   forceReveal: () => send('forceReveal'),
   revealVoters: () => send('revealVoters'),
   playAgain: () => send('playAgain'),
 };
+
+function reasonText() {
+  const el = document.getElementById('reason');
+  return el ? el.value : undefined;
+}
+
+// Editing your reason after choosing re-sends the answer so the reason is saved.
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'reason' && state && state.round && state.round.yourAnswer) {
+    send('answer', { value: state.round.yourAnswer, reason: e.target.value });
+  }
+});
 
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-action]');
