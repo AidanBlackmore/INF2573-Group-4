@@ -16,6 +16,25 @@ function optionText(round, optionId) {
   return opt ? opt.text : '?';
 }
 
+// One player's part of a secret round: what only they knew, what they chose and why, and what it led to.
+function describeSecret(round, playerId) {
+  const brief = round.gm.briefs[playerId];
+  if (!brief) return null;
+  const value = round.answers[playerId];
+  const opt = brief.options.find((o) => o.id === value);
+  const outcomeTpl = opt ? (brief.pickPlayer ? brief.outcome : opt.outcome) : '';
+  const self = brief.pickPlayer && value === playerId; // "gave the last medicine to themselves"
+  return {
+    secret: brief.secret,
+    prompt: brief.prompt,
+    answered: Boolean(opt),
+    pickPlayer: brief.pickPlayer,
+    choice: opt ? (self ? `${opt.text} (themselves)` : opt.text) : '',
+    reason: (round.reasons && round.reasons[playerId]) || '',
+    outcome: opt && outcomeTpl ? outcomeTpl.replace(/\{choice\}/g, self ? 'themselves' : opt.text) : '',
+  };
+}
+
 function computeResult(round, players) {
   const answers = round.answers;
   switch (round.plan.type) {
@@ -45,6 +64,9 @@ function computeResult(round, players) {
       const correctIds = actual ? guessers.filter((pid) => answers[pid] === actual) : [];
       return { actual, guesserIds: guessers, correctIds };
     }
+    case 'secret':
+      // Everyone with a brief gets a turn in the reveal, in seating (join) order.
+      return { order: players.map((p) => p.id).filter((pid) => round.gm.briefs[pid]) };
     default:
       return {};
   }
@@ -57,6 +79,10 @@ function answerText(round, players, playerId) {
   switch (round.plan.type) {
     case 'vote_player': return value === playerId ? 'voted for themselves' : `voted for ${nameOf(players, value)}`;
     case 'predict': return playerId === round.plan.targetId ? `chose "${optionText(round, value)}"` : `guessed "${optionText(round, value)}"`;
+    case 'secret': {
+      const s = describeSecret(round, playerId);
+      return s.pickPlayer ? `picked ${s.choice}` : `chose "${s.choice}"`;
+    }
     default: return `chose "${optionText(round, value)}"`;
   }
 }
@@ -113,9 +139,15 @@ function describeOutcome(round, players) {
       if (wrong.length) text += ` Wrong: ${wrong.map((pid) => `${n(pid)} guessed "${optionText(round, round.answers[pid])}"`).join(', ')}.`;
       return text;
     }
+    case 'secret':
+      return r.order.map((pid) => {
+        const s = describeSecret(round, pid);
+        if (!s.answered) return `${n(pid)} knew "${s.secret}" but didn't decide in time.`;
+        return `${n(pid)} knew "${s.secret}" and chose "${s.choice}"${s.reason ? ` (why: "${s.reason}")` : ''}. Result: ${s.outcome || 'unknown'}`;
+      }).join(' ');
     default:
       return '';
   }
 }
 
-module.exports = { computeResult, describeRound, describeOutcome, nameOf, optionText, listNames, answerText, reactionSummary, emojiString };
+module.exports = { computeResult, describeRound, describeOutcome, describeSecret, nameOf, optionText, listNames, answerText, reactionSummary, emojiString };

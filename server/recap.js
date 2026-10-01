@@ -1,14 +1,21 @@
 // End-of-game stats, computed from what actually happened (no AI involved).
 // The GM only adds titles and flavour on top of these, so the recap works in mock mode
 // and can't invent moments that never happened.
-const { describeOutcome, nameOf, listNames, optionText, answerText, reactionSummary, emojiString } = require('./results');
+const { describeOutcome, describeSecret, nameOf, listNames, optionText, answerText, reactionSummary, emojiString } = require('./results');
 
 function computeStats(room) {
   const players = room.players;
   const played = room.rounds.filter((r) => r.result);
   const n = (id) => nameOf(players, id);
 
-  const moments = played.map((r, i) => ({ round: i + 1, type: r.plan.type, prompt: r.gm.prompt, outcome: describeOutcome(r, players) }));
+  const moments = played.map((r, i) => ({
+    round: i + 1,
+    type: r.plan.type,
+    prompt: r.gm.prompt,
+    outcome: describeOutcome(r, players),
+    // Secret rounds: what each decision led to, one line per player.
+    lines: r.plan.type === 'secret' ? r.result.order.map((pid) => describeSecret(r, pid).outcome).filter(Boolean) : undefined,
+  }));
   const awards = [];
   // Candidate "memories": weighted so the most inside-joke-worthy moments come first.
   const candidates = [];
@@ -87,6 +94,16 @@ function computeStats(room) {
   if (topCorrect > 0) {
     const ids = Object.keys(correct).filter((id) => correct[id] === topCorrect);
     awards.push({ label: 'Mind Reader', playerIds: ids, detail: `predicted ${topCorrect} of ${guesses[ids[0]]} right` });
+  }
+
+  // Secret decisions: what someone did with information only they had. A stated "why" makes it quotable.
+  for (const r of played.filter((r) => r.plan.type === 'secret')) {
+    const rn = played.indexOf(r);
+    for (const pid of r.result.order) {
+      const s = describeSecret(r, pid);
+      if (!s.answered) continue;
+      highlight(s.reason ? 3 : 2, `${n(pid)} was secretly told: "${s.secret}" ${s.pickPlayer ? `They picked ${s.choice}` : `They chose "${s.choice}"`}${s.reason ? `, because "${s.reason}"` : ''}.`, rn);
+    }
   }
 
   // Reactions: the answers that got the room going.

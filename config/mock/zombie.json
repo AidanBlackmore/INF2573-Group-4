@@ -2,12 +2,12 @@
   "setup": {
     "intro": "Day 12 of the outbreak. Your group has barricaded itself inside a suburban shopping mall. The food court is running low, and nobody trusts the escalators.",
     "roles": [
-      { "title": "The Self-Appointed Leader", "blurb": "Wrote a whiteboard of rules on day one. Nobody voted for this." },
-      { "title": "The Medic (Watched Grey's Anatomy Once)", "blurb": "Very confident. Holds the only first-aid kit." },
-      { "title": "The Scavenger", "blurb": "Knows where everything is in the mall and isn't telling." },
-      { "title": "The Morale Officer", "blurb": "Keeps spirits up with snacks and increasingly unhinged pep talks." },
-      { "title": "The Suspiciously Calm One", "blurb": "Hasn't panicked once. That's the problem." },
-      { "title": "The Ex-Influencer", "blurb": "Still filming everything. 'For the archive.'" }
+      { "trait": "doer", "title": "The Self-Appointed Leader", "blurb": "Wrote a whiteboard of rules on day one. Nobody voted for this." },
+      { "trait": "carer", "title": "The Medic (Watched Grey's Anatomy Once)", "blurb": "Very confident. Holds the only first-aid kit." },
+      { "trait": "risk", "title": "The Scavenger", "blurb": "Knows where everything is in the mall and isn't telling." },
+      { "trait": "talker", "title": "The Morale Officer", "blurb": "Keeps spirits up with snacks and increasingly unhinged pep talks." },
+      { "trait": "planner", "title": "The Suspiciously Calm One", "blurb": "Hasn't panicked once. That's the problem." },
+      { "trait": "wildcard", "title": "The Ex-Influencer", "blurb": "Still filming everything. 'For the archive.'" }
     ],
     "relationships": [
       "{a} saved {b} from a zombie on day 3 and brings it up constantly.",
@@ -19,6 +19,304 @@
     ]
   },
   "rounds": {
+    "secret": [
+      {
+        "title": "Running on empty",
+        "scene": "Night falls on day 12. The food court shutters rattle, and everyone goes quiet over dinner. Each of you knows something the others don't.",
+        "briefs": [
+          {
+            "trait": "planner",
+            "secret": "You counted the stockroom. There is food for three more days, not the two weeks everyone thinks.",
+            "prompt": "What do you do with this?",
+            "options": [
+              {
+                "text": "Tell everyone tonight",
+                "outcome": "{name} announced the food count. Dinner portions were halved on the spot."
+              },
+              {
+                "text": "Quietly start rationing everyone",
+                "outcome": "{name} secretly shrank everyone's portions. People are hungry and don't know why."
+              },
+              {
+                "text": "Hide a private stash first",
+                "outcome": "{name} now has a hidden stash of crackers behind the vending machine."
+              }
+            ]
+          },
+          {
+            "trait": "risk",
+            "secret": "You found a map to a warehouse full of supplies. The only route goes through the zombie-filled parking garage.",
+            "prompt": "Do you go?",
+            "options": [
+              {
+                "text": "Go alone, tonight",
+                "outcome": "{name} came back at dawn with a trolley of tinned beans and a torn jacket."
+              },
+              {
+                "text": "Recruit {someone} to come with you",
+                "outcome": "{name} dragged {someone} through the garage. They got supplies and a new mutual grudge."
+              },
+              {
+                "text": "Burn the map. Too risky.",
+                "outcome": "{name} burned the map. Nobody will ever know it existed."
+              }
+            ]
+          },
+          {
+            "trait": "carer",
+            "secret": "There is exactly one dose of antibiotics left, and two people have a fever.",
+            "prompt": "Who gets the last dose?",
+            "pickPlayer": true,
+            "outcome": "{name} gave the last dose to {choice}. The other patient is still coughing."
+          },
+          {
+            "trait": "doer",
+            "secret": "The back door barricade is failing. You can fix it tonight, but it means using the wood from everyone's beds.",
+            "prompt": "What's your call?",
+            "options": [
+              {
+                "text": "Take the beds. Safety first.",
+                "outcome": "{name} dismantled every bed. The door holds. Everyone slept on the floor."
+              },
+              {
+                "text": "Patch it with mannequins",
+                "outcome": "{name} built a mannequin wall. It is terrifying and only mostly works."
+              },
+              {
+                "text": "Leave it and hope",
+                "outcome": "{name} left the door. Something was scratching at it all night."
+              }
+            ]
+          },
+          {
+            "trait": "talker",
+            "secret": "A rival group radioed you privately. They'll trade medicine for the location of your mall.",
+            "prompt": "What do you tell them?",
+            "options": [
+              {
+                "text": "Take the deal",
+                "outcome": "{name} made a deal. Medicine is coming, and so are strangers who know where you live."
+              },
+              {
+                "text": "Give them a fake address",
+                "outcome": "{name} sent the rival group to an empty car wash. They will not be happy."
+              },
+              {
+                "text": "Keep chatting and learn more",
+                "outcome": "{name} is now on friendly terms with the rival group's radio operator."
+              }
+            ]
+          },
+          {
+            "trait": "wildcard",
+            "secret": "You were scratched by something in the stockroom this afternoon. Probably a shelf. Probably.",
+            "prompt": "What do you do?",
+            "options": [
+              {
+                "text": "Confess to the group",
+                "outcome": "{name} admitted the scratch. Everyone keeps glancing at them."
+              },
+              {
+                "text": "Hide it under a long sleeve",
+                "outcome": "{name} is wearing a long sleeve in 30 degree heat. Nobody has asked. Yet."
+              },
+              {
+                "text": "Blame the scratch on {someone}",
+                "outcome": "{name} told everyone {someone} scratched them. {someone} is very confused."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Strangers at the gate",
+        "scene": "Morning. A group of strangers is waiting at the mall entrance, waving a white shirt. Everyone is summoned to the atrium, but first you each have a moment alone.",
+        "briefs": [
+          {
+            "trait": "talker",
+            "secret": "You recognise one of the strangers. They robbed a pharmacy with you before the outbreak.",
+            "prompt": "How do you play this?",
+            "options": [
+              {
+                "text": "Vouch for them loudly",
+                "outcome": "{name} vouched for the strangers. The group let them in, trusting {name}."
+              },
+              {
+                "text": "Pretend you've never met",
+                "outcome": "{name} pretended not to know them. The stranger winked at {name} anyway."
+              },
+              {
+                "text": "Warn the group about them",
+                "outcome": "{name} exposed the stranger's past, and a bit of their own by accident."
+              }
+            ]
+          },
+          {
+            "trait": "planner",
+            "secret": "The strangers' truck outside has a full fuel tank. With it, the group could reach the army base.",
+            "prompt": "What's your plan?",
+            "options": [
+              {
+                "text": "Negotiate for the truck",
+                "outcome": "{name} traded half the canned food for the truck keys."
+              },
+              {
+                "text": "Steal the keys at night",
+                "outcome": "{name} pocketed the truck keys while everyone slept."
+              },
+              {
+                "text": "Say nothing and wait",
+                "outcome": "{name} kept the truck a secret. The strangers still have it."
+              }
+            ]
+          },
+          {
+            "trait": "doer",
+            "secret": "Only you have the key to the gate. Whatever happens, it's your hand that opens it or doesn't.",
+            "prompt": "Do you open the gate?",
+            "options": [
+              {
+                "text": "Open it",
+                "outcome": "{name} opened the gate. The mall just got a lot more crowded."
+              },
+              {
+                "text": "Keep it locked",
+                "outcome": "{name} kept the gate shut. The strangers left, shouting insults."
+              },
+              {
+                "text": "Open it for supplies only",
+                "outcome": "{name} traded through the bars. Nobody got in, but everyone got socks."
+              }
+            ]
+          },
+          {
+            "trait": "carer",
+            "secret": "One of the strangers is a child, and they look sick.",
+            "prompt": "Who do you ask to help you care for the child?",
+            "pickPlayer": true,
+            "outcome": "{name} brought the sick child inside and put {choice} in charge of looking after them."
+          },
+          {
+            "trait": "risk",
+            "secret": "You could sneak out the back while everyone is distracted and scout the strangers' camp.",
+            "prompt": "Do you go?",
+            "options": [
+              {
+                "text": "Go. Now.",
+                "outcome": "{name} found the strangers' camp and a whole crate of chocolate."
+              },
+              {
+                "text": "Stay and watch the group",
+                "outcome": "{name} stayed behind and kept an eye on everyone. Very closely."
+              }
+            ]
+          },
+          {
+            "trait": "wildcard",
+            "secret": "Your scratch from last night is itching. Your hands are shaking a bit.",
+            "prompt": "What do you do?",
+            "options": [
+              {
+                "text": "Lock yourself in the photo booth",
+                "outcome": "{name} spent the morning in the photo booth. There are 400 very dramatic photos."
+              },
+              {
+                "text": "Act totally normal",
+                "outcome": "{name} acted normal. Suspiciously normal."
+              },
+              {
+                "text": "Ask {someone} to keep an eye on you",
+                "outcome": "{name} confided in {someone}, who now has to watch them sleep."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "The last night",
+        "scene": "The horde is coming. There's a van with space for everyone, but the route out is blocked, and each of you controls a piece of the escape.",
+        "briefs": [
+          {
+            "trait": "doer",
+            "secret": "The van only starts if someone stays behind to hold the loading bay door for thirty seconds.",
+            "prompt": "Who holds the door?",
+            "pickPlayer": true,
+            "outcome": "{name} decided {choice} would hold the door. They made it into the van with one second to spare."
+          },
+          {
+            "trait": "planner",
+            "secret": "You know a second exit through the sewer. It's safe, but it only fits a few people and it smells unbelievable.",
+            "prompt": "What do you do?",
+            "options": [
+              {
+                "text": "Tell everyone about the sewer",
+                "outcome": "{name} revealed the sewer. Half the group took it and have not stopped complaining."
+              },
+              {
+                "text": "Keep it as your own backup",
+                "outcome": "{name} kept the sewer to themselves, just in case."
+              }
+            ]
+          },
+          {
+            "trait": "carer",
+            "secret": "The van only has room for one bag of supplies.",
+            "prompt": "Whose bag makes it?",
+            "pickPlayer": true,
+            "outcome": "{name} chose {choice}'s bag. Everyone else lost their stuff, including a very beloved pillow."
+          },
+          {
+            "trait": "risk",
+            "secret": "You could lure the horde away by running through the food court with the karaoke machine blasting.",
+            "prompt": "Do it?",
+            "options": [
+              {
+                "text": "Absolutely. Play the ballad.",
+                "outcome": "{name} ran through the mall blasting a power ballad. The horde followed. Legendary."
+              },
+              {
+                "text": "No. Get in the van.",
+                "outcome": "{name} got in the van and sensibly buckled up."
+              }
+            ]
+          },
+          {
+            "trait": "talker",
+            "secret": "The rival group is on the radio again, offering to cover your escape if you owe them one favour, unspecified.",
+            "prompt": "What do you say?",
+            "options": [
+              {
+                "text": "Accept the favour",
+                "outcome": "{name} accepted. The group now owes a mysterious favour to strangers."
+              },
+              {
+                "text": "Refuse politely",
+                "outcome": "{name} said no thanks. The rival group sounded hurt."
+              },
+              {
+                "text": "Promise them {someone}'s services",
+                "outcome": "{name} volunteered {someone} for the favour without asking."
+              }
+            ]
+          },
+          {
+            "trait": "wildcard",
+            "secret": "Your hand has stopped shaking. You feel fine. Actually, you feel great.",
+            "prompt": "Get in the van?",
+            "options": [
+              {
+                "text": "Get in and say nothing",
+                "outcome": "{name} got in the van, grinning. Nobody has sat next to them since."
+              },
+              {
+                "text": "Stay behind, just in case",
+                "outcome": "{name} waved the van goodbye from the roof. A hero, or a future zombie."
+              }
+            ]
+          }
+        ]
+      }
+    ],
     "choice": [
       {
         "scene": "A voice on the radio promises safety at an army base 40 km away. The catch: you'd have to leave the mall tonight.",

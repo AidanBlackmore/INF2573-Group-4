@@ -77,3 +77,6 @@ button.link { background: none; border: none; color: var(--muted); text-decorati
 .emoji-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
 button.emoji { width: auto; min-width: 42px; min-height: 44px; padding: 4px 6px; font-size: 1.3rem; text-align: center; }
 button.emoji small { font-size: 0.8rem; margin-left: 3px; vertical-align: middle; }
+.choices { display: flex; flex-wrap: wrap; gap: 8px; }
+button.chip { width: auto; min-height: 44px; padding: 6px 14px; text-align: center; }
+.card.secret { border: 2px dashed var(--accent); }

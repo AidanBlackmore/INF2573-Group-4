@@ -71,11 +71,14 @@ io.on('connection', (socket) => {
   on('start', (_, room, pid) => rooms.start(room, pid));
   on('voteWorld', ({ worldId }, room, pid) => rooms.voteWorld(room, pid, worldId));
   on('lockWorld', (_, room, pid) => rooms.lockWorld(room, pid));
+  on('quizAnswer', ({ traitId, playerId }, room, pid) => rooms.quizAnswer(room, pid, traitId, playerId));
+  on('forceQuiz', (_, room, pid) => rooms.forceQuiz(room, pid));
   on('next', (_, room, pid) => rooms.nextRound(room, pid));
-  on('answer', ({ value }, room, pid) => rooms.answer(room, pid, value));
+  on('answer', ({ value, reason }, room, pid) => rooms.answer(room, pid, value, reason));
   on('forceReveal', (_, room, pid) => rooms.forceReveal(room, pid));
   on('react', ({ targetId, emoji }, room, pid) => rooms.react(room, pid, targetId, emoji));
   on('revealVoters', (_, room, pid) => rooms.revealVoters(room, pid));
+  on('revealNext', (_, room, pid) => rooms.revealNext(room, pid));
   on('playAgain', (_, room, pid) => rooms.playAgain(room, pid));
 
   socket.on('disconnect', () => {

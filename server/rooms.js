@@ -1,14 +1,16 @@
 // In-memory rooms and the game's phase machine. This is the only file that changes game state.
 //
-// Phases: lobby -> world -> loading -> roles -> (answering -> reveal) x N -> recap
+// Phases: lobby -> world -> quiz -> loading -> roles -> (answering -> reveal) x N -> recap
 const crypto = require('crypto');
 const config = require('./config');
 const gm = require('./gm');
-const { computeResult, describeRound } = require('./results');
+const { computeResult, describeRound, describeSecret } = require('./results');
 const { computeStats } = require('./recap');
 
 const rooms = new Map();
 const CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // no I/O, easy to read aloud
+// How long a disconnected host keeps the crown, so a reload or a sleeping phone doesn't cost it.
+const HOST_GRACE_MS = Number(process.env.HOST_GRACE_MS ?? 30000);
 
 class GameError extends Error {}
 const bad = (msg) => { throw new GameError(msg); };
@@ -38,6 +40,9 @@ function createRoom(name) {
     worldVotes: {},
     world: null,
     players: [],
+    quizAnswers: {}, // voterId -> { traitId: votedPlayerId }
+    traits: null, // playerId -> the quiz trait their role is built on
+    quizTallies: null,
     cast: null,
     plan: null,
     rounds: [],
@@ -85,15 +90,30 @@ function setConnected(room, playerId, connected) {
   const p = room.players.find((pl) => pl.id === playerId);
   if (!p) return;
   p.connected = connected;
-  // If the host drops, hand control to the next connected player.
   if (!connected && room.hostId === playerId) {
-    const next = room.players.find((pl) => pl.connected);
-    if (next) room.hostId = next.id;
-  } else if (connected && !room.players.some((pl) => pl.connected && pl.id === room.hostId)) {
-    room.hostId = playerId;
+    // If the host drops, wait a little before handing control to the next connected player.
+    clearTimeout(room.hostTimer);
+    room.hostTimer = setTimeout(() => handOverHost(room), HOST_GRACE_MS);
+    room.hostTimer.unref();
+  } else if (connected && room.hostId === playerId) {
+    clearTimeout(room.hostTimer); // the host came back in time
+    room.hostTimer = null;
+  } else if (connected && !room.hostTimer && !room.players.some((pl) => pl.connected && pl.id === room.hostId)) {
+    room.hostId = playerId; // nobody is hosting (e.g. everyone had dropped)
   }
-  // A dropped player shouldn't block the round.
+  // A dropped player shouldn't block the round or the quiz.
   if (room.phase === 'answering' && everyoneAnswered(room)) reveal(room);
+  if (room.phase === 'quiz' && everyoneDoneQuiz(room)) finishQuiz(room);
+}
+
+function handOverHost(room) {
+  room.hostTimer = null;
+  if (room.players.some((pl) => pl.connected && pl.id === room.hostId)) return;
+  const next = room.players.find((pl) => pl.connected);
+  if (next) {
+    room.hostId = next.id;
+    changed(room);
+  }
 }
 
 // ---------- helpers ----------
@@ -129,6 +149,8 @@ function gmContext(room, extra = {}) {
   return {
     world: room.world,
     players: room.players.map(({ id, name }) => ({ id, name })),
+    traits: room.traits,
+    quizTallies: room.quizTallies,
     cast: room.cast,
     history: history(room),
     ...extra,
@@ -186,6 +208,72 @@ function lockWorld(room, playerId) {
   if (!chosen) bad('Vote for a world first.');
   room.world = config.world(chosen);
   room.plan = config.roundPlan();
+  room.quizAnswers = {};
+  room.phase = 'quiz';
+}
+
+// ---------- casting quiz: "who in the group is most...?" decides everyone's role ----------
+
+function everyoneDoneQuiz(room) {
+  const traits = config.quiz().traits;
+  return connectedPlayers(room).every((p) => traits.every((t) => room.quizAnswers[p.id] && t.id in room.quizAnswers[p.id]));
+}
+
+function quizAnswer(room, playerId, traitId, votedId) {
+  requirePhase(room, 'quiz');
+  if (!config.quiz().traits.some((t) => t.id === traitId)) bad('Unknown question.');
+  if (!room.players.some((p) => p.id === votedId)) bad('Unknown player.');
+  (room.quizAnswers[playerId] ||= {})[traitId] = votedId;
+  if (everyoneDoneQuiz(room)) finishQuiz(room);
+}
+
+function forceQuiz(room, playerId) {
+  requireHost(room, playerId);
+  requirePhase(room, 'quiz');
+  return finishQuiz(room);
+}
+
+// Gives every player a different trait, most-voted matches first
+// (e.g. whoever the group picked as "strongest execution" gets the doer role).
+function assignTraits(room) {
+  const traits = config.quiz().traits;
+  const voters = Object.values(room.quizAnswers);
+  const votes = (traitId, pid) => voters.filter((a) => a[traitId] === pid).length;
+  const pairs = [];
+  for (const t of traits) for (const p of room.players) pairs.push({ t, p, count: votes(t.id, p.id), tie: Math.random() });
+  pairs.sort((a, b) => b.count - a.count || a.tie - b.tie);
+  const out = {};
+  const usedTraits = new Set();
+  for (const { t, p, count } of pairs) {
+    if (out[p.id] || usedTraits.has(t.id)) continue;
+    out[p.id] = { id: t.id, label: t.label, question: t.question, votes: count, of: voters.length };
+    usedTraits.add(t.id);
+  }
+  // More players than traits: reuse traits for whoever is left.
+  room.players.filter((p) => !out[p.id]).forEach((p, i) => {
+    const t = traits[i % traits.length];
+    out[p.id] = { id: t.id, label: t.label, question: t.question, votes: votes(t.id, p.id), of: voters.length };
+  });
+  return out;
+}
+
+// Per question, who the group picked, e.g. for the roles screen and the GM.
+function quizTallies(room) {
+  const voters = Object.values(room.quizAnswers);
+  return config.quiz().traits.map((t) => ({
+    traitId: t.id,
+    question: t.question,
+    tally: room.players
+      .map((p) => ({ playerId: p.id, count: voters.filter((a) => a[t.id] === p.id).length }))
+      .filter((x) => x.count > 0)
+      .sort((a, b) => b.count - a.count),
+  }));
+}
+
+function finishQuiz(room) {
+  if (room.busy) return undefined;
+  room.traits = assignTraits(room);
+  room.quizTallies = quizTallies(room);
   return withGM(room, 'The Game Master is casting your roles…', async () => {
     const { data, source } = await gm.setup(gmContext(room));
     room.cast = data;
@@ -215,22 +303,32 @@ function planRound(room) {
 function nextRound(room, playerId) {
   requireHost(room, playerId);
   if (!['roles', 'reveal'].includes(room.phase)) bad('Not right now.');
+  const last = currentRound(room);
+  if (room.phase === 'reveal' && last.plan.type === 'secret' && last.revealed < last.result.order.length) bad('Reveal everyone first.');
   if (room.rounds.length >= room.plan.rounds.length) return finish(room);
   const plan = planRound(room);
   const number = room.rounds.length + 1;
   return withGM(room, `The Game Master is writing round ${number}…`, async () => {
     const { data, source } = await gm.round(gmContext(room, { plan, roundNumber: number, totalRounds: room.plan.rounds.length }));
-    room.rounds.push({ plan, gm: data, answers: {}, result: null, votersRevealed: false, reactions: {} });
+    room.rounds.push({ plan, gm: data, answers: {}, reasons: {}, result: null, votersRevealed: false, revealed: 0, reactions: {} });
     room.gmSource = source;
     room.phase = 'answering';
   });
 }
 
-function answer(room, playerId, value) {
+// In secret rounds each player has their own options, and can add a short "why".
+function optionsFor(round, playerId) {
+  if (round.plan.type !== 'secret') return round.gm.options;
+  const brief = round.gm.briefs[playerId];
+  return brief ? brief.options : [];
+}
+
+function answer(room, playerId, value, reason) {
   requirePhase(room, 'answering');
   const round = currentRound(room);
-  if (!round.gm.options.some((o) => o.id === value)) bad('That is not an option.');
+  if (!optionsFor(round, playerId).some((o) => o.id === value)) bad('That is not an option.');
   round.answers[playerId] = value; // can change your mind until the reveal
+  if (round.plan.type === 'secret' && typeof reason === 'string') round.reasons[playerId] = reason.trim().slice(0, 120);
   if (everyoneAnswered(room)) reveal(room);
 }
 
@@ -244,6 +342,15 @@ function reveal(room) {
   const round = currentRound(room);
   round.result = computeResult(round, room.players);
   room.phase = 'reveal';
+}
+
+// Secret rounds are revealed one player at a time, so each decision gets its own moment.
+function revealNext(room, playerId) {
+  requireHost(room, playerId);
+  requirePhase(room, 'reveal');
+  const round = currentRound(room);
+  if (round.plan.type !== 'secret') bad('Not a secret round.');
+  if (round.revealed < round.result.order.length) round.revealed += 1;
 }
 
 // Vote rounds show tallies first; the host decides whether to reveal who voted for whom.
@@ -263,6 +370,7 @@ function react(room, playerId, targetId, emoji) {
   if (targetId === playerId) bad("You can't react to yourself.");
   if (!(targetId in round.answers)) bad('Nothing to react to.');
   if (round.plan.type === 'vote_player' && !round.votersRevealed) bad('Votes are still secret.');
+  if (round.plan.type === 'secret' && !round.result.order.slice(0, round.revealed).includes(targetId)) bad('Not revealed yet.');
   const mine = (round.reactions[targetId] ||= {});
   if (mine[playerId] === emoji) delete mine[playerId];
   else mine[playerId] = emoji;
@@ -281,7 +389,7 @@ function finish(room) {
 function playAgain(room, playerId) {
   requireHost(room, playerId);
   requirePhase(room, 'recap');
-  Object.assign(room, { phase: 'world', worldVotes: {}, world: null, cast: null, rounds: [], recap: null });
+  Object.assign(room, { phase: 'world', worldVotes: {}, world: null, quizAnswers: {}, traits: null, quizTallies: null, cast: null, rounds: [], recap: null });
 }
 
 // ---------- what each player is allowed to see ----------
@@ -293,6 +401,7 @@ function publicState(room, viewerId) {
     phase: room.phase,
     you: viewerId,
     hostId: room.hostId,
+    hostAway: !room.players.some((p) => p.connected && p.id === room.hostId),
     players: room.players.map(({ id, name, connected }) => ({ id, name, connected })),
     loadingText: room.loadingText,
     gmSource: room.gmSource,
@@ -303,6 +412,16 @@ function publicState(room, viewerId) {
     state.worldVotes = room.worldVotes;
   }
   if (room.world) state.world = room.world;
+  if (room.phase === 'quiz') {
+    const traits = config.quiz().traits;
+    state.quiz = {
+      questions: traits.map(({ id, question }) => ({ id, question })),
+      yourAnswers: room.quizAnswers[viewerId] || {},
+      doneIds: room.players.filter((p) => traits.every((t) => room.quizAnswers[p.id] && t.id in room.quizAnswers[p.id])).map((p) => p.id),
+    };
+  }
+  if (room.traits) state.traits = room.traits;
+  if (room.quizTallies) state.quizTallies = room.quizTallies;
   if (room.cast) state.cast = room.cast;
   if (room.plan) state.totalRounds = room.plan.rounds.length;
   if (round && ['answering', 'reveal'].includes(room.phase)) {
@@ -328,12 +447,43 @@ function publicState(room, viewerId) {
       result: revealed ? round.result : null,
       isLast: room.rounds.length >= room.plan.rounds.length,
     };
+    if (round.plan.type === 'secret') Object.assign(state.round, secretView(room, round, viewerId, revealed));
   }
   if (room.phase === 'recap') state.recap = room.recap;
   return state;
 }
 
+// Before the reveal you only see your own brief. After it, briefs are shown one player at a time.
+function secretView(room, round, viewerId, revealed) {
+  const brief = round.gm.briefs[viewerId] || null;
+  const view = {
+    title: round.gm.prompt,
+    brief,
+    prompt: brief ? brief.prompt : round.gm.prompt,
+    options: brief ? brief.options : [],
+    yourReason: round.reasons[viewerId] || '',
+    previously: previousOutcomes(room),
+    answers: null,
+    reveals: [],
+  };
+  if (revealed) {
+    const shown = round.result.order.slice(0, round.revealed);
+    view.reveals = shown.map((pid) => ({ playerId: pid, ...describeSecret(round, pid) }));
+    view.answers = Object.fromEntries(shown.filter((pid) => pid in round.answers).map((pid) => [pid, round.answers[pid]]));
+    view.nextRevealId = round.result.order[round.revealed] || null;
+    view.allRevealed = round.revealed >= round.result.order.length;
+  }
+  return view;
+}
+
+// What happened because of last round's decisions, shown at the top of the next secret round.
+function previousOutcomes(room) {
+  const prev = room.rounds[room.rounds.length - 2];
+  if (!prev || prev.plan.type !== 'secret' || !prev.result) return [];
+  return prev.result.order.map((pid) => describeSecret(prev, pid).outcome).filter(Boolean);
+}
+
 module.exports = {
   GameError, createRoom, joinRoom, getRoom, resume, setConnected, publicState, changed,
-  start, voteWorld, lockWorld, nextRound, answer, forceReveal, revealVoters, react, playAgain,
+  start, voteWorld, lockWorld, quizAnswer, forceQuiz, nextRound, answer, forceReveal, revealVoters, revealNext, react, playAgain,
 };

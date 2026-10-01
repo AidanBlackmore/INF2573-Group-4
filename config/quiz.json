@@ -1,0 +1,10 @@
+{
+  "traits": [
+    { "id": "doer", "label": "Gets things done", "question": "Who has the strongest execution? Says it, does it." },
+    { "id": "carer", "label": "Looks after everyone", "question": "Who would look after the group when things go wrong?" },
+    { "id": "risk", "label": "Takes the big risks", "question": "Who is most likely to take a wild risk?" },
+    { "id": "planner", "label": "Always has a plan", "question": "Who thinks three steps ahead?" },
+    { "id": "talker", "label": "Can talk their way out of anything", "question": "Who could talk their way out of anything?" },
+    { "id": "wildcard", "label": "Totally unpredictable", "question": "Who is the most unpredictable?" }
+  ]
+}
