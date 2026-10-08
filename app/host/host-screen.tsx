@@ -88,6 +88,7 @@ export default function HostScreen({ feedbackUrl }: { feedbackUrl: string | null
     if (!confirm("End this game and create a new room?")) return;
     localStorage.removeItem(STORAGE_KEY);
     setRoomId(null);
+    createGame();
   };
 
   // Still signing in, or the saved room is loading.
