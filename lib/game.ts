@@ -24,6 +24,9 @@ export type Room = {
   tie_options: string[];
   // Set on the shared screen when the re-vote ties again.
   tie_pick: string | null;
+  // How long each vote lasts, and when the current one closes (set by the database).
+  choice_seconds: number;
+  choice_deadline: string | null;
   created_at: string;
 };
 
@@ -47,6 +50,8 @@ export type Choice = {
   player_id: string;
   chosen_player_id: string | null;
   chosen_option: string | null;
+  // Picked at random by the server because the timer ran out.
+  auto_picked: boolean;
 };
 
 export const MIN_PLAYERS = 2;

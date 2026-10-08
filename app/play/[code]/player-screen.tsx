@@ -5,9 +5,11 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CheckIcon } from "../../check-icon";
 import { UNIVERSES } from "@/content/universes";
+import { track } from "@/lib/analytics";
 import { candidatesFor, currentAct, currentUniverse, hasSubmitted } from "@/lib/game";
 import { ensureSignedIn, errorMessage, supabase } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
+import { formatSeconds, useSecondsLeft } from "@/lib/useSecondsLeft";
 
 type Status = "loading" | "not-found" | "error" | "ready";
 
@@ -129,6 +131,7 @@ function Controller({
   const [submittedStep, setSubmittedStep] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const secondsLeft = useSecondsLeft(room?.phase === "choosing" ? room.choice_deadline : null);
 
   const me = players.find((p) => p.id === myPlayerId);
   if (!room || !me) return <PhoneShell roomCode={roomCode} />;
@@ -155,7 +158,16 @@ function Controller({
         : { p_room_id: room.id, p_chosen_option: selected },
     );
     if (error) setError(error.message);
-    else setSubmittedStep(step);
+    else {
+      setSubmittedStep(step);
+      track("vote_submitted", {
+        universe_id: universe?.id,
+        round: room.act,
+        total_rounds: universe?.acts.length,
+        stage: isRevote ? "revote" : "vote",
+        act_kind: act.kind,
+      });
+    }
     await reload();
     setBusy(false);
   }
@@ -168,11 +180,24 @@ function Controller({
         <Message title="Waiting for others…" body="Your choice is locked in and kept secret." />
       )}
 
-      {room.phase === "choosing" && !submitted && universe && act && (
+      {room.phase === "choosing" && !submitted && secondsLeft === 0 && (
+        <Message title="Time's up" body="A random choice is being made for you." />
+      )}
+
+      {room.phase === "choosing" && !submitted && secondsLeft !== 0 && universe && act && (
         <div className="flex flex-1 flex-col gap-5">
-          <p className="text-sm font-medium uppercase tracking-widest text-stone-500">
-            {universe.title} · Act {room.act} · {isRevote ? "Tie-break vote" : act.title}
-          </p>
+          <div className="flex items-baseline justify-between gap-4">
+            <p className="text-sm font-medium uppercase tracking-widest text-stone-500">
+              {universe.title} · Act {room.act} · {isRevote ? "Tie-break vote" : act.title}
+            </p>
+            {secondsLeft !== null && (
+              <span
+                className={`text-xl font-semibold tabular-nums ${secondsLeft <= 10 ? "text-red-600" : "text-stone-900"}`}
+              >
+                {formatSeconds(secondsLeft)}
+              </span>
+            )}
+          </div>
           {isRevote ? (
             <p className="text-lg leading-snug text-stone-700">
               It&apos;s a tie. Vote again, choosing only between the tied answers.
@@ -251,6 +276,7 @@ function UniverseVote({
     setError(null);
     const { error } = await supabase.rpc("vote_universe", { p_room_id: roomId, p_universe_id: universeId });
     if (error) setError(error.message);
+    else track("universe_vote_cast", { universe_id: universeId });
     await onVoted();
     setPending(null);
   }
