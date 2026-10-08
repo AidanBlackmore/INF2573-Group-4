@@ -11,3 +11,8 @@ export function track(event: string, properties?: Record<string, unknown>) {
     // Analytics must never break the game.
   }
 }
+
+// Turns an id into part of an event name: "mall-night" -> "mall_night".
+export function eventPart(id: string): string {
+  return id.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+}

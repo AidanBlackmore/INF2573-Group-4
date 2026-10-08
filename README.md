@@ -18,7 +18,7 @@ Phones and the laptop never talk to each other directly. Every action goes to Su
 The laptop page is the shared screen. There is no separate host: whoever is next to the laptop clicks its buttons.
 
 1. Create a room on the laptop. Players join (2 to 6) and vote for one of the four universes on their phones. The screen shows the votes live, and players can change their vote until the game starts. Click **Start** on the screen to play the most-voted universe. If the top votes are tied, the screen shows the tied universes and you click the one to play.
-2. Each act: the scenario shows on the TV, everyone picks secretly on their phone, and the TV shows who has submitted (not what). When everyone has chosen, or someone clicks **Reveal now**, all choices are revealed together, followed by the outcome. Click **Next act** to continue.
+2. Each act: the scenario shows on the TV, everyone picks secretly on their phone, and the TV shows who has submitted (not what). Each vote starts with a **20-second discussion**: everyone sees the scenario and the options, but phones can't choose yet, so the group talks it over first. Then voting opens with a **60-second timer**, shown on the TV and on every phone. When everyone has chosen, someone clicks **Reveal now**, or the timer runs out, all choices are revealed together, followed by the outcome. If the timer runs out, the server picks at random for anyone who hasn't chosen, and the reveal marks those choices "picked at random, time ran out". Click **Next act** to continue.
 3. Acts 1 and 4 are about picking a person (anyone, including yourself). Acts 2 and 3 have options A, B and C.
 4. Split rules: **Together** means everyone chose the same. **Majority** means one answer got more than half the votes. **Divided** means no answer got more than half. If the most votes are tied, click **Vote again**: everyone re-votes on their phone, choosing only between the tied answers. If the re-vote ties again, click the winner on the screen. Ties are never broken automatically. The split type (and the opener) comes from the first vote; re-votes do not count in the ending recap.
 5. After act 4, the ending recap shows counts only (never motives), plus **Play another universe** (back to the vote, same players, votes cleared) and **Replay this one**.
@@ -28,7 +28,7 @@ The laptop page is the shared screen. There is no separate host: whoever is next
 - **Story content:** [`content/universes.ts`](content/universes.ts). All four universes, every scenario, opener and outcome. Add or edit a universe here without touching game logic. `{winner}` and `{runner_up}` are filled in automatically.
 - **Game rules:** [`lib/game.ts`](lib/game.ts). Split rules, ties, outcome text and the recap. `getOpener()` is the placeholder for a future AI-generated opener.
 - **Screens:** `app/host/` (shared screen) and `app/play/[code]/` (phone).
-- **Database:** [`supabase/migrations/`](supabase/migrations). Run the files in order.
+- **Database:** [`supabase/migrations/`](supabase/migrations). Run the files in order. `0005_choice_timer.sql` adds the voting timer and `0006_discussion_window.sql` adds the discussion before it. To change their lengths, change the `choice_seconds` (10 to 600) and `discussion_seconds` (0 to 300, 0 turns the discussion off) defaults on `rooms`.
 
 ## Privacy and server rules
 
@@ -45,7 +45,18 @@ The laptop page is the shared screen. There is no separate host: whoever is next
 | `NEXT_PUBLIC_POSTHOG_HOST` | no | `https://us.i.posthog.com` (default) or `https://eu.i.posthog.com` |
 | `FEEDBACK_URL` | no | Link for "Give feedback" on the shared screen. Hidden if empty. |
 
-PostHog records pageviews plus `universe_selected` (`universe_id`) and `act_started` (`universe_id`, `act`).
+PostHog records pageviews plus these events:
+
+| Event | Sent from | When | Properties |
+|---|---|---|---|
+| `universe_selected` | Shared screen | A universe starts (not on replay) | `universe_id` |
+| `universe_selected_<universe>` | Shared screen | Same moment, one event name per universe: `universe_selected_mall_night`, `universe_selected_last_train`, `universe_selected_station_zero`, `universe_selected_moonlight_academy` | `universe_id` |
+| `round_1_started`, `round_2_started`… | Shared screen | Each act starts. There is one round per act, so a 4-act universe sends `round_1_started` to `round_4_started`. | `universe_id`, `round`, `total_rounds` |
+| `universe_vote_cast` | Phone | A player votes (or changes their vote) for a universe in the lobby | `universe_id` |
+| `vote_submitted` | Phone | A player submits their choice in an act or a tie-break re-vote | `universe_id`, `round`, `total_rounds`, `stage` (`vote` or `revote`), `act_kind` (`player` or `option`) |
+| `choice_auto_selected` | Shared screen | The timer ran out and the server picked at random for a player. One event per auto-picked player. | `universe_id`, `round`, `total_rounds`, `stage`, `act_kind` |
+
+A funnel of `round_1_started → round_2_started → round_3_started → round_4_started` shows which round groups stop in. Comparing `choice_auto_selected` with `vote_submitted` per round shows where people run out of time.
 
 On Vercel, changes to environment variables only apply after a redeploy (**Deployments**, then **...** next to the latest deployment, then **Redeploy**).
 

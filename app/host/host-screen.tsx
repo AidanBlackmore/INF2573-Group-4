@@ -1,10 +1,10 @@
 "use client";
 
 import { QRCodeSVG } from "qrcode.react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CheckIcon } from "../check-icon";
 import { UNIVERSES, UNIVERSE_META, type Act, type Universe } from "@/content/universes";
-import { track } from "@/lib/analytics";
+import { eventPart, track } from "@/lib/analytics";
 import {
   MAX_PLAYERS,
   MIN_PLAYERS,
@@ -24,6 +24,7 @@ import {
 } from "@/lib/game";
 import { ensureSignedIn, errorMessage, supabase } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
+import { formatSeconds, useSecondsLeft } from "@/lib/useSecondsLeft";
 import { BigButton, ErrorText, Eyebrow, HostShell, SecondaryButton, SubmissionChip } from "./ui";
 
 // The host's current room survives a laptop refresh.
@@ -35,6 +36,43 @@ export default function HostScreen({ feedbackUrl }: { feedbackUrl: string | null
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { room, players, choices, reload } = useRoom(roomId);
+  const secondsLeft = useSecondsLeft(room?.phase === "choosing" ? room.choice_deadline : null);
+  const opensIn = useSecondsLeft(room?.phase === "choosing" ? room.choices_open_at : null);
+  const discussing = opensIn !== null && opensIn > 0;
+  // The vote (round:stage) the shared screen has already asked the server to auto-pick for.
+  const autoPicked = useRef<string | null>(null);
+  const [autoPickRetry, setAutoPickRetry] = useState(0);
+
+  // Timer ran out: the server picks at random for anyone who hasn't chosen, then reveals.
+  useEffect(() => {
+    if (!room || room.phase !== "choosing" || secondsLeft !== 0) return;
+    const step = `${room.id}:${room.round}:${room.stage}`;
+    if (autoPicked.current === step) return;
+    autoPicked.current = step;
+    const universe = currentUniverse(room);
+    (async () => {
+      const { data, error } = await supabase.rpc("auto_pick_expired", { p_room_id: room.id });
+      if (error) {
+        // Usually the laptop's clock is slightly ahead of the server's. Try again shortly.
+        setTimeout(() => {
+          autoPicked.current = null;
+          setAutoPickRetry((n) => n + 1);
+        }, 1500);
+        return;
+      }
+      const picked = typeof data === "number" ? data : 0;
+      for (let i = 0; i < picked; i++) {
+        track("choice_auto_selected", {
+          universe_id: universe?.id,
+          round: room.act,
+          total_rounds: universe?.acts.length,
+          stage: room.stage === 1 ? "revote" : "vote",
+          act_kind: room.act_kind,
+        });
+      }
+      await reload();
+    })();
+  }, [room, secondsLeft, autoPickRetry, reload]);
 
   useEffect(() => {
     (async () => {
@@ -126,8 +164,12 @@ export default function HostScreen({ feedbackUrl }: { feedbackUrl: string | null
   const startUniverse = (u: Universe, isReplay = false) =>
     run(async () => {
       await rpc("start_universe", { p_room_id: room.id, p_universe_id: u.id, ...actConfig(u.acts[0]) });
-      if (!isReplay) track("universe_selected", { universe_id: u.id });
-      track("act_started", { universe_id: u.id, act: 1 });
+      if (!isReplay) {
+        track("universe_selected", { universe_id: u.id });
+        // One event per universe, e.g. universe_selected_mall_night.
+        track(`universe_selected_${eventPart(u.id)}`, { universe_id: u.id });
+      }
+      trackRoundStarted(u, 1);
     });
 
   const nextAct = () =>
@@ -139,7 +181,7 @@ export default function HostScreen({ feedbackUrl }: { feedbackUrl: string | null
         return;
       }
       await rpc("next_act", { p_room_id: room.id, ...actConfig(next) });
-      track("act_started", { universe_id: universe.id, act: room.act + 1 });
+      trackRoundStarted(universe, room.act + 1);
     });
 
   return (
@@ -207,9 +249,30 @@ export default function HostScreen({ feedbackUrl }: { feedbackUrl: string | null
             </ul>
           )}
           <div className="flex flex-col gap-5">
-            <p className="text-2xl text-stone-400">
-              {players.filter((p) => hasSubmitted(p, room)).length} of {players.length} have chosen
-            </p>
+            <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2">
+              {discussing && (
+                <>
+                  <p className="text-5xl font-semibold tabular-nums text-amber-400">
+                    Talk it over · {formatSeconds(opensIn)}
+                  </p>
+                  <p className="text-2xl text-stone-400">Voting opens on your phones when the discussion ends.</p>
+                </>
+              )}
+              {!discussing && secondsLeft !== null && (
+                <p
+                  className={`text-5xl font-semibold tabular-nums ${secondsLeft <= 10 ? "text-amber-400" : ""}`}
+                >
+                  {secondsLeft > 0 ? formatSeconds(secondsLeft) : "Time's up"}
+                </p>
+              )}
+              {!discussing && (
+                <p className="text-2xl text-stone-400">
+                  {secondsLeft === 0
+                    ? "Picking at random for anyone who hasn't chosen…"
+                    : `${players.filter((p) => hasSubmitted(p, room)).length} of ${players.length} have chosen`}
+                </p>
+              )}
+            </div>
             <ul className="flex flex-wrap gap-4">
               {players.map((p) => (
                 <SubmissionChip key={p.id} name={p.name} done={hasSubmitted(p, room)} />
@@ -264,6 +327,16 @@ export default function HostScreen({ feedbackUrl }: { feedbackUrl: string | null
       )}
     </HostShell>
   );
+}
+
+// One event name per round, so each round is its own step in PostHog:
+// round_1_started, round_2_started… up to the number of acts in the universe.
+function trackRoundStarted(universe: Universe, round: number) {
+  track(`round_${round}_started`, {
+    universe_id: universe.id,
+    round,
+    total_rounds: universe.acts.length,
+  });
 }
 
 function Lobby({
@@ -439,6 +512,7 @@ function Reveal({
                   <span className="font-semibold">{p.name}</span>
                   <span className="text-stone-500"> chose </span>
                   <span className="font-semibold">{answerLabel(c)}</span>
+                  {c.auto_picked && <span className="text-stone-500"> (picked at random, time ran out)</span>}
                 </p>
               ) : (
                 <p key={p.id} className="text-stone-500">
