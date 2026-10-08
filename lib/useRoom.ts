@@ -23,14 +23,16 @@ export function useRoom(roomId: string | null) {
     ]);
     const nextRoom = roomRes.data as Room | null;
 
-    // Choices are only readable once revealed (enforced by RLS).
+    // Choices are only readable once revealed (enforced by RLS). Load the
+    // whole current playthrough so the ending recap can compare acts.
     let nextChoices: Choice[] = [];
-    if (nextRoom?.phase === "revealed") {
+    if (nextRoom?.phase === "revealed" || nextRoom?.phase === "ended") {
       const { data } = await supabase
         .from("choices")
         .select("*")
         .eq("room_id", roomId)
-        .eq("round", nextRoom.round);
+        .gte("round", nextRoom.run_start_round)
+        .lte("round", nextRoom.round);
       nextChoices = (data as Choice[]) ?? [];
     }
 

@@ -8,7 +8,7 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Mall Night",
+  title: "Alternate Universes",
   description: "Shared-screen party game prototype",
 };
 

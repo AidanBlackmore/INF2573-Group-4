@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CheckIcon } from "../../check-icon";
-import { SCENARIO, hasSubmitted } from "@/lib/game";
+import { candidatesFor, currentAct, currentUniverse, hasSubmitted } from "@/lib/game";
 import { ensureSignedIn, errorMessage, supabase } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 
@@ -123,8 +123,8 @@ function Controller({
 }) {
   const { room, players, reload } = useRoom(roomId);
   // Selections and local submit state are tied to a round, so they reset
-  // automatically when the host starts a new one.
-  const [selection, setSelection] = useState<{ round: number; playerId: string } | null>(null);
+  // automatically when the host starts the next act.
+  const [selection, setSelection] = useState<{ round: number; key: string } | null>(null);
   const [submittedRound, setSubmittedRound] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -132,17 +132,21 @@ function Controller({
   const me = players.find((p) => p.id === myPlayerId);
   if (!room || !me) return <PhoneShell roomCode={roomCode} />;
 
-  const selected = selection?.round === room.round ? selection.playerId : null;
+  const universe = currentUniverse(room);
+  const act = currentAct(room);
+  const selected = selection?.round === room.round ? selection.key : null;
   const submitted = hasSubmitted(me, room) || submittedRound === room.round;
 
   async function submit() {
-    if (!room || !selected || busy) return;
+    if (!room || !act || !selected || busy) return;
     setBusy(true);
     setError(null);
-    const { error } = await supabase.rpc("submit_choice", {
-      p_room_id: room.id,
-      p_chosen_player_id: selected,
-    });
+    const { error } = await supabase.rpc(
+      "submit_choice",
+      act.kind === "player"
+        ? { p_room_id: room.id, p_chosen_player_id: selected }
+        : { p_room_id: room.id, p_chosen_option: selected },
+    );
     if (error) setError(error.message);
     else setSubmittedRound(room.round);
     await reload();
@@ -152,36 +156,41 @@ function Controller({
   return (
     <PhoneShell roomCode={roomCode} name={me.name}>
       {room.phase === "lobby" && (
-        <Message title={`You're in, ${me.name}.`} body="Waiting for the host to start the round." />
+        <Message title={`You're in, ${me.name}.`} body="The host is choosing a universe…" />
       )}
 
       {room.phase === "choosing" && submitted && (
         <Message title="Waiting for others…" body="Your choice is locked in and kept secret." />
       )}
 
-      {room.phase === "choosing" && !submitted && (
+      {room.phase === "choosing" && !submitted && universe && act && (
         <div className="flex flex-1 flex-col gap-5">
-          <p className="text-lg leading-snug text-stone-600">{SCENARIO}</p>
-          <p className="text-2xl font-semibold">Pick one person.</p>
+          <p className="text-sm font-medium uppercase tracking-widest text-stone-500">
+            {universe.title} · Act {room.act} · {act.title}
+          </p>
+          <p className="text-lg leading-snug text-stone-700">{act.scenario}</p>
+          <p className="text-2xl font-semibold">
+            {act.kind === "player" ? "Pick one person." : "Pick one option."}
+          </p>
           <ul className="flex flex-col gap-3">
-            {players.map((p) => {
-              const isSelected = p.id === selected;
+            {candidatesFor(act, players).map((c) => {
+              const isSelected = c.key === selected;
               return (
-                <li key={p.id}>
+                <li key={c.key}>
                   <button
-                    onClick={() => setSelection({ round: room.round, playerId: p.id })}
+                    onClick={() => setSelection({ round: room.round, key: c.key })}
                     aria-pressed={isSelected}
-                    className={`flex h-16 w-full items-center justify-between rounded-2xl border-2 px-5 text-2xl font-medium ${
+                    className={`flex min-h-16 w-full items-center justify-between gap-4 rounded-2xl border-2 px-5 py-3 text-left text-xl font-medium ${
                       isSelected
                         ? "border-stone-900 bg-stone-900 text-white"
                         : "border-stone-300 bg-white"
                     }`}
                   >
                     <span>
-                      {p.name}
-                      {p.id === me.id && <span className="ml-2 text-base opacity-60">(you)</span>}
+                      {c.label}
+                      {c.key === me.id && <span className="ml-2 text-base opacity-60">(you)</span>}
                     </span>
-                    {isSelected && <CheckIcon className="h-7 w-7" />}
+                    {isSelected && <CheckIcon className="h-7 w-7 shrink-0" />}
                   </button>
                 </li>
               );
@@ -200,6 +209,13 @@ function Controller({
 
       {room.phase === "revealed" && (
         <Message title="Choices revealed" body="Look at the shared screen." />
+      )}
+
+      {room.phase === "ended" && (
+        <Message
+          title={`The end of ${universe?.title ?? "this universe"}`}
+          body="Look at the shared screen and talk it over."
+        />
       )}
     </PhoneShell>
   );

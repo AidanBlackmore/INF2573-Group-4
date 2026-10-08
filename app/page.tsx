@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { PLAYER_HINT } from "@/lib/game";
 
 export default function Home() {
   const router = useRouter();
@@ -12,8 +13,8 @@ export default function Home() {
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-10 px-6 py-12">
       <div>
-        <h1 className="text-4xl font-semibold tracking-tight">Mall Night</h1>
-        <p className="mt-2 text-lg text-stone-600">A shared-screen party game prototype.</p>
+        <h1 className="text-4xl font-semibold tracking-tight">Alternate Universes</h1>
+        <p className="mt-2 text-lg text-stone-600">{PLAYER_HINT}</p>
       </div>
 
       <form
