@@ -7,6 +7,12 @@ A Jackbox-style party game: one shared screen on a TV, phones as controllers. Pi
 
 Phones and the laptop never talk to each other directly. Every action goes to Supabase, and Supabase Realtime tells each screen when something changed. Each screen then reloads the current state from the database. That is also how a phone recovers after a refresh or after the screen locks.
 
+## What is in this repo
+
+- **The repo root** is the current game (Next.js + Supabase). This is what runs and what Vercel deploys.
+- **`research/`**: interview transcripts, interview synthesis, opportunity solution tree and product brainstorming.
+- **`legacy/express-ai-gm/`**: the earlier Express + Socket.io version with the AI Game Master, casting quiz and secret chapters. Archived as-is, with its own README for running it.
+
 ## How a game works
 
 The laptop page is the shared screen. There is no separate host: whoever is next to the laptop clicks its buttons.
