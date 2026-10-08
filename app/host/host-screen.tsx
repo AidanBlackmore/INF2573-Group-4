@@ -37,6 +37,8 @@ export default function HostScreen({ feedbackUrl }: { feedbackUrl: string | null
   const [error, setError] = useState<string | null>(null);
   const { room, players, choices, reload } = useRoom(roomId);
   const secondsLeft = useSecondsLeft(room?.phase === "choosing" ? room.choice_deadline : null);
+  const opensIn = useSecondsLeft(room?.phase === "choosing" ? room.choices_open_at : null);
+  const discussing = opensIn !== null && opensIn > 0;
   // The vote (round:stage) the shared screen has already asked the server to auto-pick for.
   const autoPicked = useRef<string | null>(null);
   const [autoPickRetry, setAutoPickRetry] = useState(0);
@@ -248,18 +250,28 @@ export default function HostScreen({ feedbackUrl }: { feedbackUrl: string | null
           )}
           <div className="flex flex-col gap-5">
             <div className="flex flex-wrap items-baseline gap-x-8 gap-y-2">
-              {secondsLeft !== null && (
+              {discussing && (
+                <>
+                  <p className="text-5xl font-semibold tabular-nums text-amber-400">
+                    Talk it over · {formatSeconds(opensIn)}
+                  </p>
+                  <p className="text-2xl text-stone-400">Voting opens on your phones when the discussion ends.</p>
+                </>
+              )}
+              {!discussing && secondsLeft !== null && (
                 <p
                   className={`text-5xl font-semibold tabular-nums ${secondsLeft <= 10 ? "text-amber-400" : ""}`}
                 >
                   {secondsLeft > 0 ? formatSeconds(secondsLeft) : "Time's up"}
                 </p>
               )}
-              <p className="text-2xl text-stone-400">
-                {secondsLeft === 0
-                  ? "Picking at random for anyone who hasn't chosen…"
-                  : `${players.filter((p) => hasSubmitted(p, room)).length} of ${players.length} have chosen`}
-              </p>
+              {!discussing && (
+                <p className="text-2xl text-stone-400">
+                  {secondsLeft === 0
+                    ? "Picking at random for anyone who hasn't chosen…"
+                    : `${players.filter((p) => hasSubmitted(p, room)).length} of ${players.length} have chosen`}
+                </p>
+              )}
             </div>
             <ul className="flex flex-wrap gap-4">
               {players.map((p) => (

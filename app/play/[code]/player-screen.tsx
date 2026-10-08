@@ -132,6 +132,9 @@ function Controller({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const secondsLeft = useSecondsLeft(room?.phase === "choosing" ? room.choice_deadline : null);
+  const opensIn = useSecondsLeft(room?.phase === "choosing" ? room.choices_open_at : null);
+  // Everyone reads the scenario and talks before anyone can choose.
+  const discussing = opensIn !== null && opensIn > 0;
 
   const me = players.find((p) => p.id === myPlayerId);
   if (!room || !me) return <PhoneShell roomCode={roomCode} />;
@@ -148,7 +151,7 @@ function Controller({
     : [];
 
   async function submit() {
-    if (!room || !act || !selected || busy) return;
+    if (!room || !act || !selected || busy || discussing) return;
     setBusy(true);
     setError(null);
     const { error } = await supabase.rpc(
@@ -190,12 +193,16 @@ function Controller({
             <p className="text-sm font-medium uppercase tracking-widest text-stone-500">
               {universe.title} · Act {room.act} · {isRevote ? "Tie-break vote" : act.title}
             </p>
-            {secondsLeft !== null && (
-              <span
-                className={`text-xl font-semibold tabular-nums ${secondsLeft <= 10 ? "text-red-600" : "text-stone-900"}`}
-              >
-                {formatSeconds(secondsLeft)}
-              </span>
+            {discussing ? (
+              <span className="text-xl font-semibold tabular-nums text-amber-600">{formatSeconds(opensIn)}</span>
+            ) : (
+              secondsLeft !== null && (
+                <span
+                  className={`text-xl font-semibold tabular-nums ${secondsLeft <= 10 ? "text-red-600" : "text-stone-900"}`}
+                >
+                  {formatSeconds(secondsLeft)}
+                </span>
+              )
             )}
           </div>
           {isRevote ? (
@@ -205,9 +212,15 @@ function Controller({
           ) : (
             <p className="text-lg leading-snug text-stone-700">{act.scenario}</p>
           )}
-          <p className="text-2xl font-semibold">
-            {act.kind === "player" ? "Pick one person." : "Pick one option."}
-          </p>
+          {discussing ? (
+            <p className="rounded-2xl bg-amber-100 px-4 py-3 text-lg font-medium text-amber-900">
+              Talk it over with the group first. You can choose in {opensIn} second{opensIn === 1 ? "" : "s"}.
+            </p>
+          ) : (
+            <p className="text-2xl font-semibold">
+              {act.kind === "player" ? "Pick one person." : "Pick one option."}
+            </p>
+          )}
           <ul className="flex flex-col gap-3">
             {candidates.map((c) => {
               const isSelected = c.key === selected;
@@ -215,8 +228,9 @@ function Controller({
                 <li key={c.key}>
                   <button
                     onClick={() => setSelection({ step, key: c.key })}
+                    disabled={discussing}
                     aria-pressed={isSelected}
-                    className={`flex min-h-16 w-full items-center justify-between gap-4 rounded-2xl border-2 px-5 py-3 text-left text-xl font-medium ${
+                    className={`flex min-h-16 w-full items-center justify-between gap-4 rounded-2xl border-2 px-5 py-3 text-left text-xl font-medium disabled:opacity-50 ${
                       isSelected
                         ? "border-stone-900 bg-stone-900 text-white"
                         : "border-stone-300 bg-white"
@@ -235,7 +249,7 @@ function Controller({
           {error && <p className="text-lg text-red-600">{error}</p>}
           <button
             onClick={submit}
-            disabled={!selected || busy}
+            disabled={!selected || busy || discussing}
             className={`${primaryButton} sticky bottom-6 mt-auto`}
           >
             {busy ? "Submitting…" : "Submit"}
