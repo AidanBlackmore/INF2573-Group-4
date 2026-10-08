@@ -19,6 +19,10 @@ export type Room = {
   act_kind: "player" | "option" | null;
   act_options: string[];
   run_start_round: number;
+  // 0 = the act's vote, 1 = re-vote between tied answers.
+  stage: 0 | 1;
+  tie_options: string[];
+  // Set on the shared screen when the re-vote ties again.
   tie_pick: string | null;
   created_at: string;
 };
@@ -29,6 +33,7 @@ export type Player = {
   user_id: string;
   name: string;
   submitted_round: number;
+  submitted_stage: number;
   created_at: string;
 };
 
@@ -36,6 +41,7 @@ export type Choice = {
   id: string;
   room_id: string;
   round: number;
+  stage: 0 | 1;
   player_id: string;
   chosen_player_id: string | null;
   chosen_option: string | null;
@@ -46,7 +52,11 @@ export const MAX_PLAYERS = 6;
 export const PLAYER_HINT = "Needs 2 to 6 players. Open on a laptop, everyone joins with their phone.";
 
 export function hasSubmitted(player: Player, room: Room): boolean {
-  return (room.phase === "choosing" || room.phase === "revealed") && player.submitted_round === room.round;
+  return (
+    (room.phase === "choosing" || room.phase === "revealed") &&
+    player.submitted_round === room.round &&
+    player.submitted_stage === room.stage
+  );
 }
 
 export function currentUniverse(room: Room): Universe | undefined {
@@ -75,15 +85,14 @@ function answerOf(choice: Choice): string {
 
 export type Candidate = { key: string; label: string };
 
-export type ActResult = {
+export type Tally = {
   split: Split;
   // Everything that got at least one vote, most votes first.
   counts: { candidate: Candidate; count: number }[];
-  // Candidates sharing the most votes. More than one means the host decides.
+  // Candidates sharing the most votes, if more than one.
   tied: Candidate[];
-  // Null until the host has broken a tie.
-  winner: Candidate | null;
-  runnerUp: Candidate | null;
+  // Every candidate, most votes first (equal counts keep their original order).
+  ranked: Candidate[];
 };
 
 export function candidatesFor(act: Act, players: Player[]): Candidate[] {
@@ -92,42 +101,75 @@ export function candidatesFor(act: Act, players: Player[]): Candidate[] {
     : act.options.map((o) => ({ key: o.key, label: `${o.key}) ${o.label}` }));
 }
 
-export function computeResult(
-  act: Act,
-  choices: Choice[],
-  players: Player[],
-  tiePick: string | null,
-): ActResult {
+export function tally(candidates: Candidate[], choices: Choice[]): Tally {
   const votes = new Map<string, number>();
   for (const choice of choices) {
     const key = answerOf(choice);
     votes.set(key, (votes.get(key) ?? 0) + 1);
   }
 
-  // Stable sort: equal counts keep player join order / option order.
-  const ranked = candidatesFor(act, players)
+  const ranked = candidates
     .map((candidate) => ({ candidate, count: votes.get(candidate.key) ?? 0 }))
     .sort((a, b) => b.count - a.count);
 
   const total = choices.length;
   const top = ranked[0]?.count ?? 0;
   const topGroup = ranked.filter((r) => r.count === top).map((r) => r.candidate);
-
   const split: Split =
     total > 0 && top === total ? "together" : top > total / 2 ? "majority" : "divided";
-
-  const tied = topGroup.length > 1 ? topGroup : [];
-  const winner = tied.length ? (tied.find((c) => c.key === tiePick) ?? null) : (topGroup[0] ?? null);
-  // Second place: the best of the rest. Only the top spot is ever left to the host.
-  const runnerUp = winner ? (ranked.find((r) => r.candidate.key !== winner.key)?.candidate ?? null) : null;
 
   return {
     split,
     counts: ranked.filter((r) => r.count > 0),
-    tied,
-    winner,
-    runnerUp,
+    tied: topGroup.length > 1 ? topGroup : [],
+    ranked: ranked.map((r) => r.candidate),
   };
+}
+
+export type ActResult = {
+  main: Tally;
+  // Only when the main vote tied and a re-vote has started.
+  revote: Tally | null;
+  status:
+    | "done"
+    | "needs-revote" // main vote tied; the screen offers "Vote again"
+    | "revoting" // phones are re-voting
+    | "needs-pick"; // re-vote tied again; the screen picks
+  winner: Candidate | null;
+  runnerUp: Candidate | null;
+};
+
+// The act's outcome. Ties for most votes go to a re-vote on the phones, and
+// if that ties too, to a pick on the shared screen. Never automatic.
+export function resolveAct(act: Act, room: Room, choices: Choice[], players: Player[]): ActResult {
+  const candidates = candidatesFor(act, players);
+  const main = tally(candidates, choices.filter((c) => c.stage === 0));
+
+  let winner: Candidate | null = null;
+  let revote: Tally | null = null;
+  let status: ActResult["status"] = "done";
+
+  if (main.tied.length === 0) {
+    winner = main.ranked[0] ?? null;
+  } else if (room.stage === 0) {
+    status = "needs-revote";
+  } else if (room.phase === "choosing") {
+    status = "revoting";
+  } else {
+    const tiedCandidates = candidates.filter((c) => room.tie_options.includes(c.key));
+    revote = tally(tiedCandidates, choices.filter((c) => c.stage === 1));
+    if (revote.tied.length === 0) winner = revote.ranked[0] ?? null;
+    else {
+      winner = revote.tied.find((c) => c.key === room.tie_pick) ?? null;
+      if (!winner) status = "needs-pick";
+    }
+  }
+
+  // Second place: the best of the rest, by the re-vote if there was one.
+  const runnerUp = winner
+    ? ((revote ?? main).ranked.find((c) => c.key !== winner.key) ?? null)
+    : null;
+  return { main, revote, status, winner, runnerUp };
 }
 
 // Opener placeholder. Later this can return an AI-generated line that reacts
@@ -137,7 +179,8 @@ export function getOpener(act: OptionAct, split: Split): string {
 }
 
 export function actOutcome(act: Act, result: ActResult): { opener?: string; outcome: string } | null {
-  const { winner, runnerUp, split } = result;
+  const { winner, runnerUp } = result;
+  const split = result.main.split;
   if (!winner) return null;
 
   if (act.kind === "player") {
@@ -166,7 +209,7 @@ export function computeRecap(universe: Universe, room: Room, choices: Choice[], 
   const acts = universe.acts.map((_, i) => {
     const round = room.run_start_round + i;
     const answers = new Map<string, string>();
-    for (const c of choices) if (c.round === round) answers.set(c.player_id, answerOf(c));
+    for (const c of choices) if (c.round === round && c.stage === 0) answers.set(c.player_id, answerOf(c));
     return answers;
   });
 

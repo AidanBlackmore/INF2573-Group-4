@@ -124,8 +124,8 @@ function Controller({
   const { room, players, reload } = useRoom(roomId);
   // Selections and local submit state are tied to a round, so they reset
   // automatically when the host starts the next act.
-  const [selection, setSelection] = useState<{ round: number; key: string } | null>(null);
-  const [submittedRound, setSubmittedRound] = useState<number | null>(null);
+  const [selection, setSelection] = useState<{ step: string; key: string } | null>(null);
+  const [submittedStep, setSubmittedStep] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -134,8 +134,14 @@ function Controller({
 
   const universe = currentUniverse(room);
   const act = currentAct(room);
-  const selected = selection?.round === room.round ? selection.key : null;
-  const submitted = hasSubmitted(me, room) || submittedRound === room.round;
+  // A "step" is one vote: the act's vote, or its tie-break re-vote.
+  const step = `${room.round}:${room.stage}`;
+  const selected = selection?.step === step ? selection.key : null;
+  const submitted = hasSubmitted(me, room) || submittedStep === step;
+  const isRevote = room.stage === 1;
+  const candidates = act
+    ? candidatesFor(act, players).filter((c) => !isRevote || room.tie_options.includes(c.key))
+    : [];
 
   async function submit() {
     if (!room || !act || !selected || busy) return;
@@ -148,7 +154,7 @@ function Controller({
         : { p_room_id: room.id, p_chosen_option: selected },
     );
     if (error) setError(error.message);
-    else setSubmittedRound(room.round);
+    else setSubmittedStep(step);
     await reload();
     setBusy(false);
   }
@@ -156,7 +162,7 @@ function Controller({
   return (
     <PhoneShell roomCode={roomCode} name={me.name}>
       {room.phase === "lobby" && (
-        <Message title={`You're in, ${me.name}.`} body="The host is choosing a universe…" />
+        <Message title={`You're in, ${me.name}.`} body="A universe is being chosen on the shared screen…" />
       )}
 
       {room.phase === "choosing" && submitted && (
@@ -166,19 +172,25 @@ function Controller({
       {room.phase === "choosing" && !submitted && universe && act && (
         <div className="flex flex-1 flex-col gap-5">
           <p className="text-sm font-medium uppercase tracking-widest text-stone-500">
-            {universe.title} · Act {room.act} · {act.title}
+            {universe.title} · Act {room.act} · {isRevote ? "Tie-break vote" : act.title}
           </p>
-          <p className="text-lg leading-snug text-stone-700">{act.scenario}</p>
+          {isRevote ? (
+            <p className="text-lg leading-snug text-stone-700">
+              It&apos;s a tie. Vote again, choosing only between the tied answers.
+            </p>
+          ) : (
+            <p className="text-lg leading-snug text-stone-700">{act.scenario}</p>
+          )}
           <p className="text-2xl font-semibold">
             {act.kind === "player" ? "Pick one person." : "Pick one option."}
           </p>
           <ul className="flex flex-col gap-3">
-            {candidatesFor(act, players).map((c) => {
+            {candidates.map((c) => {
               const isSelected = c.key === selected;
               return (
                 <li key={c.key}>
                   <button
-                    onClick={() => setSelection({ round: room.round, key: c.key })}
+                    onClick={() => setSelection({ step, key: c.key })}
                     aria-pressed={isSelected}
                     className={`flex min-h-16 w-full items-center justify-between gap-4 rounded-2xl border-2 px-5 py-3 text-left text-xl font-medium ${
                       isSelected

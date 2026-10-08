@@ -49,7 +49,7 @@ export default function Home() {
         href="/host"
         className="text-center text-base font-medium text-stone-600 underline underline-offset-4"
       >
-        Host a game on this screen
+        Start a game on this screen
       </Link>
     </main>
   );

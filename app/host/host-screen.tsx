@@ -10,11 +10,12 @@ import {
   PLAYER_HINT,
   actConfig,
   actOutcome,
+  candidatesFor,
   computeRecap,
-  computeResult,
   currentAct,
   currentUniverse,
   hasSubmitted,
+  resolveAct,
   type Choice,
   type Player,
   type Room,
@@ -173,9 +174,27 @@ export default function HostScreen({ feedbackUrl }: { feedbackUrl: string | null
         <div className="flex flex-1 flex-col gap-10">
           <Eyebrow>
             Act {room.act} of {universe.acts.length} · {act.title}
+            {room.stage === 1 && " · Tie-break vote"}
           </Eyebrow>
-          <p className="max-w-6xl text-5xl font-semibold leading-tight">{act.scenario}</p>
-          {act.kind === "option" && (
+          {room.stage === 1 ? (
+            <div className="flex flex-col gap-6">
+              <p className="text-5xl font-semibold leading-tight">
+                It&apos;s a tie. Everyone votes again on their phones.
+              </p>
+              <ul className="flex flex-col gap-3">
+                {candidatesFor(act, players)
+                  .filter((c) => room.tie_options.includes(c.key))
+                  .map((c) => (
+                    <li key={c.key} className="text-4xl text-stone-300">
+                      {c.label}
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="max-w-6xl text-5xl font-semibold leading-tight">{act.scenario}</p>
+          )}
+          {act.kind === "option" && room.stage === 0 && (
             <ul className="flex flex-col gap-3">
               {act.options.map((o) => (
                 <li key={o.key} className="text-3xl text-stone-300">
@@ -212,6 +231,7 @@ export default function HostScreen({ feedbackUrl }: { feedbackUrl: string | null
           choices={choices.filter((c) => c.round === room.round)}
           busy={busy}
           error={error}
+          onRevote={(keys) => run(() => rpc("start_revote", { p_room_id: room.id, p_tied: keys }))}
           onPickTie={(key) => run(() => rpc("resolve_tie", { p_room_id: room.id, p_pick: key }))}
           onNext={nextAct}
         />
@@ -341,6 +361,7 @@ function Reveal({
   choices,
   busy,
   error,
+  onRevote,
   onPickTie,
   onNext,
 }: {
@@ -351,16 +372,23 @@ function Reveal({
   choices: Choice[];
   busy: boolean;
   error: string | null;
+  onRevote: (keys: string[]) => void;
   onPickTie: (key: string) => void;
   onNext: () => void;
 }) {
-  const result = computeResult(act, choices, players, room.tie_pick);
+  const result = resolveAct(act, room, choices, players);
   const outcome = actOutcome(act, result);
   const isLast = room.act >= universe.acts.length;
+  const mainChoices = choices.filter((c) => c.stage === 0);
   const answerLabel = (c: Choice) =>
     act.kind === "player"
       ? (players.find((p) => p.id === c.chosen_player_id)?.name ?? "someone")
       : `${c.chosen_option})`;
+  // "Mary and Alex", "Mary, Alex and Sam"
+  const names = (cs: { label: string }[]) => {
+    const labels = cs.map((c) => c.label);
+    return labels.length > 1 ? `${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}` : labels.join("");
+  };
 
   return (
     <div className="flex flex-1 flex-col gap-10">
@@ -371,8 +399,8 @@ function Reveal({
       <div className="grid flex-1 grid-cols-1 gap-14 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <section className="flex flex-col gap-6">
           <div className="flex flex-col gap-2">
-            {result.counts.length === 0 && <p className="text-3xl text-stone-500">No one chose.</p>}
-            {result.counts.map(({ candidate, count }) => (
+            {result.main.counts.length === 0 && <p className="text-3xl text-stone-500">No one chose.</p>}
+            {result.main.counts.map(({ candidate, count }) => (
               <p key={candidate.key} className="text-4xl font-semibold">
                 {count} chose {candidate.label}
               </p>
@@ -380,7 +408,7 @@ function Reveal({
           </div>
           <div className="flex flex-col gap-1 text-2xl">
             {players.map((p) => {
-              const c = choices.find((x) => x.player_id === p.id);
+              const c = mainChoices.find((x) => x.player_id === p.id);
               return c ? (
                 <p key={p.id}>
                   <span className="font-semibold">{p.name}</span>
@@ -394,14 +422,35 @@ function Reveal({
               );
             })}
           </div>
+          {result.revote && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xl font-medium uppercase tracking-widest text-stone-500">Re-vote</p>
+              {result.revote.counts.length === 0 && <p className="text-3xl text-stone-500">No one chose.</p>}
+              {result.revote.counts.map(({ candidate, count }) => (
+                <p key={candidate.key} className="text-3xl font-semibold">
+                  {count} chose {candidate.label}
+                </p>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="flex flex-col gap-8">
-          {result.tied.length > 0 && !result.winner && (
+          {result.status === "needs-revote" && (
+            <div className="flex flex-col items-start gap-6">
+              <p className="text-5xl font-semibold leading-tight">
+                It&apos;s a tie between {names(result.main.tied)}. Everyone votes again.
+              </p>
+              <BigButton onClick={() => onRevote(result.main.tied.map((c) => c.key))} disabled={busy}>
+                Vote again
+              </BigButton>
+            </div>
+          )}
+          {result.status === "needs-pick" && result.revote && (
             <div className="flex flex-col gap-6">
-              <p className="text-4xl font-semibold">It&apos;s a tie. Host, pick which one wins.</p>
+              <p className="text-4xl font-semibold">Still tied. Click the one that wins.</p>
               <div className="flex flex-wrap gap-4">
-                {result.tied.map((c) => (
+                {result.revote.tied.map((c) => (
                   <SecondaryButton key={c.key} onClick={() => onPickTie(c.key)} disabled={busy}>
                     {c.label}
                   </SecondaryButton>
