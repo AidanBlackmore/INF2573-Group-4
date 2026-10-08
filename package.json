@@ -1,25 +1,29 @@
 {
-  "name": "alternate-universe",
+  "name": "mall-game-prototype",
   "version": "0.1.0",
   "private": true,
-  "description": "Prototype multiplayer party game with an AI Game Master (INF2573 group 4)",
-  "main": "server/index.js",
   "scripts": {
-    "start": "node server/index.js",
-    "dev": "node --watch server/index.js",
-    "simulate": "node scripts/simulate.js"
-  },
-  "engines": {
-    "node": ">=18"
+    "dev": "next dev -H 0.0.0.0",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.128.0",
-    "dotenv": "^18.0.3",
-    "express": "^5.2.1",
-    "socket.io": "^4.8.3",
-    "zod": "^4.6.5"
+    "@supabase/supabase-js": "^2.117.3",
+    "next": "16.4.0",
+    "posthog-js": "^1.297.4",
+    "qrcode.react": "^4.2.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
-    "socket.io-client": "^4.8.3"
+    "@tailwindcss/turbopack": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.0",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }

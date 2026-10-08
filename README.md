@@ -1,131 +1,102 @@
-# Alternate Universe (prototype)
+# Alternate Universes (party game prototype)
 
-A party game for 3–6 friends in the same room, each on their own phone. An AI Game Master drops the group into a fictional world (zombie apocalypse, reality TV villa, office…).
+A Jackbox-style party game: one shared screen on a TV, phones as controllers. Pick one of four universes on the shared screen. Each universe is a pre-written episode in four acts. There is no AI yet.
 
-1. **Casting quiz.** Everyone votes on questions like "Who has the strongest execution?" or "Who is the most unpredictable?". Each player gets the trait the group voted them, and a role built on it.
-2. **Secret chapters.** Everyone shares one scene, but each player privately gets different information and a different decision based on their role. One player knows food is running out, another knows a dangerous route to more supplies, someone else decides who gets the last medicine. Each player chooses alone and can add a short "why".
-3. **The reveal.** The host reveals each player's secret, choice, reason and its consequence one at a time, and the group reacts. Those consequences open the next chapter.
-4. **Recap.** A recap at the end collects the secrets, choices and reactions that could become inside jokes.
+- `/host`: the shared screen. Open it on a laptop connected to the TV.
+- `/play/CODE`: the phone controller. Players get there by scanning the QR code or typing the room code on the home page.
 
-The AI acts as a Game Master: it sets up situations, adapts the story and connects earlier decisions to later events, but the important choices always come from the players.
+Phones and the laptop never talk to each other directly. Every action goes to Supabase, and Supabase Realtime tells each screen when something changed. Each screen then reloads the current state from the database. That is also how a phone recovers after a refresh or after the screen locks.
 
-**Design principle:** the story is only a backdrop. Every feature should serve interaction between players, not the plot.
+## What is in this repo
 
-## Run it
+- **The repo root** is the current game (Next.js + Supabase). This is what runs and what Vercel deploys.
+- **`research/`**: interview transcripts, interview synthesis, opportunity solution tree and product brainstorming.
+- **`legacy/express-ai-gm/`**: the earlier Express + Socket.io version with the AI Game Master, casting quiz and secret chapters. Archived as-is, with its own README for running it.
 
-Requires Node 18+.
+## How a game works
+
+The laptop page is the shared screen. There is no separate host: whoever is next to the laptop clicks its buttons.
+
+1. Create a room on the laptop. Players join (2 to 6) and vote for one of the four universes on their phones. The screen shows the votes live, and players can change their vote until the game starts. Click **Start** on the screen to play the most-voted universe. If the top votes are tied, the screen shows the tied universes and you click the one to play.
+2. Each act: the scenario shows on the TV, everyone picks secretly on their phone, and the TV shows who has submitted (not what). When everyone has chosen, or someone clicks **Reveal now**, all choices are revealed together, followed by the outcome. Click **Next act** to continue.
+3. Acts 1 and 4 are about picking a person (anyone, including yourself). Acts 2 and 3 have options A, B and C.
+4. Split rules: **Together** means everyone chose the same. **Majority** means one answer got more than half the votes. **Divided** means no answer got more than half. If the most votes are tied, click **Vote again**: everyone re-votes on their phone, choosing only between the tied answers. If the re-vote ties again, click the winner on the screen. Ties are never broken automatically. The split type (and the opener) comes from the first vote; re-votes do not count in the ending recap.
+5. After act 4, the ending recap shows counts only (never motives), plus **Play another universe** (back to the vote, same players, votes cleared) and **Replay this one**.
+
+## Where things live
+
+- **Story content:** [`content/universes.ts`](content/universes.ts). All four universes, every scenario, opener and outcome. Add or edit a universe here without touching game logic. `{winner}` and `{runner_up}` are filled in automatically.
+- **Game rules:** [`lib/game.ts`](lib/game.ts). Split rules, ties, outcome text and the recap. `getOpener()` is the placeholder for a future AI-generated opener.
+- **Screens:** `app/host/` (shared screen) and `app/play/[code]/` (phone).
+- **Database:** [`supabase/migrations/`](supabase/migrations). Run the files in order.
+
+## Privacy and server rules
+
+- **Only the server writes.** Devices can only read tables. Every action (create room, join, vote for a universe, start a universe, submit, reveal, re-vote, next act, pick a winner) is a database function that checks the request first. Examples: only the laptop that created the room can run the game, you can only submit while an act is open, a person pick must be someone in the room, and an option must be one of the act's options. A second tap is ignored, so you get one choice per player per act. Rooms are limited to 6 players.
+- **Choices are private (Row Level Security).** You can read your own choice. Other people's choices for an act only become readable to the room once that act is revealed. The TV sees who has submitted through `players.submitted_round`, not by reading choices.
+
+## Environment variables
+
+| Name | Required | What it is |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | yes | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | yes | Supabase publishable key |
+| `NEXT_PUBLIC_POSTHOG_KEY` | no | PostHog project API key. Without it, analytics is skipped. |
+| `NEXT_PUBLIC_POSTHOG_HOST` | no | `https://us.i.posthog.com` (default) or `https://eu.i.posthog.com` |
+| `FEEDBACK_URL` | no | Link for "Give feedback" on the shared screen. Hidden if empty. |
+
+PostHog records pageviews plus `universe_selected` (`universe_id`) and `act_started` (`universe_id`, `act`).
+
+On Vercel, changes to environment variables only apply after a redeploy (**Deployments**, then **...** next to the latest deployment, then **Redeploy**).
+
+## Run it locally
+
+You need Node.js 20 or newer.
+
+1. Copy `.env.example` to `.env.local` and fill in the values. Find the Supabase ones in the Supabase dashboard under **Project Settings > API Keys**.
+2. In the Supabase dashboard, open **Authentication > Sign In / Providers** and turn on **Allow anonymous sign-ins**.
+3. Run each file in `supabase/migrations/` once, in order. Paste it into **SQL Editor** and click **Run**.
+4. Install and start the app:
 
 ```bash
 npm install
-npm start
+npm run dev
 ```
 
-The server prints two addresses:
+### Test with real phones on the same Wi-Fi
 
-```
-Alternate Universe running (GM mode: mock)
-  This computer:  http://localhost:3000
-  Phones on Wi-Fi: http://192.168.1.23:3000
-```
-
-1. Connect every phone to the **same Wi-Fi** as the laptop and open the "Phones on Wi-Fi" address.
-2. One person taps **Create a room** and becomes the host (👑). The others enter the 4-letter code, or open the link shown in the lobby.
-3. The host controls the pace: start, lock in the world, next round.
-
-If phones can't connect, your OS firewall is probably blocking port 3000. Allow Node through it, or try a phone hotspot. University Wi-Fi often blocks device-to-device traffic.
-
-**Testing alone:** open several browser tabs, each one is a separate player. Or run the bot smoke test:
+`npm run dev` listens on every network interface, so other devices on your Wi-Fi can reach it. You need your laptop's local IP address. On a Mac, open **System Settings > Wi-Fi**, click **Details…** next to your network, and copy the **IP address**. You can also run this in Terminal:
 
 ```bash
-npm run simulate        # 4 bots play a full game in mock mode
-node scripts/simulate.js 6
+ipconfig getifaddr en0
 ```
 
-## Mock vs live Game Master
+1. On the laptop, open **`http://<your IP>:3000/host`**, for example `http://192.168.1.23:3000/host`, not `localhost`. The QR code uses the address the shared screen was opened with. A phone cannot open `localhost`, because on a phone that means the phone itself.
+2. Scan the QR code with each phone's camera.
 
-| Mode | What it does | Needs |
-|---|---|---|
-| `mock` (default) | Canned scenes from `config/mock/*.json`. Instant, free, offline. | Nothing |
-| `live` | Claude writes roles, rounds and the recap for your group, adapting to earlier votes and reactions. | An Anthropic API key |
+University and guest Wi-Fi networks often block devices from talking to each other. In that case, test the deployed Vercel version instead.
 
-To switch, copy `.env.example` to `.env` and edit:
+## Deploy to Vercel
 
-```bash
-GM_MODE=live
-ANTHROPIC_API_KEY=sk-ant-...
-GM_MODEL=claude-sonnet-5   # try claude-haiku-4-5 if rounds feel slow
-GM_EFFORT=medium           # low = faster, high = more considered
-```
+Vercel redeploys automatically every time the `nextjs-poc` branch is pushed to GitHub.
 
-Then restart `npm start`. The footer of every screen shows where the last GM output came from: `mock`, `live`, or `fallback`. If a live call fails or returns bad JSON, the server retries once and then quietly uses a mock scene, so a play-test never gets stuck. `fallback` in the footer means that happened; the server console shows why.
+First-time setup:
 
-## Where to change things
+1. On [vercel.com](https://vercel.com), sign in with GitHub, click **Add New > Project**, and import the repository.
+2. Before clicking Deploy, open **Environment Variables** and add the variables from the table above.
+3. Click **Deploy**. Open `https://<your-project>.vercel.app/host` on the laptop. The QR code then points to the public URL, so phones can join from any network.
 
-| I want to… | Edit |
-|---|---|
-| **Tune the Game Master's personality and rules** | `server/prompts/gm-system.md` |
-| Change what the GM is asked for in each task (setup, each round type, recap) | `server/prompts/task-instructions.md` (one `## section` per task) |
-| Change the **casting quiz** questions and traits | `config/quiz.json` (each trait's `id` matches the `trait` on mock roles and secret-chapter briefs) |
-| Add or edit a **world** | `config/worlds.json` (live mode works with any world immediately) |
-| Write mock content for a world | `config/mock/<world id>.json` (copy `zombie.json`). Worlds without a file, or without a pool for a round type, use `generic.json`. |
-| Change the **number, order or type of rounds**, player limits, or reaction emoji | `config/round-plan.json` |
-| Change colours and sizes | `public/style.css` (tokens at the top) |
+## Test checklist
 
-The prompt and config files are re-read on every use, so you can edit them while the server is running. Prompt and mock changes apply from the next GM call; world and round-plan changes apply from the next game.
-
-### Round types
-
-`round-plan.json` lists the rounds in order. Each entry is `{ "type": "..." }`:
-
-| Type | How it plays |
-|---|---|
-| `secret` (default) | A chapter: each player gets a private secret and their own decision, based on their role. Options are either written per player or "pick a player" (e.g. who gets the medicine). The host reveals decisions one player at a time; each shows the secret, choice, optional reason and consequence. Consequences are listed at the start of the next chapter and passed to the GM. |
-| `choice` | Everyone picks what they'd do. The reveal shows who picked what, by name. |
-| `vote_player` | "Who would…?" Everyone votes for a player (self-votes allowed). Tallies first; the host can then reveal who voted for whom. |
-| `predict` | The spotlight player answers honestly and everyone else guesses their answer. The target rotates to whoever has had the spotlight least. |
-
-**Emoji reactions** aren't a round type: they appear after every reveal, so players can react to each other's answers. They feed into the GM's history and the recap.
-
-The code decides each round's *type* and *target*; the GM only writes the *content*. This keeps the game reliable and gives every player a turn in the spotlight.
-
-Adding a brand-new round type touches: `server/results.js` (score it and describe it), `server/gm/validate.js` (what output it needs), `public/app.js` (`renderResult`, plus any instructions in `renderAnswering`), a `## section` in `task-instructions.md`, and a pool in each `config/mock/*.json`.
-
-## How it fits together
-
-```
-server/
-  index.js          Express + Socket.IO; one socket event per player action
-  rooms.js          In-memory rooms and the phase machine (the only code that changes state)
-  results.js        Scores a finished round and summarises it in plain text for the GM
-  recap.js          End-of-game stats and awards, computed from what really happened
-  gm/index.js       Chooses mock/live, validates output, falls back to mock
-  gm/live.js        Anthropic API call with structured JSON output
-  gm/mock.js        Canned responses
-  gm/validate.js    Checks and cleans GM output before the UI sees it
-  prompts/*.md      The GM prompts (team-editable)
-config/             Worlds, round plan, mock scripts (team-editable)
-public/             Plain HTML/CSS/JS client, no build step
-scripts/simulate.js Bot smoke test
-```
-
-Game flow: `lobby → world (everyone votes, host locks in) → quiz (casting votes) → roles → [answering → reveal + reactions] × rounds → recap`.
-
-The GM returns JSON like this for a round. The app adds the round type, the target, and, for votes, the player list:
-
-```json
-{
-  "scene": "The last can of peaches sits on the food court table. Everyone saw it.",
-  "prompt": "Who would secretly eat the last can of peaches tonight?",
-  "options": [],
-  "callback": ""
-}
-```
-
-Each request includes the world, the players, their roles and relationships, and a one-line summary of every earlier round: choices, vote tallies, prediction results and the most-reacted answers. That summary is what lets the GM call back to earlier moments. For secret votes it only includes the tallies, so the GM can't give away who voted for whom.
-
-## Prototype limits
-
-- Everything is in memory. Restarting the server ends all games.
-- No accounts, and rooms are never cleaned up. Fine for a play-test, not for hosting.
-- Players can't join after the lobby, but a player who reloads or loses connection can come back (automatically, or with **Rejoin** on the home screen).
-- If the host disconnects, the next connected player becomes host.
+- [ ] Open `/host` and click **Create game**. A room code and a QR code appear.
+- [ ] Two phones join. They appear on the TV without a refresh, and each phone shows the four universes to vote for.
+- [ ] Vote on both phones. The vote counts and checks update on the TV live. Change one vote and see the count move.
+- [ ] With a tie, the TV shows a start button for each tied universe. Otherwise it shows **Start** with the leading universe's name. Click it.
+- [ ] Act 1: the phones show everyone's names. Submit on one phone, tapping twice quickly. The TV shows a check for that player but not their pick.
+- [ ] Refresh the other phone mid-act. It comes back as the same player, still able to choose.
+- [ ] When everyone has chosen, the TV reveals the choices and the outcome with the right names filled in.
+- [ ] Act 2: the phones show options A, B and C. Make two players choose differently (a 1-1 tie). The TV shows **Vote again**, and **Next act** stays disabled. Click it: the phones show only the tied options. If the re-vote ties again, click the winner on the screen.
+- [ ] Finish act 4 and click **See the ending**. Check the recap counts against what everyone chose.
+- [ ] **Replay this one** starts act 1 again. **Play another universe** goes back to the picker with the same players.
+- [ ] Optional: refresh the laptop mid-game. It returns to the same room and act.
+- [ ] Optional: a 7th phone tries to join and sees "This room is full".
