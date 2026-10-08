@@ -1,5 +1,15 @@
 # Alternate Universe (prototype)
 
+> **Archived.** This is the earlier Express + Socket.io version with the AI Game Master, kept here so nothing is lost. The game that runs from the repo root is now the Next.js + Supabase version (see the main [README](../../README.md)).
+>
+> To run this version, do everything below from this folder:
+>
+> ```bash
+> cd legacy/express-ai-gm
+> npm install
+> npm start
+> ```
+
 A party game for 3–6 friends in the same room, each on their own phone. An AI Game Master drops the group into a fictional world (zombie apocalypse, reality TV villa, office…).
 
 1. **Casting quiz.** Everyone votes on questions like "Who has the strongest execution?" or "Who is the most unpredictable?". Each player gets the trait the group voted them, and a role built on it.
