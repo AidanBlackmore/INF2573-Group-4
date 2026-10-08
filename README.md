@@ -36,9 +36,13 @@ npm run dev
 
 ### Test with real phones on the same Wi-Fi
 
-`npm run dev` listens on every network interface, so other devices on your Wi-Fi can reach it. The terminal prints a **Network** address, for example `http://192.168.1.23:3000`.
+`npm run dev` listens on every network interface, so other devices on your Wi-Fi can reach it. You need your laptop's local IP address. On a Mac, open **System Settings > Wi-Fi**, click **Details…** next to your network, and copy the **IP address**. You can also run this in Terminal:
 
-1. On the laptop, open **`http://<that address>/host`**, not `localhost`. The QR code uses the address the host page was opened with. A phone cannot open `localhost`, because on a phone that means the phone itself.
+```bash
+ipconfig getifaddr en0
+```
+
+1. On the laptop, open **`http://<your IP>:3000/host`**, for example `http://192.168.1.23:3000/host`, not `localhost`. The QR code uses the address the host page was opened with. A phone cannot open `localhost`, because on a phone that means the phone itself.
 2. Scan the QR code with each phone's camera.
 
 If phones cannot load the page: check that they are on the same Wi-Fi as the laptop, and allow incoming connections for Node if macOS asks. University and guest Wi-Fi networks often block devices from talking to each other. In that case, use your phone's hotspot for the laptop and the other phones, or test the deployed Vercel version.

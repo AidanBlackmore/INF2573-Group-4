@@ -56,6 +56,11 @@ export function useRoom(roomId: string | null) {
         { event: "*", schema: "public", table: "players", filter: `room_id=eq.${roomId}` },
         () => void reload(),
       )
+      // Database changes only start flowing a moment after SUBSCRIBED.
+      // Reload again then, so nothing that happened in between is missed.
+      .on("system", {}, (message) => {
+        if (message?.extension === "postgres_changes" && message?.status === "ok") void reload();
+      })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") void reload();
       });
