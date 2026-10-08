@@ -11,11 +11,11 @@ Phones and the laptop never talk to each other directly. Every action goes to Su
 
 The laptop page is the shared screen. There is no separate host: whoever is next to the laptop clicks its buttons.
 
-1. Create a room on the laptop. Players join (2 to 6). Once 2 have joined, the screen shows the four universes. Pick one and click **Start**.
+1. Create a room on the laptop. Players join (2 to 6) and vote for one of the four universes on their phones. The screen shows the votes live, and players can change their vote until the game starts. Click **Start** on the screen to play the most-voted universe. If the top votes are tied, the screen shows the tied universes and you click the one to play.
 2. Each act: the scenario shows on the TV, everyone picks secretly on their phone, and the TV shows who has submitted (not what). When everyone has chosen, or someone clicks **Reveal now**, all choices are revealed together, followed by the outcome. Click **Next act** to continue.
 3. Acts 1 and 4 are about picking a person (anyone, including yourself). Acts 2 and 3 have options A, B and C.
 4. Split rules: **Together** means everyone chose the same. **Majority** means one answer got more than half the votes. **Divided** means no answer got more than half. If the most votes are tied, click **Vote again**: everyone re-votes on their phone, choosing only between the tied answers. If the re-vote ties again, click the winner on the screen. Ties are never broken automatically. The split type (and the opener) comes from the first vote; re-votes do not count in the ending recap.
-5. After act 4, the ending recap shows counts only (never motives), plus **Play another universe** (back to the picker, same players) and **Replay this one**.
+5. After act 4, the ending recap shows counts only (never motives), plus **Play another universe** (back to the vote, same players, votes cleared) and **Replay this one**.
 
 ## Where things live
 
@@ -26,7 +26,7 @@ The laptop page is the shared screen. There is no separate host: whoever is next
 
 ## Privacy and server rules
 
-- **Only the server writes.** Devices can only read tables. Every action (create room, join, start a universe, submit, reveal, re-vote, next act, pick a winner) is a database function that checks the request first. Examples: only the laptop that created the room can run the game, you can only submit while an act is open, a person pick must be someone in the room, and an option must be one of the act's options. A second tap is ignored, so you get one choice per player per act. Rooms are limited to 6 players.
+- **Only the server writes.** Devices can only read tables. Every action (create room, join, vote for a universe, start a universe, submit, reveal, re-vote, next act, pick a winner) is a database function that checks the request first. Examples: only the laptop that created the room can run the game, you can only submit while an act is open, a person pick must be someone in the room, and an option must be one of the act's options. A second tap is ignored, so you get one choice per player per act. Rooms are limited to 6 players.
 - **Choices are private (Row Level Security).** You can read your own choice. Other people's choices for an act only become readable to the room once that act is revealed. The TV sees who has submitted through `players.submitted_round`, not by reading choices.
 
 ## Environment variables
@@ -83,8 +83,9 @@ First-time setup:
 ## Test checklist
 
 - [ ] Open `/host` and click **Create game**. A room code and a QR code appear.
-- [ ] Two phones join. They appear on the TV without a refresh, and the phones say "A universe is being chosen on the shared screen…".
-- [ ] The four universe cards appear once 2 players have joined. Pick one and click **Start**.
+- [ ] Two phones join. They appear on the TV without a refresh, and each phone shows the four universes to vote for.
+- [ ] Vote on both phones. The vote counts and checks update on the TV live. Change one vote and see the count move.
+- [ ] With a tie, the TV shows a start button for each tied universe. Otherwise it shows **Start** with the leading universe's name. Click it.
 - [ ] Act 1: the phones show everyone's names. Submit on one phone, tapping twice quickly. The TV shows a check for that player but not their pick.
 - [ ] Refresh the other phone mid-act. It comes back as the same player, still able to choose.
 - [ ] When everyone has chosen, the TV reveals the choices and the outcome with the right names filled in.

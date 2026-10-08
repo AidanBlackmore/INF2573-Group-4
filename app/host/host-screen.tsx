@@ -2,6 +2,7 @@
 
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
+import { CheckIcon } from "../check-icon";
 import { UNIVERSES, UNIVERSE_META, type Act, type Universe } from "@/content/universes";
 import { track } from "@/lib/analytics";
 import {
@@ -16,6 +17,7 @@ import {
   currentUniverse,
   hasSubmitted,
   resolveAct,
+  universeVotes,
   type Choice,
   type Player,
   type Room,
@@ -276,10 +278,10 @@ function Lobby({
   error: string | null;
   onStart: (u: Universe) => void;
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = UNIVERSES.find((u) => u.id === selectedId);
   const enough = players.length >= MIN_PLAYERS;
   const joinUrl = `${window.location.origin}/play/${room.code}`;
+  const { counts, leaders } = universeVotes(players);
+  const leading = UNIVERSES.filter((u) => leaders.includes(u.id));
 
   return (
     <div className="grid flex-1 grid-cols-1 gap-14 lg:grid-cols-[380px_1fr]">
@@ -301,7 +303,11 @@ function Lobby({
           </h2>
           <ul className="flex flex-wrap gap-3">
             {players.map((p) => (
-              <li key={p.id} className="rounded-xl bg-stone-800 px-4 py-2 text-2xl font-medium">
+              <li
+                key={p.id}
+                className="flex items-center gap-2 rounded-xl bg-stone-800 px-4 py-2 text-2xl font-medium"
+              >
+                {p.universe_vote && <CheckIcon className="h-6 w-6 text-emerald-400" />}
                 {p.name}
               </li>
             ))}
@@ -316,35 +322,53 @@ function Lobby({
         </section>
       ) : (
         <section className="flex flex-col gap-8">
-          <h2 className="text-4xl font-semibold">Choose a universe</h2>
+          <div>
+            <h2 className="text-4xl font-semibold">Vote for a universe on your phone</h2>
+            <p className="mt-2 text-2xl text-stone-400">You can change your vote until the game starts.</p>
+          </div>
           <ul className="grid grid-cols-1 gap-5 xl:grid-cols-2">
             {UNIVERSES.map((u) => {
-              const isSelected = u.id === selectedId;
+              const votes = counts.get(u.id) ?? 0;
+              const isLeading = leaders.includes(u.id);
               return (
-                <li key={u.id}>
-                  <button
-                    onClick={() => setSelectedId(u.id)}
-                    aria-pressed={isSelected}
-                    className={`flex h-full w-full flex-col gap-3 rounded-3xl border-2 p-7 text-left transition-colors ${
-                      isSelected ? "border-amber-400 bg-stone-800" : "border-stone-800 bg-stone-900"
-                    }`}
-                  >
+                <li
+                  key={u.id}
+                  className={`flex flex-col gap-3 rounded-3xl border-2 p-7 ${
+                    isLeading ? "border-amber-400 bg-stone-800" : "border-stone-800 bg-stone-900"
+                  }`}
+                >
+                  <div className="flex items-baseline justify-between gap-4">
                     <span className="text-lg font-medium uppercase tracking-widest text-amber-400">
                       {u.tone}
                     </span>
-                    <span className="text-4xl font-semibold">{u.title}</span>
-                    <span className="text-2xl text-stone-300">{u.tagline}</span>
-                    <span className="mt-auto text-xl text-stone-500">{UNIVERSE_META}</span>
-                  </button>
+                    <span className={`text-2xl font-semibold ${votes ? "text-white" : "text-stone-600"}`}>
+                      {votes} {votes === 1 ? "vote" : "votes"}
+                    </span>
+                  </div>
+                  <span className="text-4xl font-semibold">{u.title}</span>
+                  <span className="text-2xl text-stone-300">{u.tagline}</span>
+                  <span className="mt-auto text-xl text-stone-500">{UNIVERSE_META}</span>
                 </li>
               );
             })}
           </ul>
-          <div className="flex items-center gap-8">
-            <BigButton onClick={() => selected && onStart(selected)} disabled={busy || !selected}>
-              Start
-            </BigButton>
-            {!selected && <p className="text-2xl text-stone-500">Pick a universe to start.</p>}
+          <div className="flex flex-wrap items-center gap-6">
+            {leading.length === 0 && <p className="text-2xl text-stone-500">Waiting for votes…</p>}
+            {leading.length === 1 && (
+              <BigButton onClick={() => onStart(leading[0])} disabled={busy}>
+                Start {leading[0].title}
+              </BigButton>
+            )}
+            {leading.length > 1 && (
+              <>
+                <p className="text-2xl text-stone-300">Tied. Click the one to play:</p>
+                {leading.map((u) => (
+                  <SecondaryButton key={u.id} onClick={() => onStart(u)} disabled={busy}>
+                    Start {u.title}
+                  </SecondaryButton>
+                ))}
+              </>
+            )}
             <ErrorText error={error} />
           </div>
         </section>

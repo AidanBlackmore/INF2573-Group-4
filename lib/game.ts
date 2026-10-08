@@ -34,6 +34,8 @@ export type Player = {
   name: string;
   submitted_round: number;
   submitted_stage: number;
+  // Lobby vote for which universe to play. Public, can change until start.
+  universe_vote: string | null;
   created_at: string;
 };
 
@@ -73,6 +75,17 @@ export function actConfig(act: Act) {
     p_act_kind: act.kind,
     p_act_options: act.kind === "option" ? act.options.map((o) => o.key) : [],
   };
+}
+
+// Lobby votes per universe, and the universes with the most votes.
+export function universeVotes(players: Player[]) {
+  const counts = new Map<string, number>();
+  for (const p of players) {
+    if (p.universe_vote) counts.set(p.universe_vote, (counts.get(p.universe_vote) ?? 0) + 1);
+  }
+  const top = Math.max(0, ...counts.values());
+  const leaders = top === 0 ? [] : [...counts].filter(([, n]) => n === top).map(([id]) => id);
+  return { counts, leaders };
 }
 
 function answerOf(choice: Choice): string {

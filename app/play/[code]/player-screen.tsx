@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CheckIcon } from "../../check-icon";
+import { UNIVERSES } from "@/content/universes";
 import { candidatesFor, currentAct, currentUniverse, hasSubmitted } from "@/lib/game";
 import { ensureSignedIn, errorMessage, supabase } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
@@ -161,9 +162,7 @@ function Controller({
 
   return (
     <PhoneShell roomCode={roomCode} name={me.name}>
-      {room.phase === "lobby" && (
-        <Message title={`You're in, ${me.name}.`} body="A universe is being chosen on the shared screen…" />
-      )}
+      {room.phase === "lobby" && <UniverseVote roomId={room.id} current={me.universe_vote} onVoted={reload} />}
 
       {room.phase === "choosing" && submitted && (
         <Message title="Waiting for others…" body="Your choice is locked in and kept secret." />
@@ -230,6 +229,66 @@ function Controller({
         />
       )}
     </PhoneShell>
+  );
+}
+
+function UniverseVote({
+  roomId,
+  current,
+  onVoted,
+}: {
+  roomId: string;
+  current: string | null;
+  onVoted: () => Promise<void>;
+}) {
+  // Shown right away on tap, before the database confirms.
+  const [pending, setPending] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const voted = pending ?? current;
+
+  async function vote(universeId: string) {
+    setPending(universeId);
+    setError(null);
+    const { error } = await supabase.rpc("vote_universe", { p_room_id: roomId, p_universe_id: universeId });
+    if (error) setError(error.message);
+    await onVoted();
+    setPending(null);
+  }
+
+  return (
+    <div className="flex flex-1 flex-col gap-5">
+      <div>
+        <h1 className="text-3xl font-semibold">Vote for a universe</h1>
+        <p className="mt-1 text-lg text-stone-600">
+          {voted ? "You can change your vote until the game starts." : "Tap the one you want to play."}
+        </p>
+      </div>
+      <ul className="flex flex-col gap-3">
+        {UNIVERSES.map((u) => {
+          const isVoted = u.id === voted;
+          return (
+            <li key={u.id}>
+              <button
+                onClick={() => vote(u.id)}
+                aria-pressed={isVoted}
+                className={`flex w-full items-start justify-between gap-4 rounded-2xl border-2 px-5 py-4 text-left ${
+                  isVoted ? "border-stone-900 bg-stone-900 text-white" : "border-stone-300 bg-white"
+                }`}
+              >
+                <span className="flex flex-col gap-1">
+                  <span className="text-xs font-medium uppercase tracking-widest opacity-60">{u.tone}</span>
+                  <span className="text-2xl font-semibold">{u.title}</span>
+                  <span className="text-base opacity-75">{u.tagline}</span>
+                </span>
+                {isVoted && <CheckIcon className="mt-1 h-7 w-7 shrink-0" />}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {error && <p className="text-lg text-red-600">{error}</p>}
+      <p className="mt-auto text-center text-base text-stone-500">The game starts from the shared screen.</p>
+    </div>
   );
 }
 
