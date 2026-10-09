@@ -51,10 +51,12 @@ PostHog records pageviews plus these events:
 |---|---|---|---|
 | `universe_selected` | Shared screen | A universe starts (not on replay) | `universe_id` |
 | `universe_selected_<universe>` | Shared screen | Same moment, one event name per universe: `universe_selected_mall_night`, `universe_selected_last_train`, `universe_selected_station_zero`, `universe_selected_moonlight_academy` | `universe_id` |
-| `round_1_started`, `round_2_started`… | Shared screen | Each act starts. There is one round per act, so a 4-act universe sends `round_1_started` to `round_4_started`. | `universe_id`, `round`, `total_rounds` |
+| `round_1_started`, `round_2_started`… | Shared screen | Each act starts. A round is one act of the universe being played: `round_1_started` is act 1 ("The money" in Mall Night, "The blanket" in Last Train…), up to `round_4_started` for a 4-act universe. | Act properties (below) |
 | `universe_vote_cast` | Phone | A player votes (or changes their vote) for a universe in the lobby | `universe_id` |
-| `vote_submitted` | Phone | A player submits their choice in an act or a tie-break re-vote | `universe_id`, `round`, `total_rounds`, `stage` (`vote` or `revote`), `act_kind` (`player` or `option`) |
-| `choice_auto_selected` | Shared screen | The timer ran out and the server picked at random for a player. One event per auto-picked player. | `universe_id`, `round`, `total_rounds`, `stage`, `act_kind` |
+| `vote_submitted` | Phone | Every time a player submits a vote, in an act or a tie-break re-vote. One event per vote. | Act properties, `stage` (`vote` or `revote`), and what they voted for: `choice` and `choice_label` for options (e.g. `B`, "Hide in the food court"); for person picks, `choice` is `self` or `another_player` and `picked_self` (names are never sent) |
+| `choice_auto_selected` | Shared screen | The timer ran out and the server picked at random for a player. One event per auto-picked player. | Act properties, `stage` |
+
+**Act properties**, the same on every round and vote event, so they join up in PostHog: `universe_id`, `universe_title`, `act_id` (e.g. `mall-night:act_1`, stable across games), `act_number`, `act_title`, `act_kind` (`player` or `option`), `round` (same as `act_number`), `total_rounds`, and `room_id` + `play_round`, which identify one play of that act in one game. Filter `vote_submitted` by `act_id` to see every vote ever cast on an act, or by `room_id` + `play_round` to see the votes behind one `round_N_started`.
 
 A funnel of `round_1_started → round_2_started → round_3_started → round_4_started` shows which round groups stop in. Comparing `choice_auto_selected` with `vote_submitted` per round shows where people run out of time.
 

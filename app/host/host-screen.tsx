@@ -4,7 +4,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useRef, useState } from "react";
 import { CheckIcon } from "../check-icon";
 import { UNIVERSES, UNIVERSE_META, type Act, type Universe } from "@/content/universes";
-import { eventPart, track } from "@/lib/analytics";
+import { actProperties, eventPart, track } from "@/lib/analytics";
 import {
   MAX_PLAYERS,
   MIN_PLAYERS,
@@ -61,13 +61,10 @@ export default function HostScreen({ feedbackUrl }: { feedbackUrl: string | null
         return;
       }
       const picked = typeof data === "number" ? data : 0;
-      for (let i = 0; i < picked; i++) {
+      for (let i = 0; i < picked && universe; i++) {
         track("choice_auto_selected", {
-          universe_id: universe?.id,
-          round: room.act,
-          total_rounds: universe?.acts.length,
+          ...actProperties(universe, room.act, room),
           stage: room.stage === 1 ? "revote" : "vote",
-          act_kind: room.act_kind,
         });
       }
       await reload();
@@ -112,6 +109,13 @@ export default function HostScreen({ feedbackUrl }: { feedbackUrl: string | null
   async function rpc(fn: string, args: Record<string, unknown>) {
     const { error } = await supabase.rpc(fn, args);
     if (error) throw error;
+  }
+
+  // For actions that return the updated room.
+  async function rpcRoom(fn: string, args: Record<string, unknown>): Promise<Room> {
+    const { data, error } = await supabase.rpc(fn, args);
+    if (error) throw error;
+    return data as Room;
   }
 
   const createGame = () =>
@@ -163,13 +167,13 @@ export default function HostScreen({ feedbackUrl }: { feedbackUrl: string | null
 
   const startUniverse = (u: Universe, isReplay = false) =>
     run(async () => {
-      await rpc("start_universe", { p_room_id: room.id, p_universe_id: u.id, ...actConfig(u.acts[0]) });
+      const started = await rpcRoom("start_universe", { p_room_id: room.id, p_universe_id: u.id, ...actConfig(u.acts[0]) });
       if (!isReplay) {
         track("universe_selected", { universe_id: u.id });
         // One event per universe, e.g. universe_selected_mall_night.
         track(`universe_selected_${eventPart(u.id)}`, { universe_id: u.id });
       }
-      trackRoundStarted(u, 1);
+      trackRoundStarted(u, 1, started);
     });
 
   const nextAct = () =>
@@ -180,8 +184,8 @@ export default function HostScreen({ feedbackUrl }: { feedbackUrl: string | null
         await rpc("end_universe", { p_room_id: room.id });
         return;
       }
-      await rpc("next_act", { p_room_id: room.id, ...actConfig(next) });
-      trackRoundStarted(universe, room.act + 1);
+      const started = await rpcRoom("next_act", { p_room_id: room.id, ...actConfig(next) });
+      trackRoundStarted(universe, room.act + 1, started);
     });
 
   return (
@@ -329,14 +333,11 @@ export default function HostScreen({ feedbackUrl }: { feedbackUrl: string | null
   );
 }
 
-// One event name per round, so each round is its own step in PostHog:
-// round_1_started, round_2_started… up to the number of acts in the universe.
-function trackRoundStarted(universe: Universe, round: number) {
-  track(`round_${round}_started`, {
-    universe_id: universe.id,
-    round,
-    total_rounds: universe.acts.length,
-  });
+// One event name per round, and a round is one act of the universe:
+// round_1_started is act 1 of whichever universe is playing, up to the number
+// of acts. The properties say which universe and act it was.
+function trackRoundStarted(universe: Universe, actNumber: number, room: Room) {
+  track(`round_${actNumber}_started`, actProperties(universe, actNumber, room));
 }
 
 function Lobby({

@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CheckIcon } from "../../check-icon";
 import { UNIVERSES } from "@/content/universes";
-import { track } from "@/lib/analytics";
+import { actProperties, track } from "@/lib/analytics";
 import { candidatesFor, currentAct, currentUniverse, hasSubmitted } from "@/lib/game";
 import { ensureSignedIn, errorMessage, supabase } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
@@ -163,13 +163,20 @@ function Controller({
     if (error) setError(error.message);
     else {
       setSubmittedStep(step);
-      track("vote_submitted", {
-        universe_id: universe?.id,
-        round: room.act,
-        total_rounds: universe?.acts.length,
-        stage: isRevote ? "revote" : "vote",
-        act_kind: act.kind,
-      });
+      // One event per vote, saying what it was a vote for. Person picks never
+      // send a name, only whether the player picked themselves.
+      if (universe) {
+        track("vote_submitted", {
+          ...actProperties(universe, room.act, room),
+          stage: isRevote ? "revote" : "vote",
+          ...(act.kind === "option"
+            ? {
+                choice: selected,
+                choice_label: act.options.find((o) => o.key === selected)?.label,
+              }
+            : { choice: selected === me?.id ? "self" : "another_player", picked_self: selected === me?.id }),
+        });
+      }
     }
     await reload();
     setBusy(false);
