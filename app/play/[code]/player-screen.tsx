@@ -3,10 +3,14 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Blueprint } from "../../blueprint";
 import { CheckIcon } from "../../check-icon";
+import { ICEBREAKERS, roomIcebreaker, shuffleIcebreaker } from "@/content/icebreakers";
+import type { Mystery } from "@/content/universes";
 import { UNIVERSES } from "@/content/universes";
 import { actProperties, track } from "@/lib/analytics";
-import { candidatesFor, currentAct, currentUniverse, hasSubmitted } from "@/lib/game";
+import { candidatesFor, currentAct, currentUniverse, hasSubmitted, type Player } from "@/lib/game";
+import { roomName, searchText, useMystery, type MysteryState } from "@/lib/mystery";
 import { ensureSignedIn, errorMessage, supabase } from "@/lib/supabase";
 import { useRoom } from "@/lib/useRoom";
 import { formatSeconds, useSecondsLeft } from "@/lib/useSecondsLeft";
@@ -135,6 +139,7 @@ function Controller({
   const opensIn = useSecondsLeft(room?.phase === "choosing" ? room.choices_open_at : null);
   // Everyone reads the scenario and talks before anyone can choose.
   const discussing = opensIn !== null && opensIn > 0;
+  const { mystery, refresh: refreshMystery } = useMystery(room, room ? currentUniverse(room) : undefined);
 
   const me = players.find((p) => p.id === myPlayerId);
   if (!room || !me) return <PhoneShell roomCode={roomCode} />;
@@ -156,7 +161,7 @@ function Controller({
     setError(null);
     const { error } = await supabase.rpc(
       "submit_choice",
-      act.kind === "player"
+      act.kind === "player" || act.kind === "accusation"
         ? { p_room_id: room.id, p_chosen_player_id: selected }
         : { p_room_id: room.id, p_chosen_option: selected },
     );
@@ -169,10 +174,10 @@ function Controller({
         track("vote_submitted", {
           ...actProperties(universe, room.act, room),
           stage: isRevote ? "revote" : "vote",
-          ...(act.kind === "option"
+          ...(act.kind === "option" || act.kind === "search"
             ? {
                 choice: selected,
-                choice_label: act.options.find((o) => o.key === selected)?.label,
+                choice_label: candidates.find((c) => c.key === selected)?.label,
               }
             : { choice: selected === me?.id ? "self" : "another_player", picked_self: selected === me?.id }),
         });
@@ -184,7 +189,15 @@ function Controller({
 
   return (
     <PhoneShell roomCode={roomCode} name={me.name}>
-      {room.phase === "lobby" && <UniverseVote roomId={room.id} current={me.universe_vote} onVoted={reload} />}
+      {room.phase === "lobby" && !me.icebreaker_done && <Icebreaker roomId={room.id} onAnswered={reload} />}
+
+      {room.phase === "lobby" && me.icebreaker_done && (
+        <UniverseVote roomId={room.id} current={me.universe_vote} onVoted={reload} />
+      )}
+
+      {universe?.mystery && mystery && room.phase !== "lobby" && room.phase !== "ended" && (
+        <RoleCard mystery={universe.mystery} state={mystery} />
+      )}
 
       {room.phase === "choosing" && submitted && (
         <Message title="Waiting for others…" body="Your choice is locked in and kept secret." />
@@ -225,9 +238,32 @@ function Controller({
             </p>
           ) : (
             <p className="text-2xl font-semibold">
-              {act.kind === "player" ? "Pick one person." : "Pick one option."}
+              {act.kind === "player"
+                ? "Pick one person."
+                : act.kind === "search"
+                  ? "Pick a room to search."
+                  : act.kind === "accusation"
+                    ? "Who is the murderer?"
+                    : "Pick one option."}
             </p>
           )}
+          {act.kind === "accusation" && mystery?.clue && (
+            <div className="rounded-2xl border-2 border-dashed border-stone-400 bg-amber-50 px-4 py-3">
+              <p className="text-sm uppercase tracking-widest text-stone-500">The note on the body</p>
+              <p className="text-lg italic">&ldquo;{mystery.clue.answer}&rdquo;</p>
+              <p className="text-sm text-stone-500">An answer to: {mystery.clue.question}</p>
+            </div>
+          )}
+          {act.kind === "search" && !isRevote ? (
+            <Blueprint
+              rooms={act.rooms}
+              searches={mystery?.searches ?? []}
+              size="phone"
+              selected={selected}
+              onSelect={(key) => setSelection({ step, key })}
+              disabled={discussing}
+            />
+          ) : (
           <ul className="flex flex-col gap-3">
             {candidates.map((c) => {
               const isSelected = c.key === selected;
@@ -253,6 +289,7 @@ function Controller({
               );
             })}
           </ul>
+          )}
           {error && <p className="text-lg text-red-600">{error}</p>}
           <button
             onClick={submit}
@@ -264,17 +301,275 @@ function Controller({
         </div>
       )}
 
-      {room.phase === "revealed" && (
-        <Message title="Choices revealed" body="Look at the shared screen." />
+      {room.phase === "choosing" && act?.kind === "search" && universe?.mystery && mystery && (
+        <SecretNotebook
+          roomId={room.id}
+          mystery={universe.mystery}
+          state={mystery}
+          players={players}
+          me={me}
+          onDone={refreshMystery}
+        />
       )}
 
-      {room.phase === "ended" && (
+      {room.phase === "revealed" && (
+        <Message
+          title="Choices revealed"
+          body={
+            universe?.mystery && mystery?.searches.at(-1)?.round === room.round
+              ? searchText(universe.mystery, mystery.searches.at(-1)!, players)
+              : "Look at the shared screen."
+          }
+        />
+      )}
+
+      {room.phase === "ended" && universe?.mystery && mystery?.outcome && (
+        <Message
+          title={mystery.outcome === "detectives" ? "The detectives win" : "The murderer wins"}
+          body={
+            mystery.you_are_murderer
+              ? mystery.outcome === "murderer"
+                ? "You got away with it. Look at the shared screen."
+                : "They caught you. Look at the shared screen."
+              : "Look at the shared screen and talk it over."
+          }
+        />
+      )}
+
+      {room.phase === "ended" && !(universe?.mystery && mystery?.outcome) && (
         <Message
           title={`The end of ${universe?.title ?? "this universe"}`}
           body="Look at the shared screen and talk it over."
         />
       )}
     </PhoneShell>
+  );
+}
+
+// Before the game: everyone answers a niche question. Shuffle for another
+// one, but you must answer to continue, and answers can't be changed later.
+function Icebreaker({ roomId, onAnswered }: { roomId: string; onAnswered: () => Promise<void> }) {
+  const [index, setIndex] = useState(() => roomIcebreaker(roomId));
+  const [shuffles, setShuffles] = useState(0);
+  const [answer, setAnswer] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const question = ICEBREAKERS[index];
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!answer.trim() || busy) return;
+    setBusy(true);
+    setError(null);
+    const { error } = await supabase.rpc("answer_icebreaker", {
+      p_room_id: roomId,
+      p_question: question,
+      p_answer: answer,
+    });
+    if (error) setError(error.message);
+    else track("icebreaker_answered", { question_index: index, shuffles });
+    await onAnswered();
+    setBusy(false);
+  }
+
+  return (
+    <form onSubmit={submit} className="flex flex-1 flex-col gap-4">
+      <p className="text-sm font-medium uppercase tracking-widest text-stone-500">Before we start</p>
+      <h1 className="text-3xl font-semibold leading-tight">{question}</h1>
+      <button
+        type="button"
+        onClick={() => {
+          setIndex(shuffleIcebreaker(index));
+          setShuffles((n) => n + 1);
+        }}
+        className="self-start rounded-xl border-2 border-stone-300 px-4 py-2 text-lg font-medium"
+      >
+        🔀 Different question
+      </button>
+      <textarea
+        value={answer}
+        onChange={(e) => setAnswer(e.target.value)}
+        maxLength={280}
+        rows={4}
+        placeholder="Your answer"
+        className="rounded-2xl border border-stone-300 bg-white px-5 py-4 text-xl outline-none focus:border-stone-900"
+      />
+      <p className="text-base text-stone-500">
+        Only you can see this. You can&apos;t change it once it&apos;s submitted.
+      </p>
+      {error && <p className="text-lg text-red-600">{error}</p>}
+      <button type="submit" disabled={busy || !answer.trim()} className={`${primaryButton} mt-auto`}>
+        {busy ? "Submitting…" : "Submit answer"}
+      </button>
+    </form>
+  );
+}
+
+// Murder mystery: your secret role, shown only on your own phone.
+function RoleCard({ mystery, state }: { mystery: Mystery; state: MysteryState }) {
+  return state.you_are_murderer ? (
+    <div className="rounded-2xl bg-stone-900 px-5 py-4 text-white">
+      <p className="text-lg font-semibold">🔪 You are the murderer.</p>
+      <p className="text-base opacity-80">
+        The body is in the {roomName(mystery, state.body_room)}. Keep everyone away from it, and don&apos;t get
+        caught.
+      </p>
+    </div>
+  ) : (
+    <div className="rounded-2xl bg-stone-900 px-5 py-4 text-white">
+      <p className="text-lg font-semibold">🔍 You are a detective.</p>
+      <p className="text-base opacity-80">Find the body, then work out which of your friends did it.</p>
+    </div>
+  );
+}
+
+// The murderer's secret move for this act. Detectives get a private notes
+// panel in the same place, so nobody stands out for tapping their phone.
+function SecretNotebook({
+  roomId,
+  mystery,
+  state,
+  players,
+  me,
+  onDone,
+}: {
+  roomId: string;
+  mystery: Mystery;
+  state: MysteryState;
+  players: Player[];
+  me: Player;
+  onDone: () => void;
+}) {
+  const [kind, setKind] = useState<"plant" | "move" | "lie_low">("plant");
+  const [roomKey, setRoomKey] = useState("");
+  const [framed, setFramed] = useState("");
+  const [suspect, setSuspect] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const others = players.filter((p) => p.id !== me.id);
+
+  if (!state.you_are_murderer) {
+    return (
+      <section className="flex flex-col gap-3 rounded-2xl border-2 border-stone-300 bg-white px-5 py-4">
+        <p className="text-sm font-medium uppercase tracking-widest text-stone-500">Private notebook</p>
+        <p className="text-lg font-semibold">Who do you suspect right now?</p>
+        <div className="flex flex-wrap gap-2">
+          {others.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setSuspect(p.id === suspect ? null : p.id)}
+              className={`rounded-xl border-2 px-3 py-2 text-base ${
+                suspect === p.id ? "border-stone-900 bg-stone-900 text-white" : "border-stone-300"
+              }`}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+        <p className="text-sm text-stone-500">Just for you. Nobody else sees this.</p>
+      </section>
+    );
+  }
+
+  if (state.my_action) {
+    const a = state.my_action;
+    const done =
+      a.kind === "plant"
+        ? `You planted evidence against ${players.find((p) => p.id === a.framed_player_id)?.name ?? "someone"} in the ${roomName(mystery, a.room_key)}.`
+        : a.kind === "move"
+          ? `You moved the body to the ${roomName(mystery, a.room_key)}.`
+          : "You're lying low this act.";
+    return (
+      <section className="flex flex-col gap-2 rounded-2xl border-2 border-stone-300 bg-white px-5 py-4">
+        <p className="text-sm font-medium uppercase tracking-widest text-stone-500">Private notebook</p>
+        <p className="text-lg">{done}</p>
+        <p className="text-sm text-stone-500">One secret move per act.</p>
+      </section>
+    );
+  }
+
+  const roomChoices = mystery.rooms.filter((r) => kind !== "move" || r.key !== state.body_room);
+  const ready = kind === "lie_low" || (kind === "plant" ? roomKey && framed : roomKey);
+
+  async function act() {
+    if (!ready || busy) return;
+    setBusy(true);
+    setError(null);
+    const { error } = await supabase.rpc("murderer_action", {
+      p_room_id: roomId,
+      p_kind: kind,
+      p_room_key: kind === "lie_low" ? null : roomKey,
+      p_framed_player_id: kind === "plant" ? framed : null,
+    });
+    if (error) setError(error.message);
+    else track("mystery_murderer_action", { action: kind });
+    onDone();
+    setBusy(false);
+  }
+
+  const select = "h-12 w-full rounded-xl border border-stone-300 bg-white px-3 text-lg";
+  return (
+    <section className="flex flex-col gap-3 rounded-2xl border-2 border-stone-300 bg-white px-5 py-4">
+      <p className="text-sm font-medium uppercase tracking-widest text-stone-500">Private notebook</p>
+      <p className="text-lg font-semibold">Your secret move this act</p>
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            ["plant", "Plant evidence"],
+            ["move", "Move the body"],
+            ["lie_low", "Lie low"],
+          ] as const
+        )
+          .filter(([k]) => k !== "move" || state.move_available)
+          .map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => {
+                setKind(k);
+                setRoomKey("");
+              }}
+              className={`rounded-xl border-2 px-3 py-2 text-base ${
+                kind === k ? "border-stone-900 bg-stone-900 text-white" : "border-stone-300"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+      </div>
+      {kind !== "lie_low" && (
+        <select value={roomKey} onChange={(e) => setRoomKey(e.target.value)} className={select}>
+          <option value="">{kind === "move" ? "Move it to…" : "Plant it in…"}</option>
+          {roomChoices.map((r) => (
+            <option key={r.key} value={r.key}>
+              {r.name}
+            </option>
+          ))}
+        </select>
+      )}
+      {kind === "plant" && (
+        <select value={framed} onChange={(e) => setFramed(e.target.value)} className={select}>
+          <option value="">Frame…</option>
+          {others.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      )}
+      <p className="text-sm text-stone-500">
+        {kind === "plant"
+          ? "If they search that room, they find evidence against who you picked."
+          : kind === "move"
+            ? "Once per game. Everyone will hear something being dragged."
+            : "Do nothing this act."}
+      </p>
+      {error && <p className="text-base text-red-600">{error}</p>}
+      <button type="button" onClick={act} disabled={!ready || busy} className={primaryButton}>
+        {busy ? "…" : "Do it"}
+      </button>
+    </section>
   );
 }
 

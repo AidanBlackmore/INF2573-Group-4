@@ -42,6 +42,8 @@ export type Player = {
   submitted_stage: number;
   // Lobby vote for which universe to play. Public, can change until start.
   universe_vote: string | null;
+  // Answered the icebreaker question (the answer itself is private).
+  icebreaker_done: boolean;
   created_at: string;
 };
 
@@ -77,12 +79,16 @@ export function currentAct(room: Room): Act | undefined {
   return currentUniverse(room)?.acts[room.act - 1];
 }
 
-// What the database needs to validate choices for an act.
+// What the database needs to validate choices for an act. A search is an
+// option act whose options are the mansion's rooms; an accusation picks a person.
 export function actConfig(act: Act) {
-  return {
-    p_act_kind: act.kind,
-    p_act_options: act.kind === "option" ? act.options.map((o) => o.key) : [],
-  };
+  if (act.kind === "option") return { p_act_kind: "option", p_act_options: act.options.map((o) => o.key) };
+  if (act.kind === "search") return { p_act_kind: "option", p_act_options: act.rooms.map((r) => r.key) };
+  return { p_act_kind: "player", p_act_options: [] as string[] };
+}
+
+export function minPlayersFor(universe: Universe): number {
+  return universe.minPlayers ?? MIN_PLAYERS;
 }
 
 // Lobby votes per universe, and the universes with the most votes.
@@ -117,9 +123,9 @@ export type Tally = {
 };
 
 export function candidatesFor(act: Act, players: Player[]): Candidate[] {
-  return act.kind === "player"
-    ? players.map((p) => ({ key: p.id, label: p.name }))
-    : act.options.map((o) => ({ key: o.key, label: `${o.key}) ${o.label}` }));
+  if (act.kind === "search") return act.rooms.map((r) => ({ key: r.key, label: r.name }));
+  if (act.kind === "option") return act.options.map((o) => ({ key: o.key, label: `${o.key}) ${o.label}` }));
+  return players.map((p) => ({ key: p.id, label: p.name }));
 }
 
 export function tally(candidates: Candidate[], choices: Choice[]): Tally {
@@ -203,6 +209,8 @@ export function actOutcome(act: Act, result: ActResult): { opener?: string; outc
   const { winner, runnerUp } = result;
   const split = result.main.split;
   if (!winner) return null;
+  // Murder mystery acts get their outcome from the mystery state (lib/mystery.ts).
+  if (act.kind === "search" || act.kind === "accusation") return null;
 
   if (act.kind === "player") {
     const outcome = act.outcomes[split]

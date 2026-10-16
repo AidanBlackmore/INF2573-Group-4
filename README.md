@@ -1,6 +1,6 @@
 # Alternate Universes (party game prototype)
 
-A Jackbox-style party game: one shared screen on a TV, phones as controllers. Pick one of four universes on the shared screen. Each universe is a pre-written episode in four acts. There is no AI yet.
+A Jackbox-style party game: one shared screen on a TV, phones as controllers. Pick one of five universes on the shared screen. Four are pre-written episodes in four acts; the fifth is a murder mystery of up to ten acts. There is no AI yet.
 
 - `/host`: the shared screen. Open it on a laptop connected to the TV.
 - `/play/CODE`: the phone controller. Players get there by scanning the QR code or typing the room code on the home page.
@@ -17,18 +17,31 @@ Phones and the laptop never talk to each other directly. Every action goes to Su
 
 The laptop page is the shared screen. There is no separate host: whoever is next to the laptop clicks its buttons.
 
-1. Create a room on the laptop. Players join (2 to 6) and vote for one of the four universes on their phones. The screen shows the votes live, and players can change their vote until the game starts. Click **Start** on the screen to play the most-voted universe. If the top votes are tied, the screen shows the tied universes and you click the one to play.
+1. Create a room on the laptop. Players join (2 to 6). Before voting, everyone answers an **icebreaker question** on their phone, such as "Write down an embarrassing moment." Everyone starts with the same question, and can tap **Different question** to shuffle to another, but must answer one to continue. Answers are private and locked once submitted. The game can't start until everyone has answered. Then everyone votes for one of the five universes on their phones. The screen shows the votes live, and players can change their vote until the game starts. Click **Start** on the screen to play the most-voted universe. If the top votes are tied, the screen shows the tied universes and you click the one to play.
 2. Each act: the scenario shows on the TV, everyone picks secretly on their phone, and the TV shows who has submitted (not what). Each vote starts with a **20-second discussion**: everyone sees the scenario and the options, but phones can't choose yet, so the group talks it over first. Then voting opens with a **60-second timer**, shown on the TV and on every phone. When everyone has chosen, someone clicks **Reveal now**, or the timer runs out, all choices are revealed together, followed by the outcome. If the timer runs out, the server picks at random for anyone who hasn't chosen, and the reveal marks those choices "picked at random, time ran out". Click **Next act** to continue.
 3. Acts 1 and 4 are about picking a person (anyone, including yourself). Acts 2 and 3 have options A, B and C.
 4. Split rules: **Together** means everyone chose the same. **Majority** means one answer got more than half the votes. **Divided** means no answer got more than half. If the most votes are tied, click **Vote again**: everyone re-votes on their phone, choosing only between the tied answers. If the re-vote ties again, click the winner on the screen. Ties are never broken automatically. The split type (and the opener) comes from the first vote; re-votes do not count in the ending recap.
 5. After act 4, the ending recap shows counts only (never motives), plus **Play another universe** (back to the vote, same players, votes cleared) and **Replay this one**.
 
+### Murder at Marlowe Manor (murder mystery)
+
+Needs 3 to 6 players. When it starts, the server secretly picks one player as the **murderer** and hides Lord Fenwick's body in one of the 9 rooms. Each phone shows its own role: the murderer is told where the body is, and everyone else is a detective. The TV shows a **blueprint of the mansion**.
+
+- **Search acts (up to 9):** after the discussion, everyone (the murderer too) votes on their phone by tapping a room on the map. The most-voted room is searched. It's either empty, has evidence the murderer planted, or holds the body. Searched rooms are marked on the map.
+- **The murderer's secret move:** once per search act, on their phone. They can **plant evidence** framing someone in a room (it turns up if that room is searched), **move the body** (once per game, and everyone hears something being dragged), or **lie low**. Detectives get a private "who do you suspect?" notebook in the same spot, so nobody stands out for tapping their phone.
+- **Finding the body** reveals a note pinned to it: the **murderer's icebreaker answer**. The next act is the **accusation** (act 10): who wrote the note, and who did it? The detectives win if they name the murderer. Everyone else's answers are never shown.
+- **The murderer wins** if the body is still hidden after 9 searches, or if the group accuses the wrong person. A game is at most 10 acts.
+
+The rules run in the database (`0007_murder_mystery.sql`). No screen can read who the murderer is, where the body is, or anyone's answer until the game reveals it.
+
 ## Where things live
 
-- **Story content:** [`content/universes.ts`](content/universes.ts). All four universes, every scenario, opener and outcome. Add or edit a universe here without touching game logic. `{winner}` and `{runner_up}` are filled in automatically.
+- **Story content:** [`content/universes.ts`](content/universes.ts). The four story universes, every scenario, opener and outcome. Add or edit a universe here without touching game logic. `{winner}` and `{runner_up}` are filled in automatically.
+- **Murder mystery:** [`content/murder-mystery.ts`](content/murder-mystery.ts). The mansion's rooms (name, position on the blueprint, what a search finds), the search scenarios and the accusation outcomes.
+- **Icebreaker questions:** [`content/icebreakers.ts`](content/icebreakers.ts).
 - **Game rules:** [`lib/game.ts`](lib/game.ts). Split rules, ties, outcome text and the recap. `getOpener()` is the placeholder for a future AI-generated opener.
 - **Screens:** `app/host/` (shared screen) and `app/play/[code]/` (phone).
-- **Database:** [`supabase/migrations/`](supabase/migrations). Run the files in order. `0005_choice_timer.sql` adds the voting timer and `0006_discussion_window.sql` adds the discussion before it. To change their lengths, change the `choice_seconds` (10 to 600) and `discussion_seconds` (0 to 300, 0 turns the discussion off) defaults on `rooms`.
+- **Database:** [`supabase/migrations/`](supabase/migrations). Run the files in order. `0005_choice_timer.sql` adds the voting timer, `0006_discussion_window.sql` adds the discussion before it, and `0007_murder_mystery.sql` adds the icebreaker question and the murder mystery. To change their lengths, change the `choice_seconds` (10 to 600) and `discussion_seconds` (0 to 300, 0 turns the discussion off) defaults on `rooms`.
 
 ## Privacy and server rules
 
@@ -55,6 +68,10 @@ PostHog records pageviews plus these events:
 | `universe_vote_cast` | Phone | A player votes (or changes their vote) for a universe in the lobby | `universe_id` |
 | `vote_submitted` | Phone | Every time a player submits a vote, in an act or a tie-break re-vote. One event per vote. | Act properties, `stage` (`vote` or `revote`), and what they voted for: `choice` and `choice_label` for options (e.g. `B`, "Hide in the food court"); for person picks, `choice` is `self` or `another_player` and `picked_self` (names are never sent) |
 | `choice_auto_selected` | Shared screen | The timer ran out and the server picked at random for a player. One event per auto-picked player. | Act properties, `stage` |
+| `icebreaker_answered` | Phone | A player submits their icebreaker answer (the text is never sent) | `question_index`, `shuffles` |
+| `mystery_room_searched` | Shared screen | A room of the mansion is searched | Act properties, `room`, `result` (`empty`, `evidence` or `body`) |
+| `mystery_murderer_action` | Phone (murderer only) | The murderer makes their secret move | `action` (`plant`, `move` or `lie_low`) |
+| `mystery_solved` | Shared screen | The accusation is made | `universe_id`, `correct`, `acts_used`, `room_id` |
 
 **Act properties**, the same on every round and vote event, so they join up in PostHog: `universe_id`, `universe_title`, `act_id` (e.g. `mall-night:act_1`, stable across games), `act_number`, `act_title`, `act_kind` (`player` or `option`), `round` (same as `act_number`), `total_rounds`, and `room_id` + `play_round`, which identify one play of that act in one game. Filter `vote_submitted` by `act_id` to see every vote ever cast on an act, or by `room_id` + `play_round` to see the votes behind one `round_N_started`.
 
@@ -102,7 +119,7 @@ First-time setup:
 ## Test checklist
 
 - [ ] Open `/host` and click **Create game**. A room code and a QR code appear.
-- [ ] Two phones join. They appear on the TV without a refresh, and each phone shows the four universes to vote for.
+- [ ] Two phones join. They appear on the TV without a refresh, and each phone shows the five universes (after answering the icebreaker question) to vote for.
 - [ ] Vote on both phones. The vote counts and checks update on the TV live. Change one vote and see the count move.
 - [ ] With a tie, the TV shows a start button for each tied universe. Otherwise it shows **Start** with the leading universe's name. Click it.
 - [ ] Act 1: the phones show everyone's names. Submit on one phone, tapping twice quickly. The TV shows a check for that player but not their pick.

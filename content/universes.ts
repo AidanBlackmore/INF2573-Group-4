@@ -2,6 +2,8 @@
 // logic. Placeholders: {winner} is the most-voted answer, {runner_up} the
 // second most. Both are filled in with player names in person-picking acts.
 
+import { MURDER_MYSTERY } from "./murder-mystery";
+
 export type Split = "together" | "majority" | "divided";
 
 export type PlayerAct = {
@@ -22,7 +24,42 @@ export type OptionAct = {
   options: { key: string; label: string; outcome: string }[];
 };
 
-export type Act = PlayerAct | OptionAct;
+// Murder mystery only: vote on a room of the mansion to search.
+export type SearchAct = {
+  kind: "search";
+  title: string;
+  scenario: string;
+  rooms: MansionRoom[];
+};
+
+// Murder mystery only: vote on who the murderer is. Always the last act.
+export type AccusationAct = {
+  kind: "accusation";
+  title: string;
+  scenario: string;
+  outcomes: { caught: string; escaped: string };
+};
+
+export type Act = PlayerAct | OptionAct | SearchAct | AccusationAct;
+
+export type MansionRoom = {
+  key: string;
+  name: string;
+  // Position on the blueprint grid.
+  col: number;
+  row: number;
+  // What a search finds when the room is empty, or has planted evidence.
+  empty: string;
+  evidence: string;
+};
+
+export type Mystery = {
+  rooms: MansionRoom[];
+  maxSearches: number;
+  // {room} is the room's name.
+  bodyFound: string;
+  dragged: string;
+};
 
 export type Universe = {
   id: string;
@@ -30,6 +67,12 @@ export type Universe = {
   tagline: string;
   tone: string;
   acts: Act[];
+  // Shown under the title in the picker. Defaults to UNIVERSE_META.
+  meta?: string;
+  // Defaults to MIN_PLAYERS in lib/game.ts.
+  minPlayers?: number;
+  // Set for the murder mystery: the mansion and its rules.
+  mystery?: Mystery;
 };
 
 export const UNIVERSE_META = "About 15-20 min · 2-6 players";
@@ -427,6 +470,7 @@ export const UNIVERSES: Universe[] = [
       },
     ],
   },
+  MURDER_MYSTERY,
 ];
 
 export function getUniverse(id: string | null | undefined): Universe | undefined {

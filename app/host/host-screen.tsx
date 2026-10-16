@@ -2,6 +2,7 @@
 
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useRef, useState } from "react";
+import { Blueprint } from "../blueprint";
 import { CheckIcon } from "../check-icon";
 import { UNIVERSES, UNIVERSE_META, type Act, type Universe } from "@/content/universes";
 import { actProperties, eventPart, track } from "@/lib/analytics";
@@ -16,6 +17,7 @@ import {
   currentAct,
   currentUniverse,
   hasSubmitted,
+  minPlayersFor,
   resolveAct,
   universeVotes,
   type Choice,
@@ -23,6 +25,7 @@ import {
   type Room,
 } from "@/lib/game";
 import { ensureSignedIn, errorMessage, supabase } from "@/lib/supabase";
+import { roomName, searchText, useMystery, type MysteryState } from "@/lib/mystery";
 import { useRoom } from "@/lib/useRoom";
 import { formatSeconds, useSecondsLeft } from "@/lib/useSecondsLeft";
 import { BigButton, ErrorText, Eyebrow, HostShell, SecondaryButton, SubmissionChip } from "./ui";
@@ -36,6 +39,7 @@ export default function HostScreen({ feedbackUrl }: { feedbackUrl: string | null
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { room, players, choices, reload } = useRoom(roomId);
+  const { mystery } = useMystery(room, room ? currentUniverse(room) : undefined);
   const secondsLeft = useSecondsLeft(room?.phase === "choosing" ? room.choice_deadline : null);
   const opensIn = useSecondsLeft(room?.phase === "choosing" ? room.choices_open_at : null);
   const discussing = opensIn !== null && opensIn > 0;
@@ -167,6 +171,14 @@ export default function HostScreen({ feedbackUrl }: { feedbackUrl: string | null
 
   const startUniverse = (u: Universe, isReplay = false) =>
     run(async () => {
+      // Murder mystery: pick the murderer and hide the body before act 1.
+      if (u.mystery) {
+        await rpc("mystery_setup", {
+          p_room_id: room.id,
+          p_rooms: u.mystery.rooms.map((r) => r.key),
+          p_max_searches: u.mystery.maxSearches,
+        });
+      }
       const started = await rpcRoom("start_universe", { p_room_id: room.id, p_universe_id: u.id, ...actConfig(u.acts[0]) });
       if (!isReplay) {
         track("universe_selected", { universe_id: u.id });
@@ -179,6 +191,12 @@ export default function HostScreen({ feedbackUrl }: { feedbackUrl: string | null
   const nextAct = () =>
     run(async () => {
       if (!universe) return;
+      // Murder mystery: the database decides what comes next (search, accusation or the end).
+      if (universe.mystery) {
+        const moved = await rpcRoom("mystery_next", { p_room_id: room.id });
+        if (moved.phase === "choosing") trackRoundStarted(universe, moved.act, moved);
+        return;
+      }
       const next = universe.acts[room.act];
       if (!next) {
         await rpc("end_universe", { p_room_id: room.id });
@@ -243,6 +261,12 @@ export default function HostScreen({ feedbackUrl }: { feedbackUrl: string | null
           ) : (
             <p className="max-w-6xl text-5xl font-semibold leading-tight">{act.scenario}</p>
           )}
+          {act.kind === "search" && room.stage === 0 && (
+            <div className="max-w-5xl">
+              <Blueprint rooms={act.rooms} searches={mystery?.searches ?? []} />
+            </div>
+          )}
+          {act.kind === "accusation" && mystery?.clue && <ClueCard clue={mystery.clue} />}
           {act.kind === "option" && room.stage === 0 && (
             <ul className="flex flex-col gap-3">
               {act.options.map((o) => (
@@ -304,10 +328,43 @@ export default function HostScreen({ feedbackUrl }: { feedbackUrl: string | null
           onRevote={(keys) => run(() => rpc("start_revote", { p_room_id: room.id, p_tied: keys }))}
           onPickTie={(key) => run(() => rpc("resolve_tie", { p_room_id: room.id, p_pick: key }))}
           onNext={nextAct}
+          mystery={mystery}
+          onSearch={(key) =>
+            run(async () => {
+              const { data, error } = await supabase.rpc("mystery_search", { p_room_id: room.id, p_room_key: key });
+              if (error) throw error;
+              if (universe)
+                track("mystery_room_searched", { ...actProperties(universe, room.act, room), room: key, result: data?.result });
+            })
+          }
+          onAccuse={(playerId) =>
+            run(async () => {
+              const { data, error } = await supabase.rpc("mystery_accuse", { p_room_id: room.id, p_player_id: playerId });
+              if (error) throw error;
+              track("mystery_solved", {
+                universe_id: universe?.id,
+                correct: data?.outcome === "detectives",
+                acts_used: room.act,
+                room_id: room.id,
+              });
+            })
+          }
         />
       )}
 
-      {room.phase === "ended" && universe && (
+      {room.phase === "ended" && universe?.mystery && (
+        <MysteryEnding
+          universe={universe}
+          state={mystery}
+          players={players}
+          busy={busy}
+          error={error}
+          onAnother={() => run(() => rpc("back_to_picker", { p_room_id: room.id }))}
+          onReplay={() => startUniverse(universe, true)}
+        />
+      )}
+
+      {room.phase === "ended" && universe && !universe.mystery && (
         <Ending
           room={room}
           universe={universe}
@@ -357,6 +414,14 @@ function Lobby({
   const joinUrl = `${window.location.origin}/play/${room.code}`;
   const { counts, leaders } = universeVotes(players);
   const leading = UNIVERSES.filter((u) => leaders.includes(u.id));
+  // Everyone answers the icebreaker question on their phone before the game can start.
+  const unanswered = players.filter((p) => !p.icebreaker_done);
+  const blocker = (u: Universe) =>
+    unanswered.length > 0
+      ? `Waiting for ${unanswered.map((p) => p.name).join(", ")} to answer the question.`
+      : players.length < minPlayersFor(u)
+        ? `${u.title} needs at least ${minPlayersFor(u)} players.`
+        : null;
 
   return (
     <div className="grid flex-1 grid-cols-1 gap-14 lg:grid-cols-[380px_1fr]">
@@ -384,6 +449,11 @@ function Lobby({
               >
                 {p.universe_vote && <CheckIcon className="h-6 w-6 text-emerald-400" />}
                 {p.name}
+                {!p.icebreaker_done && (
+                  <span className="text-lg text-stone-500" title="Still answering the question">
+                    ✍️
+                  </span>
+                )}
               </li>
             ))}
           </ul>
@@ -398,8 +468,11 @@ function Lobby({
       ) : (
         <section className="flex flex-col gap-8">
           <div>
-            <h2 className="text-4xl font-semibold">Vote for a universe on your phone</h2>
-            <p className="mt-2 text-2xl text-stone-400">You can change your vote until the game starts.</p>
+            <h2 className="text-4xl font-semibold">Answer the question, then vote for a universe</h2>
+            <p className="mt-2 text-2xl text-stone-400">
+              Everyone answers a question on their phone first (only they can see it). Then vote, and change your
+              vote until the game starts.
+            </p>
           </div>
           <ul className="grid grid-cols-1 gap-5 xl:grid-cols-2">
             {UNIVERSES.map((u) => {
@@ -422,7 +495,7 @@ function Lobby({
                   </div>
                   <span className="text-4xl font-semibold">{u.title}</span>
                   <span className="text-2xl text-stone-300">{u.tagline}</span>
-                  <span className="mt-auto text-xl text-stone-500">{UNIVERSE_META}</span>
+                  <span className="mt-auto text-xl text-stone-500">{u.meta ?? UNIVERSE_META}</span>
                 </li>
               );
             })}
@@ -430,7 +503,7 @@ function Lobby({
           <div className="flex flex-wrap items-center gap-6">
             {leading.length === 0 && <p className="text-2xl text-stone-500">Waiting for votes…</p>}
             {leading.length === 1 && (
-              <BigButton onClick={() => onStart(leading[0])} disabled={busy}>
+              <BigButton onClick={() => onStart(leading[0])} disabled={busy || Boolean(blocker(leading[0]))}>
                 Start {leading[0].title}
               </BigButton>
             )}
@@ -438,11 +511,14 @@ function Lobby({
               <>
                 <p className="text-2xl text-stone-300">Tied. Click the one to play:</p>
                 {leading.map((u) => (
-                  <SecondaryButton key={u.id} onClick={() => onStart(u)} disabled={busy}>
+                  <SecondaryButton key={u.id} onClick={() => onStart(u)} disabled={busy || Boolean(blocker(u))}>
                     Start {u.title}
                   </SecondaryButton>
                 ))}
               </>
+            )}
+            {leading.length > 0 && blocker(leading[0]) && (
+              <p className="w-full text-2xl text-stone-400">{blocker(leading[0])}</p>
             )}
             <ErrorText error={error} />
           </div>
@@ -463,6 +539,9 @@ function Reveal({
   onRevote,
   onPickTie,
   onNext,
+  mystery,
+  onSearch,
+  onAccuse,
 }: {
   room: Room;
   universe: Universe;
@@ -474,15 +553,76 @@ function Reveal({
   onRevote: (keys: string[]) => void;
   onPickTie: (key: string) => void;
   onNext: () => void;
+  mystery: MysteryState | null;
+  onSearch: (roomKey: string) => void;
+  onAccuse: (playerId: string) => void;
 }) {
   const result = resolveAct(act, room, choices, players);
   const outcome = actOutcome(act, result);
   const isLast = room.act >= universe.acts.length;
   const mainChoices = choices.filter((c) => c.stage === 0);
+  const candidates = candidatesFor(act, players);
   const answerLabel = (c: Choice) =>
-    act.kind === "player"
+    act.kind === "player" || act.kind === "accusation"
       ? (players.find((p) => p.id === c.chosen_player_id)?.name ?? "someone")
-      : `${c.chosen_option})`;
+      : act.kind === "search"
+        ? (candidates.find((x) => x.key === c.chosen_option)?.label ?? c.chosen_option)
+        : `${c.chosen_option})`;
+
+  // Murder mystery: once the vote has a winner, search that room (or record
+  // the accusation). Only once per act, even if the screen re-renders.
+  const lastSearch = mystery?.searches.at(-1);
+  const searchedNow = lastSearch && lastSearch.round === room.round ? lastSearch : null;
+  const winnerKey = result.winner?.key ?? null;
+  const triggered = useRef<number | null>(null);
+  useEffect(() => {
+    if (!mystery || !winnerKey || triggered.current === room.round) return;
+    if (act.kind === "search" && !searchedNow) {
+      triggered.current = room.round;
+      onSearch(winnerKey);
+    } else if (act.kind === "accusation" && !mystery.outcome) {
+      triggered.current = room.round;
+      onAccuse(winnerKey);
+    }
+  }, [mystery, winnerKey, room.round, act.kind, searchedNow, onSearch, onAccuse]);
+
+  let mysteryView: { node: React.ReactNode; ready: boolean; nextLabel: string } | null = null;
+  if (universe.mystery && act.kind === "search") {
+    mysteryView = {
+      ready: Boolean(searchedNow),
+      nextLabel:
+        searchedNow?.result === "body"
+          ? "To the accusation"
+          : room.act >= universe.mystery.maxSearches
+            ? "See the ending"
+            : "Next act",
+      node: searchedNow ? (
+        <div className="flex flex-col gap-6">
+          <p className="text-3xl text-stone-400">The group searches the {roomName(universe.mystery, searchedNow.room_key)}.</p>
+          <p className="text-5xl font-semibold leading-tight">{searchText(universe.mystery, searchedNow, players)}</p>
+          {searchedNow.dragged && <p className="text-3xl text-amber-400">{universe.mystery.dragged}</p>}
+          {searchedNow.result === "body" && mystery?.clue && <ClueCard clue={mystery.clue} />}
+          {searchedNow.result !== "body" && room.act >= universe.mystery.maxSearches && (
+            <p className="text-3xl text-stone-400">That was the last search. Dawn is coming.</p>
+          )}
+        </div>
+      ) : result.winner ? (
+        <p className="text-4xl text-stone-400">Searching the {result.winner.label}…</p>
+      ) : null,
+    };
+  } else if (universe.mystery && act.kind === "accusation") {
+    const murderer = players.find((p) => p.id === mystery?.murderer_id)?.name ?? "someone";
+    const text = mystery?.outcome
+      ? act.outcomes[mystery.outcome === "detectives" ? "caught" : "escaped"]
+          .replaceAll("{winner}", result.winner?.label ?? "someone")
+          .replaceAll("{murderer}", murderer)
+      : null;
+    mysteryView = {
+      ready: Boolean(mystery?.outcome),
+      nextLabel: "See the ending",
+      node: text ? <p className="text-5xl font-semibold leading-tight">{text}</p> : null,
+    };
+  }
   // "Mary and Alex", "Mary, Alex and Sam"
   const names = (cs: { label: string }[]) => {
     const labels = cs.map((c) => c.label);
@@ -564,12 +704,25 @@ function Reveal({
               <p className="text-5xl font-semibold leading-tight">{outcome.outcome}</p>
             </div>
           )}
+          {mysteryView?.node}
         </section>
       </div>
 
+      {universe.mystery && act.kind === "search" && (
+        <div className="max-w-5xl">
+          <Blueprint
+            rooms={act.rooms}
+            searches={mystery?.searches ?? []}
+            bodyRoom={mystery?.body_room}
+            showBody={Boolean(mystery?.found_act)}
+            highlight={searchedNow?.room_key}
+          />
+        </div>
+      )}
+
       <div className="flex items-center gap-8">
-        <BigButton onClick={onNext} disabled={busy || !outcome}>
-          {isLast ? "See the ending" : "Next act"}
+        <BigButton onClick={onNext} disabled={busy || !(mysteryView ? mysteryView.ready : outcome)}>
+          {mysteryView ? mysteryView.nextLabel : isLast ? "See the ending" : "Next act"}
         </BigButton>
         <ErrorText error={error} />
       </div>
@@ -621,6 +774,92 @@ function Ending({
         <p>Want to hear why everyone chose differently?</p>
         <p>What surprised you about the group&apos;s choices?</p>
       </div>
+      <div className="mt-auto flex flex-wrap items-center gap-6">
+        <BigButton onClick={onAnother} disabled={busy}>
+          Play another universe
+        </BigButton>
+        <SecondaryButton onClick={onReplay} disabled={busy}>
+          Replay this one
+        </SecondaryButton>
+        <ErrorText error={error} />
+      </div>
+    </div>
+  );
+}
+
+// The murderer's icebreaker answer, found on the body.
+function ClueCard({ clue }: { clue: { question: string; answer: string } }) {
+  return (
+    <div className="flex max-w-5xl flex-col gap-3 rounded-3xl border-4 border-dashed border-amber-200/70 bg-amber-50 px-10 py-8 text-stone-900">
+      <p className="text-xl font-medium uppercase tracking-widest text-stone-500">The note on the body</p>
+      <p className="text-4xl italic leading-snug">&ldquo;{clue.answer}&rdquo;</p>
+      <p className="text-2xl text-stone-500">An answer to: {clue.question}</p>
+      <p className="text-2xl font-semibold">Whose answer is this? One of you wrote it.</p>
+    </div>
+  );
+}
+
+function MysteryEnding({
+  universe,
+  state,
+  players,
+  busy,
+  error,
+  onAnother,
+  onReplay,
+}: {
+  universe: Universe;
+  state: MysteryState | null;
+  players: Player[];
+  busy: boolean;
+  error: string | null;
+  onAnother: () => void;
+  onReplay: () => void;
+}) {
+  const mystery = universe.mystery!;
+  const name = (id: string | null | undefined) => players.find((p) => p.id === id)?.name ?? "someone";
+  const detectivesWon = state?.outcome === "detectives";
+  const searches = state?.searches ?? [];
+
+  return (
+    <div className="flex flex-1 flex-col gap-10">
+      <Eyebrow>The end of {universe.title}</Eyebrow>
+      {state?.outcome ? (
+        <div className="grid flex-1 grid-cols-1 gap-14 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+          <section className="flex flex-col gap-6">
+            <p className={`text-7xl font-semibold ${detectivesWon ? "text-emerald-400" : "text-red-400"}`}>
+              {detectivesWon ? "The detectives win" : "The murderer wins"}
+            </p>
+            <p className="text-4xl">
+              The murderer was <span className="font-semibold">{name(state.murderer_id)}</span>.
+            </p>
+            <p className="text-3xl text-stone-400">
+              {state.found_act
+                ? `The body was found in the ${roomName(mystery, state.body_room)} in act ${state.found_act}.`
+                : `The body stayed hidden in the ${roomName(mystery, state.body_room)}. Nobody found it.`}
+              {state.accused_id && ` The group accused ${name(state.accused_id)}.`}
+            </p>
+            {state.clue && <ClueCard clue={state.clue} />}
+            <div className="flex flex-col gap-3 text-4xl font-semibold text-amber-400">
+              <p>{name(state.murderer_id)}, tell everyone the story behind your answer.</p>
+              <p>Who did you suspect, and why?</p>
+            </div>
+          </section>
+          <section className="flex flex-col gap-4">
+            <Blueprint
+              rooms={mystery.rooms}
+              searches={searches}
+              bodyRoom={state.body_room}
+              showBody
+            />
+            <p className="text-2xl text-stone-400">
+              {searches.length} room{searches.length === 1 ? "" : "s"} searched
+            </p>
+          </section>
+        </div>
+      ) : (
+        <p className="text-4xl text-stone-400">Loading the verdict…</p>
+      )}
       <div className="mt-auto flex flex-wrap items-center gap-6">
         <BigButton onClick={onAnother} disabled={busy}>
           Play another universe
