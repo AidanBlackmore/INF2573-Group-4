@@ -1,489 +1,120 @@
-// Client: renders one screen per game phase from the state the server sends.
-// Buttons use data-action="..." and are handled by one click listener at the bottom.
-/* global io */
+'use strict';
 const socket = io();
-const $app = document.getElementById('app');
-let state = null;
-let lanUrl = null;
-
-// ---------- session (so a phone that sleeps can rejoin) ----------
-
-// Per-tab session (sessionStorage) auto-resumes after a reload or dropped connection.
-// localStorage remembers the last game on this device, offered as a "Rejoin" button
-// (never automatic, so several tabs in one browser can be different players).
-const SESSION_KEY = 'au-session';
-function readStore(store) {
-  try { return JSON.parse(store.getItem(SESSION_KEY)); } catch { return null; }
-}
-function saveSession(s) {
-  for (const store of [sessionStorage, localStorage]) {
-    try { store.setItem(SESSION_KEY, JSON.stringify(s)); } catch { /* private mode */ }
-  }
-}
-function clearSession() {
-  for (const store of [sessionStorage, localStorage]) {
-    try { store.removeItem(SESSION_KEY); } catch { /* ignore */ }
-  }
-}
-function resume(s) {
-  socket.emit('resume', s, (res) => {
-    if (!res.ok) { clearSession(); state = null; render(); toast('That game has ended.'); }
-  });
-}
-
-socket.on('connect', () => {
-  const s = readStore(sessionStorage);
-  if (s) resume(s);
-  else if (!state) render();
-});
-socket.on('joined', ({ code, token, name }) => saveSession({ code, token, name }));
-socket.on('state', (s) => { state = s; render(); });
-
-fetch('/info').then((r) => r.json()).then((info) => { lanUrl = info.urls[0] || null; if (state) render(); }).catch(() => {});
-
+const app = document.querySelector('#app');
+const params = new URLSearchParams(location.search);
+let state, tab = 'Now', connected = false, busy = false, lan = location.origin;
+let recapIndex = 0, recapPaused = false, recapFinished = false, recapElapsed = 0;
+const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const read = (key, storage = sessionStorage) => { try { return storage.getItem(key); } catch { return null; } };
+const save = (key, value, storage = sessionStorage) => { try { storage.setItem(key, value); } catch { toast('This browser cannot save locally. Keep this tab open.'); } };
+let credential; try { credential = JSON.parse(read('last-light-session')); } catch { credential = null; }
+const btn = (text, type, value = '', disabled = false, cls = '') => `<button class="${cls}" data-action="${type}" data-value="${esc(value)}" ${disabled ? 'disabled' : ''}>${text}</button>`;
+function toast(message) { const el = document.querySelector('#toast'); el.textContent = message; el.hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => el.hidden = true, 6000); }
 function send(event, payload = {}) {
-  socket.emit(event, payload, (res) => { if (res && !res.ok) toast(res.error); });
+  if (!connected) { toast('Connection lost. Your saved actions will return when connected.'); return; }
+  if (busy) return;
+  busy = true;
+  socket.timeout(6000).emit(event, payload, (error, response) => { busy = false; if (error || !response?.ok) toast(error ? 'No response yet. Reconnect and check your saved action before trying again.' : response.error); });
 }
-
-function toast(msg) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.hidden = false;
-  clearTimeout(toast.t);
-  toast.t = setTimeout(() => { el.hidden = true; }, 3000);
+function act(type, data = {}) { send('action', { type, round: state.round, stage: state.stage, ...data }); }
+function header() { return `<header><a class="brand" href="/">ALTERNATE UNIVERSE <span>LAST LIGHT</span></a><span class="pill" id="connection">${connected ? '● Connected' : '○ Reconnecting'}</span></header>`; }
+function welcome() {
+  app.className = '';
+  app.innerHTML = `${header()}<section class="welcome"><div class="tag">A mystery for the people you know</div><h1>Last Light</h1><p class="lead">One house. Six rounds.<br>A truth you uncover together.</p><p class="muted">4–6 friends · 35–45 minutes · No acting required</p></section>
+  <section class="card"><h2>Take a seat at Rain House</h2><form id="entry"><label>Your name<input name="name" maxlength="24" autocomplete="given-name" placeholder="What should we call you?" required></label><label>Room code <span class="muted">— to join a friend</span><input name="code" class="code" maxlength="4" value="${esc(params.get('room') || '')}" placeholder="ABCD" autocomplete="off"></label><div class="row"><button name="mode" value="create" class="primary">Create a room</button><button name="mode" value="join">Join room</button></div></form></section>
+  <details class="card"><summary>Rejoin with a recovery credential</summary><form id="recovery"><label>Room code<input name="code" maxlength="4" required></label><label>Private recovery credential<input name="token" required autocomplete="off"></label><button>Rejoin</button></form></details>
+  <p class="footer">Play as yourself. No elimination. No personal disclosures.<br>One shared screen and one phone per player.</p>`;
 }
-
-// ---------- helpers ----------
-
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const me = () => state.players.find((p) => p.id === state.you);
-const isHost = () => state.hostId === state.you;
-const nameOf = (id) => (state.players.find((p) => p.id === id) || { name: '?' }).name;
-const namesOf = (ids) => ids.map(nameOf).join(', ');
-
-function hostBar(html) {
-  return isHost() ? `<div class="host-bar stack">${html}</div>` : '';
+function names() { return state.players.map(p => `<span class="pill ${p.connected ? '' : 'off'}">${esc(p.name)}${p.id === state.hostId ? ' · Host' : ''}${!p.connected ? ' · Away' : ''}</span>`).join(''); }
+const playerName = id => state.players.find(p => p.id === id)?.name || 'Not enough evidence';
+function board() {
+  return `<section class="evidence"><div class="section-heading"><h2>Shared evidence</h2><span class="muted">${state.board.length} records</span></div><p class="muted small">Official evidence is accurate. Published cards stay here.</p><div class="board-grid">${['People','Rooms','Objects','Timeline'].map(category => `<section><h3>${category}</h3>${state.board.filter(c => c.category === category).map(c => cardHTML(c)).join('') || '<p class="empty">No evidence shared yet.</p>'}</section>`).join('')}</div>${state.statements.length ? `<h3>Unverified statements</h3>${state.statements.map(c => `<article class="card claim"><div class="tag">Unverified statement · ${esc(c.name)}</div><p>${esc(c.text)}</p></article>`).join('')}` : ''}</section>`;
 }
-
-function waitingForHost(text = 'Waiting for the host…') {
-  if (isHost()) return '';
-  if (state.hostAway) return `<p class="muted center">${esc(nameOf(state.hostId))} (host) dropped out. Waiting for them to come back, or someone else takes over soon…</p>`;
-  return `<p class="muted center">${esc(text)}</p>`;
+function cardHTML(c, share = false) { return `<article class="card clue"><div class="tag">${esc(c.id)} · ${esc(c.category)}</div><h3>${esc(c.title)}</h3><p class="preline">${esc(c.text)}</p>${c.sharedBy ? `<p class="muted small">Shared by ${esc(c.sharedBy)}</p>` : ''}${share ? btn(state.board.some(x => x.id === c.id) ? 'On the shared board ✓' : 'Share on screen', 'share', c.id, state.stage === 'ending' || state.board.some(x => x.id === c.id)) : ''}</article>`; }
+function options(values, selected, empty = false) { return `${empty ? '<option value="">Not enough evidence</option>' : ''}${values.map(v => { const [value, label] = Array.isArray(v) ? v : [v,v]; return `<option value="${esc(value)}" ${value === selected ? 'selected' : ''}>${esc(label)}</option>`; }).join('')}`; }
+function select(name, label, values, selected, empty = false) { return `<label>${label}<select name="${name}">${options(values, selected, empty)}</select></label>`; }
+function lobby() {
+  const base = location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? lan : location.origin;
+  return `<section class="card"><div class="tag">Your room code</div><div class="big-code">${esc(state.code)}</div><p class="center">${state.players.length} of 6 guests have arrived</p><div class="center">${names()}</div><p class="muted">Open this address on phones connected to the same Wi-Fi:</p><a class="join-url" href="${esc(base)}/?room=${state.code}">${esc(base)}/?room=${state.code}</a><p><a target="_blank" rel="noopener" href="/?screen=${state.code}">Open the shared screen ↗</a></p><p class="small muted">The shared screen has no private actions or objectives. Keep your phone view off the projector.</p></section><section class="card"><h2>Be yourself. Keep your objective private.</h2><p>Speak normally. Official evidence is accurate; another player’s account may not be. Share clues when you choose. Your notebook stays on your device and never enters the recap.</p><p>You can always pass when invited to speak. Nobody is eliminated. Low dice rolls still advance the story.</p><p>Guests win when a strict majority of innocent guests identifies all three: murderer, weapon, and room. Otherwise the murderer wins. “Not enough evidence” is always available.</p></section>${state.me?.id === state.hostId ? btn('Begin the evening', 'start', '', state.players.length < 4, 'primary') : '<p class="center muted">Waiting for the host to begin with 4–6 players.</p>'}`;
 }
-
-const ROUND_LABELS = {
-  choice: 'Your choice',
-  vote_player: 'Group vote',
-  predict: 'Prediction',
-  secret: 'Secret decisions',
-};
-
-// ---------- screens ----------
-
-function renderHome() {
-  const code = new URLSearchParams(location.search).get('code') || '';
-  const last = readStore(localStorage);
-  return `
-    ${last ? `<div class="card highlight stack"><p>Were you in room <strong>${esc(last.code)}</strong>${last.name ? ` as <strong>${esc(last.name)}</strong>` : ''}?</p><button class="primary" data-action="rejoin">Rejoin that game</button></div>` : ''}
-    <h1>Alternate Universe</h1>
-    <p class="muted">A party game for friends. An AI Game Master drops your group into another world, then asks what you really think of each other.</p>
-    <div class="card stack">
-      <input id="name" placeholder="Your name" maxlength="20" autocomplete="off">
-    </div>
-    <div class="card stack">
-      <h3>Join a room</h3>
-      <input id="code" class="code" placeholder="CODE" maxlength="4" autocomplete="off" value="${esc(code)}">
-      <button class="primary" data-action="join">Join</button>
-    </div>
-    <div class="card stack">
-      <h3>Or start a new one</h3>
-      <button data-action="create">Create a room</button>
-    </div>`;
+function objective() {
+  return `<section class="card secret"><div class="tag">Only on your phone</div><h2>Your objective</h2>${state.me.objective === 'murderer' ? '<p>You are responsible for Alex’s death in this game.</p><p>Keep the group from identifying the complete solution. You may mislead in conversation or keep information private. You cannot edit official evidence.</p><p>In Round 2, secretly choose the room and weapon. You do not need to act out anything.</p><h3>Your game-only motive</h3><p>Alex discovered that you diverted money from the house’s community fund. Tonight’s announcement would expose it. This is fictional information, not a claim about you.</p>' : '<p>You did not cause Alex’s death.</p><p>Find out who did, where it happened, and what was used. Share what you find, question what you hear, and decide for yourself.</p>'}<p class="muted">You are playing as yourself. You do not need to act.</p>${state.me.selection?.room && state.round >= 3 ? `<p>Your locked choices: ${esc(state.me.selection.room)} · ${esc(state.me.selection.weapon)}</p>` : ''}</section>`;
 }
-
-function renderLobby() {
-  const link = lanUrl ? `${lanUrl}/?code=${state.code}` : `${location.origin}/?code=${state.code}`;
-  const enough = state.players.length >= state.minPlayers;
-  return `
-    <p class="tag center">Room code</p>
-    <div class="big-code">${esc(state.code)}</div>
-    <p class="center small muted">Friends join at <strong>${esc(link)}</strong></p>
-    <h2>Players (${state.players.length})</h2>
-    <div>${state.players.map((p) => `<span class="pill ${p.connected ? '' : 'off'}">${esc(p.name)}${p.id === state.hostId ? ' 👑' : ''}</span>`).join('')}</div>
-    ${enough ? '' : `<p class="muted">Need at least ${state.minPlayers} players to start.</p>`}
-    ${hostBar(`<button class="primary" data-action="start" ${enough ? '' : 'disabled'}>Everyone's in, start</button>`)}
-    ${waitingForHost('Waiting for the host to start…')}`;
+function verification() {
+  const me = state.me;
+  const extra = Boolean(me.submission && me.extraVerification);
+  if (me.submission && !extra) return '<p class="saved">✓ Your verification is saved in My clues.</p>';
+  return `<section class="card"><h2>${extra ? 'Your extra envelope follow-up' : 'Choose a record to verify'}</h2><p>Everyone gets their own copy. Another player cannot block your access.</p>${state.round === 4 ? '<p class="muted">Guest register: available next round.</p>' : '<p class="highlight-text">The guest register is now available. Combine it with the door log.</p>'}<div class="stack">${[['K2','Check the timing'],['K3','Inspect the door log'],...(state.round === 5 ? [['K4','Read the guest register']] : []),['K5','Examine scene traces'],['K6','Check the objects'],['pass','Pass — receive a missing record']].map(([k,label]) => btn(label, extra ? 'verifyExtra' : 'verify', k)).join('')}</div></section>`;
 }
-
-function renderWorld() {
-  const votes = state.worldVotes || {};
-  const mine = votes[state.you];
-  const count = (id) => Object.values(votes).filter((v) => v === id).length;
-  return `
-    <h1>Pick a world</h1>
-    <p class="muted">Everyone votes. The host locks it in.</p>
-    <div class="stack">
-      ${state.worlds.map((w) => `
-        <button class="${mine === w.id ? 'selected' : ''}" data-action="voteWorld" data-value="${esc(w.id)}">
-          <strong>${esc(w.emoji)} ${esc(w.name)}</strong>${count(w.id) ? ` <span class="pill">${count(w.id)} vote${count(w.id) > 1 ? 's' : ''}</span>` : ''}<br>
-          <span class="muted small">${esc(w.tagline)}</span>
-        </button>`).join('')}
-    </div>
-    ${hostBar(`<button class="primary" data-action="lockWorld" ${Object.keys(votes).length ? '' : 'disabled'}>Lock in the top world</button>`)}`;
+function controls() {
+  if (!state.me) return '<p class="muted">Make your private choices on your phone.</p>';
+  const me = state.me;
+  if (state.stage === 'speaking') return state.speaker.id === me.id ? btn('Done / Pass', 'pass', '', false, 'primary') : '<p class="muted">Listen to the current speaker. Your turn is coming.</p>';
+  if (state.stage === 'vote') return `<section class="card"><h2>Your private decision</h2><p>${state.round === 1 ? 'The receipt may explain Alex’s announcement. The surrounding letter belongs to someone who is not here.' : 'Choose how much of the archive to open. Both routes preserve access to case evidence.'}</p><p class="muted small">A wins only with more votes than B. Ties and all “No preference” choose B. Individual votes are never displayed.</p><div class="stack">${[['A',state.round === 1 ? 'A · Read the whole envelope' : 'A · Open the entire archive'],['B',state.round === 1 ? 'B · Extract only the receipt' : 'B · Targeted access to records'],['N','No preference']].map(([k,label]) => btn(label + (me.submission === k ? ' ✓' : ''), 'vote', k, false, me.submission === k ? 'selected' : '')).join('')}</div><p class="small muted">You may change your vote until the host closes voting.</p></section>`;
+  if (state.round === 2 && state.stage === 'action') return `<form id="search" class="card"><h2>Where will you look first?</h2>${select('search','Your search after the lights return',[...state.house,'Observe'],me.submission?.search)}${me.objective === 'murderer' ? `<div class="secret-fields"><h3>Your secret choices</h3>${select('room','Where the crime happens',state.rooms,me.selection?.room)}${select('weapon','What was used',state.weapons,me.selection?.weapon)}</div>` : ''}<button class="primary">${me.submission ? 'Update saved choices' : 'Save choices privately'}</button><p class="muted small">Choices lock when the round closes.</p></form>`;
+  if ((state.round === 4 && state.stage === 'action') || state.stage === 'verify') return verification();
+  if (state.stage === 'dice') return state.rollerId === me.id ? btn('Roll the shared die', 'roll', '', false, 'primary') : `<p class="muted">${esc(playerName(state.rollerId))} rolls this time.</p>`;
+  if (state.stage === 'accuse') return `<form id="accusation" class="card"><h2>Your independent accusation</h2><p>Choose for yourself. No partial results are revealed.</p>${select('murderer','Who caused Alex’s death?',state.players.map(p => [p.id,p.name]),me.submission?.murderer,true)}${select('weapon','What was used?',state.weapons,me.submission?.weapon,true)}${select('room','Where did it happen?',state.rooms,me.submission?.room,true)}<button class="primary">${me.submission ? 'Update my ballot' : 'Submit my ballot'}</button><p class="muted small">Revise until voting closes. Missing answers default to Not enough evidence.</p></form>`;
+  return '<p class="muted">Time to talk. Share clues, connect evidence, or ask a question. Answering is optional.</p>';
 }
-
-function renderQuiz() {
-  const { questions, yourAnswers, doneIds } = state.quiz;
-  const answered = Object.keys(yourAnswers).length;
-  const waiting = state.players.filter((p) => p.connected && !doneIds.includes(p.id));
-  return `
-    <p class="tag">${esc(state.world.emoji)} ${esc(state.world.name)} · Casting</p>
-    <h1>Who's who?</h1>
-    <p class="muted">Before the Game Master hands out roles: who in this group fits each description? Your votes decide everyone's role. You can vote for yourself.</p>
-    ${questions.map((q, i) => `
-      <div class="card ${q.id in yourAnswers ? '' : 'highlight'}">
-        <p class="tag">${i + 1} of ${questions.length}</p>
-        <p><strong>${esc(q.question)}</strong></p>
-        <div class="choices">${state.players.map((p) => `<button class="chip ${yourAnswers[q.id] === p.id ? 'selected' : ''}" data-action="quizVote" data-trait="${esc(q.id)}" data-value="${esc(p.id)}">${esc(p.name)}${p.id === state.you ? ' <span class="muted">(you)</span>' : ''}</button>`).join('')}</div>
-      </div>`).join('')}
-    <p class="muted small center">${answered === questions.length ? 'All done. You can still change your votes until everyone finishes.' : `${answered} of ${questions.length} answered`}</p>
-    <p class="small">${waiting.length ? `Still voting: ${waiting.map((p) => `<span class="pill">${esc(p.name)}</span>`).join('')}` : ''}</p>
-    ${hostBar(`<button data-action="forceQuiz">Cast roles now (don't wait)</button>`)}`;
+function statement() { return `<details class="card"><summary>Add an unverified statement · optional</summary><form id="statement"><label>Choose a statement<select name="statement">${state.house.map(x=>`<option value="sound|${esc(x)}">I think the sound came from the ${esc(x)}.</option>`).join('')}${state.weapons.map(x=>`<option value="object|${esc(x)}">Someone may have handled the ${esc(x)} before dinner.</option>`).join('')}${state.players.map(p=>`<option value="doubt|${p.id}">I’m not convinced this proves ${esc(p.name)} did it.</option>`).join('')}</select></label><button>Publish as an unverified statement</button><p class="small muted">One statement per player. Spoken discussion is unrestricted.</p></form></details>`; }
+function hostControls() {
+  if (state.me?.id !== state.hostId || state.stage === 'ending') return '';
+  const labels = {speaking:'Advance speaking turn',vote:'Close voting and reveal the result',dice:'Roll for the absent player',action:'Resolve actions and continue',verify:'Finish verification',discussion:state.round === 6 ? 'Open private accusations' : 'Begin the next round',accuse:'Close ballots and reveal the truth'};
+  return `<details class="card host"><summary>Host controls · ${state.completed}/${state.players.length} actions saved</summary><p class="small">Continue when the group is ready. Missing votes become No preference; searches become Observe; verifications receive a missing record; accusations become Not enough evidence. Missing murderer choices are random.</p>${btn(labels[state.stage] || 'Continue', 'next', '', false, 'primary')}</details>`;
 }
-
-// "The group voted you: Gets things done (3 of 4 votes)"
-function traitLine(pid) {
-  const t = state.traits && state.traits[pid];
-  if (!t) return '';
-  return t.votes
-    ? `🗳️ The group says: <strong>${esc(t.label)}</strong> <span class="muted">(${t.votes} of ${t.of} votes)</span>`
-    : `🗳️ The group couldn't pin ${pid === state.you ? 'you' : 'them'} down, so: <strong>${esc(t.label)}</strong>`;
+function ending() {
+  const r = state.result;
+  return `<section class="card highlight"><div class="tag">The truth at Rain House</div><h2>${esc(r.murdererName)} · ${esc(r.room)} · ${esc(r.weapon)}</h2><p>Alex’s planned audit would expose a diverted fund payment. ${esc(r.murdererName)} arranged the blackout and drew Alex into the room.</p><p><strong>K1</strong> identifies the room. <strong>K2 + K3 + K4</strong> connect the incident time to one guest code and its owner. <strong>K5 + K6</strong> match the recovered trace to the weapon.</p><p>There was no accomplice, hidden entrance, transferred card, remote mechanism, or moved body. Earlier handling of an object was not proof of guilt.</p><h3>${r.guestsWin ? 'The guests connected the evidence.' : 'The murderer kept the pieces apart.'}</h3><p>${r.correct} correct guest ballots; ${r.needed} required. The murderer’s ballot does not count.</p></section><details class="card"><summary>Reveal all final ballots</summary>${r.ballots.map(b=>`<p><strong>${esc(b.name)}</strong><br>${esc(playerName(b.murderer))} · ${esc(b.weapon || 'Not enough evidence')} · ${esc(b.room || 'Not enough evidence')}</p>`).join('')}</details><section class="card"><div class="tag">Your evening, remembered</div><h2>The night you made</h2><div id="recap-window" class="recap-window" aria-live="polite"></div><div class="row">${btn(recapPaused ? 'Resume' : 'Pause','recapPause')}${btn('Skip','recapSkip')}${btn('Read again','recapAgain')}</div><details><summary>Read the complete recap</summary>${state.recap.map(x=>`<p>${esc(x)}</p>`).join('')}</details></section><p class="muted">Did anyone’s explanation make you see a choice differently? Talk about it if you want—or start another game.</p>${btn('Return to the entrance', 'leave')}`;
 }
-
-function renderLoading() {
-  return `<div class="spinner"></div><p class="center">${esc(state.loadingText || 'Loading…')}</p>`;
-}
-
-function renderRoles() {
-  const { cast } = state;
-  const mine = cast.roles[state.you];
-  const rels = cast.relationships;
-  return `
-    <p class="tag">${esc(state.world.emoji)} ${esc(state.world.name)}</p>
-    <p class="scene">${esc(cast.intro)}</p>
-    <div class="card highlight">
-      <p class="small">${traitLine(state.you)}</p>
-      <p class="tag">So you are</p>
-      <h2 style="margin-top:4px">${esc(mine.title)}</h2>
-      <p>${esc(mine.blurb)}</p>
-    </div>
-    <p class="muted small">Take turns reading your role out loud.</p>
-    <h2>The cast</h2>
-    ${state.players.filter((p) => p.id !== state.you).map((p) => `
-      <div class="card"><strong>${esc(p.name)}</strong>: ${esc(cast.roles[p.id].title)}<br><span class="muted small">${esc(cast.roles[p.id].blurb)}</span>${traitLine(p.id) ? `<p class="small" style="margin-bottom:0">${traitLine(p.id)}</p>` : ''}</div>`).join('')}
-    ${rels.length ? `<h2>Relationships</h2>${rels.map((r) => `<div class="card ${r.from === state.you || r.to === state.you ? 'highlight' : ''}">${esc(r.text)}</div>`).join('')}` : ''}
-    ${hostBar('<button class="primary" data-action="next">Start round 1</button>')}
-    ${waitingForHost()}`;
-}
-
-function roundHeader(r) {
-  const reader = r.readerId === state.you
-    ? '📣 <strong>You</strong> read this one out loud!'
-    : `📣 <strong>${esc(nameOf(r.readerId))}</strong> reads this one out loud`;
-  if (r.type === 'secret') {
-    return `
-      <p class="tag">Chapter ${r.number} of ${state.totalRounds} · ${esc(r.title)}</p>
-      ${r.previously.length ? `<div class="card"><p class="tag">Because of your last choices</p>${r.previously.map((o) => `<p class="small">→ ${esc(o)}</p>`).join('')}</div>` : ''}
-      <div class="reader">${reader}</div>
-      <p class="scene">${esc(r.scene)}</p>`;
-  }
-  return `
-    <p class="tag">Round ${r.number} of ${state.totalRounds} · ${esc(ROUND_LABELS[r.type] || r.type)}</p>
-    <div class="reader">${reader}</div>
-    <p class="scene">${esc(r.scene)}</p>
-    <p class="prompt">${esc(r.prompt)}</p>`;
-}
-
-// Your private brief: only you see this until the reveal.
-function renderSecretAnswering(r) {
-  if (!r.brief) return '<p class="muted">You joined after this chapter was written. Sit this one out.</p>';
-  return `
-    <div class="card secret">
-      <p class="tag">🤫 Only you know this. Don't show your screen.</p>
-      <p>${esc(r.brief.secret)}</p>
-    </div>
-    <p class="prompt">${esc(r.brief.prompt)}</p>
-    <div class="stack">
-      ${r.options.map((o) => `<button class="${r.yourAnswer === o.id ? 'selected' : ''}" data-action="answer" data-value="${esc(o.id)}">${esc(o.text)}${r.brief.pickPlayer && o.id === state.you ? ' <span class="muted">(you)</span>' : ''}</button>`).join('')}
-    </div>
-    <p class="small" style="margin-top:14px">Why? <span class="muted">(optional, shown to everyone at the reveal)</span></p>
-    <input id="reason" data-keep maxlength="120" placeholder="Because…" autocomplete="off">`;
-}
-
-function renderAnswering() {
-  const r = state.round;
-  const waiting = state.players.filter((p) => p.connected && !r.answeredIds.includes(p.id));
-  let instruction = '';
-  if (r.type === 'predict') {
-    instruction = r.targetId === state.you
-      ? `<div class="card highlight">🎯 <strong>This one's about you.</strong> Pick what you'd honestly do. Everyone else is guessing your answer.</div>`
-      : `<div class="card">🔮 Predict what <strong>${esc(nameOf(r.targetId))}</strong> will pick. They're answering for real.</div>`;
-  } else if (r.type === 'vote_player') {
-    instruction = '<p class="muted small">Vote for anyone, even yourself.</p>';
-  }
-  if (r.type === 'secret') {
-    return `
-      ${roundHeader(r)}
-      ${renderSecretAnswering(r)}
-      <p class="muted small center">${r.yourAnswer ? 'Locked in. You can still change it until everyone has decided.' : ''}</p>
-      <p class="small">${waiting.length ? `Still deciding: ${waiting.map((p) => `<span class="pill">${esc(p.name)}</span>`).join('')}` : ''}</p>
-      ${hostBar(`<button data-action="forceReveal">Reveal now (don't wait)</button>`)}`;
-  }
-  return `
-    ${roundHeader(r)}
-    ${instruction}
-    <div class="stack">
-      ${r.options.map((o) => `<button class="${r.yourAnswer === o.id ? 'selected' : ''}" data-action="answer" data-value="${esc(o.id)}">${esc(o.text)}${r.type === 'vote_player' && o.id === state.you ? ' <span class="muted">(you)</span>' : ''}</button>`).join('')}
-    </div>
-    <p class="muted small center">${r.yourAnswer ? 'Locked in. You can still change it until everyone has answered.' : ''}</p>
-    <p class="small">${waiting.length ? `Waiting for: ${waiting.map((p) => `<span class="pill">${esc(p.name)}</span>`).join('')}` : ''}</p>
-    ${hostBar(`<button data-action="forceReveal">Reveal now (don't wait)</button>`)}`;
-}
-
-function renderResult(r) {
-  const res = r.result;
-  if (r.type === 'choice') {
-    const total = Math.max(1, Object.keys(r.answers).length);
-    return res.byOption.map((o) => `
-      <div class="card">
-        <strong>${esc(o.text)}</strong>
-        <div class="bar" style="width:${Math.max(2, (o.playerIds.length / total) * 100)}%"></div>
-        <div class="names">${o.playerIds.length ? esc(namesOf(o.playerIds)) : 'nobody'}</div>
-      </div>`).join('');
-  }
-  if (r.type === 'vote_player') {
-    const total = Math.max(1, r.result.tally.reduce((sum, t) => sum + t.count, 0));
-    const votersFor = (id) => (r.answers ? Object.keys(r.answers).filter((v) => r.answers[v] === id) : []);
-    return `
-      ${r.result.winners.length ? `<p class="center">The group has spoken:</p><p class="big-code" style="letter-spacing:0;font-size:2rem">${esc(namesOf(r.result.winners))}</p>` : ''}
-      ${r.result.tally.filter((t) => t.count > 0).map((t) => `
-        <div class="card ${r.result.winners.includes(t.playerId) ? 'highlight' : ''}">
-          <strong>${esc(nameOf(t.playerId))}</strong> · ${t.count} vote${t.count === 1 ? '' : 's'}
-          <div class="bar" style="width:${(t.count / total) * 100}%"></div>
-          ${r.answers ? `<div class="names">voted by ${esc(namesOf(votersFor(t.playerId)))}</div>` : ''}
-        </div>`).join('')}
-      ${r.answers ? '' : `<p class="muted small center">Votes are anonymous… unless the host reveals them.</p>`}`;
-  }
-  if (r.type === 'predict') {
-    const target = nameOf(r.targetId);
-    const { actual, guesserIds, correctIds } = r.result;
-    if (!actual) return `<div class="card">${esc(target)} didn't answer in time, so nobody wins this one.</div>`;
-    const optText = (id) => (r.options.find((o) => o.id === id) || { text: '?' }).text;
-    const verdict = correctIds.length === 0 ? 'Nobody saw that coming.'
-      : correctIds.length === guesserIds.length ? `Everyone called it. ${target} is an open book.`
-        : `${correctIds.length} of ${guesserIds.length} called it.`;
-    return `
-      <div class="card highlight center">
-        <p class="tag">${esc(target)} actually chose</p>
-        <p class="prompt" style="margin:6px 0">${esc(optText(actual))}</p>
-        <p>${esc(verdict)}</p>
-      </div>
-      ${guesserIds.map((pid) => `
-        <div class="card">
-          ${correctIds.includes(pid) ? '✅' : '❌'} <strong>${esc(nameOf(pid))}</strong>
-          <span class="names">guessed "${esc(optText(r.answers[pid]))}"</span>
-        </div>`).join('')}`;
-  }
-  return '';
-}
-
-function answerLabel(r, pid) {
-  const v = r.answers[pid];
-  const opt = (id) => (r.options.find((o) => o.id === id) || { text: '?' }).text;
-  if (r.type === 'vote_player') return v === pid ? 'voted for themselves 👀' : `voted for ${nameOf(v)}`;
-  if (r.type === 'predict') return pid === r.targetId ? `chose "${opt(v)}"` : `guessed "${opt(v)}"`;
-  return `chose "${opt(v)}"`;
-}
-
-// One card per answer. Tap an emoji to react to someone (tap again to undo).
-function renderReactions(r) {
-  if (!r.answers) return '';
-  const ids = Object.keys(r.answers);
-  if (!ids.length) return '';
-  // Your own card last, so the others are what you see first.
-  ids.sort((a, b) => (a === state.you) - (b === state.you));
-  return `
-    <h2>React</h2>
-    ${ids.map((pid) => `<div class="card">
-        <strong>${pid === state.you ? 'You' : esc(nameOf(pid))}</strong> <span class="names">${esc(answerLabel(r, pid))}</span>
-        ${emojiRow(r, pid)}
-      </div>`).join('')}`;
-}
-
-function emojiRow(r, pid) {
-  const byReactor = (r.reactions && r.reactions[pid]) || {};
-  const count = (e) => Object.values(byReactor).filter((x) => x === e).length;
-  const yours = byReactor[state.you];
-  const own = pid === state.you;
-  const buttons = r.reactionEmojis.map((e) => {
-    const c = count(e);
-    if (own) return c ? `<span class="pill">${e} ${c}</span>` : '';
-    return `<button class="emoji ${yours === e ? 'selected' : ''}" data-action="react" data-target="${esc(pid)}" data-value="${e}">${e}${c ? `<small>${c}</small>` : ''}</button>`;
-  }).join('');
-  return `<div class="emoji-row">${buttons || (own ? '<span class="muted small">No reactions yet</span>' : '')}</div>`;
-}
-
-// Secret reveal: one card per player, newest last, each with what they knew, did, why, and what happened.
-function renderSecretReveal(r) {
-  const cards = r.reveals.map((x, i) => `
-    <div class="card reveal-card ${i === r.reveals.length - 1 ? 'highlight' : ''}">
-      <p class="tag">${x.playerId === state.you ? 'You' : esc(nameOf(x.playerId))} · ${esc(state.cast.roles[x.playerId].title)}</p>
-      <p class="small">🤫 <em>${esc(x.secret)}</em></p>
-      <p class="small muted">${esc(x.prompt)}</p>
-      ${x.answered ? `<p class="prompt" style="margin:6px 0">${esc(x.choice)}</p>` : '<p><strong>Didn\'t decide in time.</strong></p>'}
-      ${x.reason ? `<p>💬 "${esc(x.reason)}"</p>` : ''}
-      ${x.outcome ? `<p class="small">→ ${esc(x.outcome)}</p>` : ''}
-      ${x.answered ? emojiRow(r, x.playerId) : ''}
-    </div>`).join('');
-  const next = r.nextRevealId
-    ? `<p class="muted center">${r.reveals.length ? 'Next up' : 'First up'}: <strong>${esc(r.nextRevealId === state.you ? 'you' : nameOf(r.nextRevealId))}</strong>. Ask them why before you react.</p>`
-    : '';
-  return cards + next;
-}
-
-function renderReveal() {
-  const r = state.round;
-  if (r.type === 'secret') {
-    return `
-      <p class="tag">Chapter ${r.number} of ${state.totalRounds} · ${esc(r.title)} · The reveal</p>
-      <p class="scene">${esc(r.scene)}</p>
-      ${renderSecretReveal(r)}
-      ${hostBar(r.allRevealed
-        ? `<button class="primary" data-action="next">${r.isLast ? 'See the recap' : 'Next chapter'}</button>`
-        : `<button class="primary" data-action="revealNext">Reveal ${esc(r.nextRevealId === state.you ? 'your' : `${nameOf(r.nextRevealId)}'s`)} decision</button>`)}
-      ${waitingForHost()}`;
-  }
-  return `
-    <p class="tag">Round ${r.number} of ${state.totalRounds} · Results</p>
-    <p class="prompt">${esc(r.prompt)}</p>
-    ${renderResult(r)}
-    ${renderReactions(r)}
-    ${hostBar(`${r.type === 'vote_player' && !r.votersRevealed ? '<button data-action="revealVoters">Reveal who voted for whom 👀</button>' : ''}
-      <button class="primary" data-action="next">${r.isLast ? 'See the recap' : 'Next round'}</button>`)}
-    ${waitingForHost()}`;
-}
-
-function renderRecap() {
-  const { stats, gm } = state.recap;
-  return `
-    <p class="tag">${esc(state.world.emoji)} ${esc(state.world.name)} · The end</p>
-    <h1>Recap</h1>
-    ${gm.epilogue ? `<p class="scene">${esc(gm.epilogue)}</p>` : ''}
-    <h2>Who you were</h2>
-    ${state.players.map((p) => {
-      const t = gm.titles[p.id];
-      const awards = stats.awards.filter((a) => a.playerIds.includes(p.id));
-      return `<div class="card ${p.id === state.you ? 'highlight' : ''}">
-        <strong>${esc(p.name)}</strong> <span class="muted small">(${esc(state.cast.roles[p.id].title)})</span>
-        ${state.traits ? `<br><span class="small muted">${esc(state.traits[p.id].label)}</span>` : ''}
-        ${stats.signature[p.id] ? `<span style="float:right" title="Most-received reaction">${stats.signature[p.id].emoji}×${stats.signature[p.id].count}</span>` : ''}
-        ${t ? `<h3 style="margin:6px 0 2px">🏆 ${esc(t.title)}</h3>${t.reason ? `<p class="small">${esc(t.reason)}</p>` : ''}` : ''}
-        ${stats.seenAs[p.id].map((v) => `<p class="small">🗳️ ${esc(v.prompt)} <strong>${v.votes}/${v.of}</strong></p>`).join('')}
-        ${awards.map((a) => `<p class="small"><span class="pill">${esc(a.label)}</span> ${esc(a.detail)}</p>`).join('')}
-      </div>`;
-    }).join('')}
-    ${gm.memories.length ? `<h2>Memories</h2>${gm.memories.map((m) => `<div class="card">💬 ${esc(m)}</div>`).join('')}` : ''}
-    <h2>Key moments</h2>
-    ${stats.moments.map((m) => `<div class="card"><p class="tag">${m.type === 'secret' ? 'Chapter' : 'Round'} ${m.round}</p><strong>${esc(m.prompt)}</strong>${m.lines ? m.lines.map((l) => `<p class="small">→ ${esc(l)}</p>`).join('') : `<p class="small">${esc(m.outcome)}</p>`}</div>`).join('')}
-    ${hostBar('<button class="primary" data-action="playAgain">Play again (same group)</button>')}`;
-}
-
-const SCREENS = {
-  lobby: renderLobby,
-  world: renderWorld,
-  quiz: renderQuiz,
-  loading: renderLoading,
-  roles: renderRoles,
-  answering: renderAnswering,
-  reveal: renderReveal,
-  recap: renderRecap,
-};
-
 function render() {
-  if (!state) {
-    $app.innerHTML = renderHome();
-    return;
-  }
-  // State pushes re-render the whole screen; keep whatever the player is typing.
-  const kept = [...document.querySelectorAll('[data-keep]')].map((el) => ({ id: el.id, value: el.value, focused: el === document.activeElement, pos: el.selectionStart }));
-  const screen = SCREENS[state.phase];
-  const footer = `<div class="footer">Room ${esc(state.code)} · you are ${esc(me() ? me().name : '?')}${state.gmSource ? ` · GM: ${esc(state.gmSource)}` : ''}
-    <br><button class="link" data-action="leave">Leave game</button></div>`;
-  $app.innerHTML = (screen ? screen() : `<p>Unknown phase: ${esc(state.phase)}</p>`) + footer;
-  for (const k of kept) {
-    const el = document.getElementById(k.id);
-    if (!el) continue;
-    el.value = k.value;
-    if (k.focused) { el.focus(); el.setSelectionRange(k.pos, k.pos); }
-  }
-  // Bring each newly revealed decision into view (it's added at the bottom).
-  const revealKey = state.phase === 'reveal' && state.round && state.round.reveals ? `${state.round.number}:${state.round.reveals.length}` : null;
-  if (revealKey && revealKey !== render.lastReveal && state.round.reveals.length) {
-    const cards = $app.querySelectorAll('.reveal-card');
-    cards[cards.length - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
-  render.lastReveal = revealKey;
-  // First render of a secret round: prefill the reason you already sent (e.g. after a reload).
-  const reason = document.getElementById('reason');
-  if (reason && !kept.some((k) => k.id === 'reason') && state.round) reason.value = state.round.yourReason || '';
+  if (!state) return welcome();
+  const publicScreen = !state.me;
+  app.className = publicScreen ? 'shared-screen' : 'phone';
+  let body;
+  if (!state.round) body = lobby();
+  else if (tab === 'Notebook' && state.me) body = `<section class="card"><h2>Your private notebook</h2><p class="muted">Optional. Saved only in this browser. Never sent to the server or included in the recap.</p><label>Suspicions, connections, questions<textarea id="notes" rows="14" placeholder="What connects? What is still missing?"></textarea></label><span id="note-status" class="small muted">Saved on this device</span></section>`;
+  else if (tab === 'My objective' && state.me) body = objective();
+  else if (tab === 'My clues' && state.me) body = `<h2>Evidence you helped examine</h2><p class="muted">These official reports do not imply you searched the scene.</p>${state.me.searchResult ? `<div class="card"><div class="tag">Your search result</div><p>${esc(state.me.searchResult)}</p></div>` : ''}${state.me.clues.map(c=>cardHTML(c,true)).join('') || '<p class="empty">Your evidence will arrive in Round 3.</p>'}`;
+  else body = state.stage === 'ending' ? ending() + board() : `<section class="card scene-card"><div class="tag">Round ${state.round} of 6 · ${esc(state.stage)}</div><h1>${esc(state.title)}</h1><p class="scene">${esc(state.scene)}</p></section>${state.speaker ? `<section class="card highlight"><div class="tag">Turn ${state.speaker.position} of ${state.players.length}</div><h2>${esc(playerName(state.speaker.id))}, your turn.</h2><p>${state.round === 3 ? 'What does your clue establish—and what does it not?' : 'Share an observation, explain a choice, or ask a question.'}</p><strong class="timer" data-until="${state.speaker.until}"></strong><p class="muted">Passing is fine.</p></section>` : ''}${state.stage === 'discussion' || state.stage === 'accuse' ? `<p class="muted">Suggested ${state.stage === 'accuse' ? 'ballot' : 'discussion'} time <strong class="timer" data-until="${state.discussionUntil}"></strong> · The host controls pacing.</p>` : ''}${state.tally ? `<section class="card"><h3>Group choice: ${state.decisions[state.round]}</h3><p>A: ${state.tally.A} · B: ${state.tally.B} · No preference: ${state.tally.N}</p></section>` : ''}${state.dice[state.round] ? `<section class="card"><div class="tag">Shared die · ${esc(state.dice[state.round].roller)}</div><h2>Rolled ${state.dice[state.round].value}</h2><p>${esc(state.dice[state.round].text)}</p></section>` : ''}${controls()}${state.round === 4 && state.me && !state.statements.some(x=>x.playerId===state.me.id) ? statement() : ''}${hostControls()}${board()}`;
+  const focus = document.activeElement; const focusName = focus?.name; const formId = focus?.form?.id;
+  const draft = formId && document.getElementById(formId) ? Object.fromEntries(new FormData(document.getElementById(formId))) : null;
+  app.innerHTML = `${header()}<div class="session-bar"><span>RAIN HOUSE / ${state.code}</span><span>${publicScreen ? 'Shared screen · public information only' : esc(state.me.name) + ' · private phone'}</span></div>${state.round ? `<div class="round-track" aria-label="Round ${state.round} of 6">${['Envelope','Blackout','Discovery','Investigation','Archive','Accusation'].map((x,i)=>`<span class="${i+1===state.round?'current':i+1<state.round?'complete':''}">${i+1}<small>${x}</small></span>`).join('')}</div>` : ''}${state.me && state.round ? `<nav aria-label="Phone tabs">${['Now','My clues','Notebook','My objective'].map(x=>`<button data-tab="${x}" aria-current="${tab === x ? 'page' : 'false'}" class="${tab===x?'selected':''}">${x}${x==='My clues' ? ` (${state.me.clues.length})` : ''}</button>`).join('')}</nav>` : ''}<div class="content">${state.round && ['vote','action','verify','accuse'].includes(state.stage) ? `<p class="muted small" role="status">${state.completed} of ${state.players.length} actions saved privately</p>` : ''}${body}</div><footer class="footer">${names()}${state.me ? `<details><summary>Private recovery credential</summary><p>Keep this secret. It restores access to your phone if this tab is lost.</p><code>${esc(credential?.token)}</code></details>` : ''}<p>No elimination · No acting · No personal disclosures</p></footer>`;
+  if (draft && document.getElementById(formId)) { for (const [name,value] of Object.entries(draft)) { const input = document.getElementById(formId).elements.namedItem(name); if(input) input.value=value; } document.getElementById(formId).elements.namedItem(focusName)?.focus(); }
+  const notes = document.querySelector('#notes'); if (notes) notes.value = read(noteKey(), localStorage) || '';
+  updateTimers(); updateRecap();
 }
-
-// ---------- input ----------
-
-const ACTIONS = {
-  create() {
-    send('create', { name: document.getElementById('name').value });
-  },
-  join() {
-    send('join', { name: document.getElementById('name').value, code: document.getElementById('code').value });
-  },
-  rejoin() {
-    resume(readStore(localStorage));
-  },
-  leave() {
-    if (!confirm('Leave this game? You can rejoin it from the home screen on this device.')) return;
-    try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
-    location.href = '/';
-  },
-  start: () => send('start'),
-  voteWorld: (v) => send('voteWorld', { worldId: v }),
-  lockWorld: () => send('lockWorld'),
-  next: () => send('next'),
-  answer: (v) => send('answer', { value: v, reason: reasonText() }),
-  quizVote: (v, btn) => send('quizAnswer', { traitId: btn.dataset.trait, playerId: v }),
-  forceQuiz: () => send('forceQuiz'),
-  revealNext: () => send('revealNext'),
-  react: (v, btn) => send('react', { targetId: btn.dataset.target, emoji: v }),
-  forceReveal: () => send('forceReveal'),
-  revealVoters: () => send('revealVoters'),
-  playAgain: () => send('playAgain'),
-};
-
-function reasonText() {
-  const el = document.getElementById('reason');
-  return el ? el.value : undefined;
-}
-
-// Editing your reason after choosing re-sends the answer so the reason is saved.
-document.addEventListener('change', (e) => {
-  if (e.target.id === 'reason' && state && state.round && state.round.yourAnswer) {
-    send('answer', { value: state.round.yourAnswer, reason: e.target.value });
-  }
+function noteKey() { return `last-light-notes:${state.gameId}:${state.me.id}`; }
+function updateTimers() { document.querySelectorAll('.timer').forEach(el => { const seconds=Math.max(0,Math.ceil((Number(el.dataset.until)-Date.now())/1000)); el.textContent=`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`; }); }
+function updateRecap() { const el=document.querySelector('#recap-window'); if(el && state?.recap) { el.innerHTML=recapFinished ? state.recap.map(x=>`<p>${esc(x)}</p>`).join('') : `<p class="recap-line">${esc(state.recap[recapIndex])}</p><small>${recapIndex+1} / ${state.recap.length}</small>`; el.classList.toggle('finished',recapFinished); } }
+setInterval(()=>{updateTimers(); if(state?.stage==='ending' && !recapPaused && !recapFinished && tab==='Now') { recapElapsed++; if(recapElapsed>=8) { recapElapsed=0; recapIndex++; if(recapIndex>=state.recap.length) recapFinished=true; updateRecap(); } }},1000);
+app.addEventListener('input', e=>{ if(e.target.id==='notes') save(noteKey(),e.target.value,localStorage); });
+app.addEventListener('submit', e=>{
+  e.preventDefault(); const d=Object.fromEntries(new FormData(e.target));
+  if(e.target.id==='entry') send(e.submitter.value,{name:d.name,code:d.code});
+  if(e.target.id==='recovery') send('resume',d);
+  if(e.target.id==='search') act('search',d);
+  if(e.target.id==='accusation') act('accuse',d);
+  if(e.target.id==='statement') { const [kind,value]=d.statement.split('|'); act('statement',{kind,value}); }
 });
-
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-action]');
-  if (!btn || btn.disabled) return;
-  const fn = ACTIONS[btn.dataset.action];
-  if (fn) fn(btn.dataset.value, btn);
+app.addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  if(b.dataset.tab){tab=b.dataset.tab;render();return;}
+  const type=b.dataset.action, value=b.dataset.value; if(!type)return;
+  if(type==='leave'){sessionStorage.removeItem('last-light-session'); location.href='/';return;}
+  if(type==='recapPause'){recapPaused=!recapPaused;b.textContent=recapPaused?'Resume':'Pause';return;}
+  if(type==='recapSkip'){recapFinished=true;updateRecap();return;}
+  if(type==='recapAgain'){recapIndex=0;recapElapsed=0;recapPaused=false;recapFinished=false;render();return;}
+  if(type==='verifyExtra') act('verify',{value,extra:true}); else act(type,{value});
 });
+socket.on('connect',()=>{
+  connected=true;
+  if(params.get('screen')) send('watch',{code:params.get('screen')});
+  else if(credential) { busy=false; socket.emit('resume',credential, response=>{if(!response.ok){credential=null;sessionStorage.removeItem('last-light-session');state=null;welcome();toast(response.error);}}); }
+  else welcome();
+});
+socket.on('joined',data=>{credential=data;save('last-light-session',JSON.stringify(data));});
+socket.on('state',s=>{const moved=state && (state.round!==s.round || state.stage!==s.stage);state=s;render();if(moved && tab==='Now')window.scrollTo({top:0,behavior:'instant'});});
+socket.on('disconnect',reason=>{connected=false;busy=false;const el=document.querySelector('#connection');if(el)el.textContent='○ Reconnecting'; if(reason==='io server disconnect')toast('This identity was opened in another tab. Use a different player name here or reopen to rejoin.');});
+fetch('/info').then(r=>r.json()).then(info=>{lan=info.urls[0] || location.origin;if(state?.round===0)render();}).catch(()=>{});
+welcome();

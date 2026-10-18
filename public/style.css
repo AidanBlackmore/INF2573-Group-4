@@ -80,3 +80,55 @@ button.emoji small { font-size: 0.8rem; margin-left: 3px; vertical-align: middle
 .choices { display: flex; flex-wrap: wrap; gap: 8px; }
 button.chip { width: auto; min-height: 44px; padding: 6px 14px; text-align: center; }
 .card.secret { border: 2px dashed var(--accent); }
+/* Last Light extends the prototype's existing colour and component tokens. */
+main { max-width: 720px; padding: 24px 22px 60px; }
+main.shared-screen { max-width: 1360px; }
+header { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:28px; }
+a { color:var(--accent); }
+.brand { color:var(--text); text-decoration:none; font-size:11px; font-weight:750; letter-spacing:.15em; }
+.brand span { display:block; font-size:19px; letter-spacing:.2em; margin-top:4px; }
+header .pill { font-size:12px; white-space:nowrap; }
+.welcome { padding:42px 0 28px; }
+.welcome h1 { font-family:Georgia,serif; font-size:clamp(54px,12vw,88px); font-weight:400; letter-spacing:-.05em; }
+.lead { font-size:24px; line-height:1.4; margin:18px 0; }
+label { display:block; font-size:14px; font-weight:600; margin:16px 0; }
+input, select, textarea { display:block; margin-top:7px; width:100%; min-height:48px; border:1px solid var(--line); border-radius:10px; padding:12px; color:var(--text); background:var(--card); font:inherit; }
+textarea { resize:vertical; line-height:1.6; }
+button { transition:background .15s,border-color .15s; }
+button:hover:not(:disabled) { border-color:var(--accent); }
+:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
+.session-bar { display:flex; justify-content:space-between; gap:12px; font-size:12px; color:var(--muted); border-block:1px solid var(--line); padding:14px 0; }
+.round-track { display:flex; justify-content:space-between; gap:5px; padding:24px 0; }
+.round-track span { flex:1; text-align:center; color:var(--muted); border-top:3px solid var(--line); padding-top:8px; font-size:14px; }
+.round-track small { display:block; font-size:10px; }
+.round-track .current { color:var(--accent); border-color:var(--accent); font-weight:700; }
+.round-track .complete { border-color:var(--good); }
+nav { display:flex; gap:5px; position:sticky; top:0; z-index:2; background:var(--bg); padding:10px 0; }
+nav button { padding:10px 5px; font-size:13px; text-align:center; min-height:48px; }
+.scene-card { padding:28px; }
+.scene-card h1 { font-family:Georgia,serif; font-size:34px; font-weight:400; margin:12px 0 20px; line-height:1.2; }
+.scene { line-height:1.8; }
+.preline { white-space:pre-line; }
+.section-heading { display:flex; justify-content:space-between; align-items:baseline; }
+.evidence { border-top:1px solid var(--line); margin-top:32px; padding-top:12px; }
+.board-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.shared-screen .board-grid { grid-template-columns:repeat(4,1fr); }
+.board-grid .card { padding:16px; }
+.board-grid h3 { font-size:16px; }
+.empty { border:1px dashed var(--line); padding:20px; color:var(--muted); font-size:14px; border-radius:12px; }
+.clue p { font-size:15px; line-height:1.65; }
+.claim { border-left:3px solid var(--warn); }
+.saved,.highlight-text { color:var(--good); }
+.secret-fields { padding:10px 16px; margin:16px 0; border:1px dashed var(--accent); border-radius:12px; }
+summary { cursor:pointer; min-height:34px; padding:5px 0; }
+details { margin-top:16px; }
+.join-url { overflow-wrap:anywhere; }
+.timer { font-variant-numeric:tabular-nums; font-size:22px; }
+.recap-window { min-height:180px; display:flex; flex-direction:column; justify-content:center; font-family:Georgia,serif; font-size:25px; padding:16px; overflow:auto; }
+.recap-window.finished { max-height:360px; font-size:20px; }
+.recap-line { animation:arrive .7s ease-out; }
+@keyframes arrive { from { opacity:0; transform:translateY(22px); } to { opacity:1; transform:translateY(0); } }
+code { overflow-wrap:anywhere; }
+#toast { z-index:10; }
+@media(max-width:600px) { main { padding:18px 16px 40px; } .board-grid,.shared-screen .board-grid { grid-template-columns:1fr; } .scene-card { padding:20px; } .session-bar { flex-wrap:wrap; } .round-track small { font-size:8px; } .row { flex-wrap:wrap; } .row>* { flex-basis:120px; } }
+@media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }

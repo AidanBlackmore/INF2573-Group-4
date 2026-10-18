@@ -2,12 +2,13 @@
   "name": "alternate-universe",
   "version": "0.1.0",
   "private": true,
-  "description": "Prototype multiplayer party game with an AI Game Master (INF2573 group 4)",
+  "description": "Last Light: a six-round multiplayer party mystery with private phones and a shared evidence screen; no AI required",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "simulate": "node scripts/simulate.js"
+    "simulate": "node scripts/simulate.js",
+    "test": "node --test test/*.test.js"
   },
   "engines": {
     "node": ">=18"

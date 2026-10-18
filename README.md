@@ -1,131 +1,78 @@
-# Alternate Universe (prototype)
+# Last Light · Alternate Universe
 
-A party game for 3–6 friends in the same room, each on their own phone. An AI Game Master drops the group into a fictional world (zombie apocalypse, reality TV villa, office…).
+A playable, real-time mystery for **4–6 friends**, one shared screen, and private phones. Six rounds, approximately 35–45 minutes. Players use their own names. No acting, elimination, mandatory personal disclosure, or AI service is required.
 
-1. **Casting quiz.** Everyone votes on questions like "Who has the strongest execution?" or "Who is the most unpredictable?". Each player gets the trait the group voted them, and a role built on it.
-2. **Secret chapters.** Everyone shares one scene, but each player privately gets different information and a different decision based on their role. One player knows food is running out, another knows a dangerous route to more supplies, someone else decides who gets the last medicine. Each player chooses alone and can add a short "why".
-3. **The reveal.** The host reveals each player's secret, choice, reason and its consequence one at a time, and the group reacts. Those consequences open the next chapter.
-4. **Recap.** A recap at the end collects the secrets, choices and reactions that could become inside jokes.
+## Run
 
-The AI acts as a Game Master: it sets up situations, adapts the story and connects earlier decisions to later events, but the important choices always come from the players.
+Requires Node.js 18 or newer.
 
-**Design principle:** the story is only a backdrop. Every feature should serve interaction between players, not the plot.
-
-## Run it
-
-Requires Node 18+.
-
-```bash
-npm install
+```sh
+npm ci
 npm start
 ```
 
-The server prints two addresses:
+Open `http://localhost:3000` on the computer. The server also prints the local Wi-Fi address for phones. Connect all devices to the same network; campus Wi-Fi may isolate devices. `PORT=3017 npm start` selects another port.
 
-```
-Alternate Universe running (GM mode: mock)
-  This computer:  http://localhost:3000
-  Phones on Wi-Fi: http://192.168.1.23:3000
-```
+1. Create a room on the host’s **phone**. Everyone else enters the room code and their own name.
+2. Open **Open the shared screen** on the computer/projector. This is a separate public view, not a mirror of the host’s private phone.
+3. Start when 4–6 players have joined. The host controls pacing from their phone without access to other players’ objectives or clues.
+4. Use the four phone tabs: **Now**, **My clues**, **Notebook**, and **My objective**.
+5. Keep the private recovery credential if you might need to move to another browser. Reloading the same tab automatically reconnects. Do not share recovery credentials: they grant access to that player’s private view.
 
-1. Connect every phone to the **same Wi-Fi** as the laptop and open the "Phones on Wi-Fi" address.
-2. One person taps **Create a room** and becomes the host (👑). The others enter the 4-letter code, or open the link shown in the lobby.
-3. The host controls the pace: start, lock in the world, next round.
+The shared-screen URL is `/?screen=ABCD`; the join link is `/?room=ABCD`. A room code grants public-screen access and lobby joining, but never access to existing players’ private views. New players cannot join after the game starts.
 
-If phones can't connect, your OS firewall is probably blocking port 3000. Allow Node through it, or try a phone hotspot. University Wi-Fi often blocks device-to-device traffic.
+## Rules implemented
 
-**Testing alone:** open several browser tabs, each one is a separate player. Or run the bot smoke test:
+- Uniformly random murderer; everyone else investigates. Only the murderer receives the fictional motive. Names have no effect on assignment.
+- Six rounds: envelope decision → blackout → discovery → investigation → archive decision → final accusation.
+- Two private group decisions, each offering No preference. A wins only if A has more votes than B; otherwise B wins. Individual choices remain private after the aggregate reveal.
+- Secret room and weapon selection in Round 2; the solution locks when that round ends. Three rooms × three weapons generate nine consistent case combinations.
+- Exactly three server-generated dice events in Rounds 1, 3, and 5, rotating through seats 1, 2, and 3. No rerolls; low rolls never block the case.
+- Asymmetric evidence, complementary door-log/register and trace/inventory pairs, voluntary permanent publication, and a persistent People/Rooms/Objects/Timeline board.
+- Private verification copies in Rounds 4 and 5. The register unlocks in Round 5. Both archive routes keep evidence accessible. The envelope choice adds a public door log or an extra private verification.
+- Optional local-only notebooks. Text is never transmitted to the server and never used in the recap.
+- Rotating 20-second speaking turns in Rounds 1, 3, and 5, with automatic timeout and Done / Pass. Suggested discussion and ballot timers leave pacing under host control.
+- One optional suggested statement per player in Round 4, explicitly labelled unverified and separated from official evidence.
+- Independent, revisable final ballots with Not enough evidence for each field. Results remain hidden until the host closes voting. A strict majority of innocent guests must identify all three parts correctly; the murderer’s ballot is excluded.
+- Solution and complete evidence-chain reveal, all final ballots, and an event-based 45–56-second recap with Pause, Skip, Read again, and a static transcript.
 
-```bash
-npm run simulate        # 4 bots play a full game in mock mode
+The user’s requested feature numbering skips 15; every supplied feature is represented above without inventing a missing requirement.
+
+The host can advance if somebody is absent. Missing actions default to No preference, Observe, a missing verification card, or Not enough evidence. Missing murderer selections are random. The host can roll for an absent designated roller. Speaking prompts can always be passed.
+
+## Manuscript and design status
+
+The implementation follows `design/03-last-light-party-game.md` (version 2.0). `design/03-last-light-player-guide.md` is the spoiler-free player guide. The manuscript’s “not implemented” wording describes its original publication status; this branch adds the digital implementation.
+
+**Figma visual matching is pending.** The supplied design is [Alternative Universe, node 2:5](https://www.figma.com/design/B2zj8NNZnGIC4sfuUkCJyz/Alternative-Universe?node-id=2-5). Both design-context and screenshot requests returned an edit-access error from the Figma connector, including retries after access was requested. This branch extends the repository’s existing visual tokens and components; it does not claim to reproduce the inaccessible Figma design. No Figma assets have been substituted or embedded as screenshots.
+
+## Verification
+
+```sh
+npm test
+# With the server running in another terminal:
+npm run simulate
+node scripts/simulate.js 5
 node scripts/simulate.js 6
+# Alternate port:
+TEST_URL=http://localhost:3017 node scripts/simulate.js 4
 ```
 
-## Mock vs live Game Master
+Rule tests cover all nine solutions, 4–6 players, private-state filtering, ties/abstentions, duplicate phase requests, invalid permissions, speaking timeouts, clue copies, archive branches, and scoring. Socket simulations complete full games through real connections, check the public-screen boundary, share clues, submit ballots, and verify recovery credentials and reconnects.
 
-| Mode | What it does | Needs |
-|---|---|---|
-| `mock` (default) | Canned scenes from `config/mock/*.json`. Instant, free, offline. | Nothing |
-| `live` | Claude writes roles, rounds and the recap for your group, adapting to earlier votes and reactions. | An Anthropic API key |
+Human playtesting is still needed to validate session length, discussion quality, and balance. The evidence structure is fixed, so replaying changes the solution but not the underlying puzzle.
 
-To switch, copy `.env.example` to `.env` and edit:
+## Code map
 
-```bash
-GM_MODE=live
-ANTHROPIC_API_KEY=sk-ant-...
-GM_MODEL=claude-sonnet-5   # try claude-haiku-4-5 if rounds feel slow
-GM_EFFORT=medium           # low = faster, high = more considered
-```
+- `server/last-light.js`: deterministic narrative templates, secure random selection, state transitions, evidence, scoring, recap, and separate public/private views.
+- `server/index.js`: HTTP/Socket.IO transport, recovery authentication, public spectators, rate limits, timed turns, and host handover after 30 seconds disconnected.
+- `public/app.js`: phone and shared-screen interfaces, private local notebook, and recap controls.
+- `public/style.css`: existing visual tokens plus responsive game layouts.
+- `test/last-light.test.js`: rules and privacy tests.
+- `scripts/simulate.js`: real multiplayer smoke test.
 
-Then restart `npm start`. The footer of every screen shows where the last GM output came from: `mock`, `live`, or `fallback`. If a live call fails or returns bad JSON, the server retries once and then quietly uses a mock scene, so a play-test never gets stuck. `fallback` in the footer means that happened; the server console shows why.
+The earlier AI prototype’s modules in `server/gm`, `server/rooms.js`, `server/results.js`, `server/recap.js`, `server/prompts`, and `config` are retained for project history but are not imported by the new application. No API key is used, even if an old `.env` sets `GM_MODE=live`.
 
-## Where to change things
+## Hosting and storage limits
 
-| I want to… | Edit |
-|---|---|
-| **Tune the Game Master's personality and rules** | `server/prompts/gm-system.md` |
-| Change what the GM is asked for in each task (setup, each round type, recap) | `server/prompts/task-instructions.md` (one `## section` per task) |
-| Change the **casting quiz** questions and traits | `config/quiz.json` (each trait's `id` matches the `trait` on mock roles and secret-chapter briefs) |
-| Add or edit a **world** | `config/worlds.json` (live mode works with any world immediately) |
-| Write mock content for a world | `config/mock/<world id>.json` (copy `zombie.json`). Worlds without a file, or without a pool for a round type, use `generic.json`. |
-| Change the **number, order or type of rounds**, player limits, or reaction emoji | `config/round-plan.json` |
-| Change colours and sizes | `public/style.css` (tokens at the top) |
-
-The prompt and config files are re-read on every use, so you can edit them while the server is running. Prompt and mock changes apply from the next GM call; world and round-plan changes apply from the next game.
-
-### Round types
-
-`round-plan.json` lists the rounds in order. Each entry is `{ "type": "..." }`:
-
-| Type | How it plays |
-|---|---|
-| `secret` (default) | A chapter: each player gets a private secret and their own decision, based on their role. Options are either written per player or "pick a player" (e.g. who gets the medicine). The host reveals decisions one player at a time; each shows the secret, choice, optional reason and consequence. Consequences are listed at the start of the next chapter and passed to the GM. |
-| `choice` | Everyone picks what they'd do. The reveal shows who picked what, by name. |
-| `vote_player` | "Who would…?" Everyone votes for a player (self-votes allowed). Tallies first; the host can then reveal who voted for whom. |
-| `predict` | The spotlight player answers honestly and everyone else guesses their answer. The target rotates to whoever has had the spotlight least. |
-
-**Emoji reactions** aren't a round type: they appear after every reveal, so players can react to each other's answers. They feed into the GM's history and the recap.
-
-The code decides each round's *type* and *target*; the GM only writes the *content*. This keeps the game reliable and gives every player a turn in the spotlight.
-
-Adding a brand-new round type touches: `server/results.js` (score it and describe it), `server/gm/validate.js` (what output it needs), `public/app.js` (`renderResult`, plus any instructions in `renderAnswering`), a `## section` in `task-instructions.md`, and a pool in each `config/mock/*.json`.
-
-## How it fits together
-
-```
-server/
-  index.js          Express + Socket.IO; one socket event per player action
-  rooms.js          In-memory rooms and the phase machine (the only code that changes state)
-  results.js        Scores a finished round and summarises it in plain text for the GM
-  recap.js          End-of-game stats and awards, computed from what really happened
-  gm/index.js       Chooses mock/live, validates output, falls back to mock
-  gm/live.js        Anthropic API call with structured JSON output
-  gm/mock.js        Canned responses
-  gm/validate.js    Checks and cleans GM output before the UI sees it
-  prompts/*.md      The GM prompts (team-editable)
-config/             Worlds, round plan, mock scripts (team-editable)
-public/             Plain HTML/CSS/JS client, no build step
-scripts/simulate.js Bot smoke test
-```
-
-Game flow: `lobby → world (everyone votes, host locks in) → quiz (casting votes) → roles → [answering → reveal + reactions] × rounds → recap`.
-
-The GM returns JSON like this for a round. The app adds the round type, the target, and, for votes, the player list:
-
-```json
-{
-  "scene": "The last can of peaches sits on the food court table. Everyone saw it.",
-  "prompt": "Who would secretly eat the last can of peaches tonight?",
-  "options": [],
-  "callback": ""
-}
-```
-
-Each request includes the world, the players, their roles and relationships, and a one-line summary of every earlier round: choices, vote tallies, prediction results and the most-reacted answers. That summary is what lets the GM call back to earlier moments. For secret votes it only includes the tallies, so the GM can't give away who voted for whom.
-
-## Prototype limits
-
-- Everything is in memory. Restarting the server ends all games.
-- No accounts, and rooms are never cleaned up. Fine for a play-test, not for hosting.
-- Players can't join after the lobby, but a player who reloads or loses connection can come back (automatically, or with **Rejoin** on the home screen).
-- If the host disconnects, the next connected player becomes host.
+Game rooms live in memory. Restarting the server ends active games; disconnected rooms expire after 24 hours. Notebooks stay in the same browser’s local storage, keyed by game and player. Use one Node process; there is no cross-instance room store. For deployment beyond a trusted local playtest, provide HTTPS through a reverse proxy and a durable room store if restart recovery is needed. The shared screen is accessible to anyone who knows its room code.
