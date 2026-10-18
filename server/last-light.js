@@ -3,15 +3,7 @@ const { randomInt, randomUUID } = require('node:crypto');
 const HOUSE = ['Foyer', 'Dining Room', 'Kitchen', 'Study', 'Library', 'Conservatory', 'Billiard Room'];
 const ROOMS = ['Study', 'Library', 'Billiard Room'];
 const WEAPONS = ['Brass candlestick', 'Letter opener', 'Curtain cord'];
-const TITLES = ['Before dinner ends', 'Four minutes of darkness', 'What the house remembers', 'Connect the pieces', 'How much should everyone see?', 'Make your call'];
-const SCENES = [
-  'Rain presses against the windows of Rain House. Alex Vale stands at the end of the dining table. “Tomorrow morning, I’m handing the house’s community-fund records to an independent auditor. Tonight, I want to explain why.” Alex leaves to collect the ledger. An envelope on the table reads: Private correspondence. Please do not read aloud. A payment receipt is caught inside.',
-  'Alex sets down an empty glass. “Give me a moment. I’ll bring the ledger.” At 10:00 p.m., the lights go out. A chair moves. Somewhere down the corridor, a door closes. When the lights return at 10:04, Alex’s place is empty. Where will you look first?',
-  'Alex has been found. Different pieces of the evidence are now on your phones. Tell the group what your clue establishes—and what it does not. A search after 10:04 is not an alibi for the blackout.',
-  'Some evidence describes a time. Some describes a number. Some describes an object. Several accounts sound plausible. They cannot all explain the same four minutes. What would still change your mind?',
-  'The sealed archive is recovered from Alex’s desk. Inside are the guest-code register and personal letters from people who are not here. “The records may need checking. The personal letters are not part of the accounts.” Display everything, or inspect only what you need?',
-  'The rain has not stopped. You have heard each other’s explanations and seen what people chose to share. Make your own judgment. Connect the number to a name and the trace to an object.'
-];
+const story = require('./story');
 const LETTER = 'Morgan: “Alex, I accepted help from the fund when I was struggling. Please do not turn that difficult period into a story for everyone else. I have repaid the support. I would like to decide who knows about it.” Morgan is a fictional non-attendee, not a suspect.';
 class GameError extends Error {}
 const check = (condition, message = 'That action is not available now.') => { if (!condition) throw new GameError(message); };
@@ -64,6 +56,10 @@ function tick(r) { if (r.stage === 'speaking' && Date.now() >= r.speakerUntil) {
 function begin(r, n) {
   r.round = n; r.submissions = {}; r.tally = null; r.stage = 'action'; r.discussionUntil = Date.now() + 120000;
   if (n === 1 || n === 5) speak(r, 'vote');
+  if (n === 5) {
+    fact(r, 'S2', 'The original meeting minutes show that Alex accepted a sale offer before consulting the people who built Rain House. The audit was due to compare the original records with his edited summaries. Each dispute explains a motive, not who committed the murder.');
+    for (const p of r.players) publish(r, r.extraCards[`M-${p.id}`]);
+  }
   if (n === 3) {
     const e = evidence(r); publish(r, e.K1);
     const recipients = shuffle(r.players);
@@ -72,27 +68,38 @@ function begin(r, n) {
     if (recipients[5]) { r.extraCards ||= {}; r.extraCards.VIS = card('VIS', 'No visitor', 'People', 'No external visitor entered Rain House that evening.'); give(r, recipients[5], 'VIS'); }
     r.discoverers = r.players.filter(p => p.search === r.solution.room).map(p => p.name);
     fact(r, 'discovery', r.discoverers.length ? `${r.discoverers.join(' and ')} found Alex in the ${r.solution.room}.` : `A location alert brought everyone to the ${r.solution.room}.`, 'Rooms');
-    r.stage = 'dice';
+    for (let i = 0; i < r.players.length; i++) give(r, r.players[i], `M-${r.players[(i + 1) % r.players.length].id}`);
+    speak(r, 'vote');
   }
   if (n === 4 && r.decisions[1] === 'A') publish(r, evidence(r).K3);
   if (n === 6) r.stage = 'discussion';
 }
-function roll(r) {
+// Test injection is internal only: socket actions never supply the random source.
+function roll(r, random = randomInt) {
   if (r.dice[r.round]) return;
-  const value = randomInt(1, 7), roller = r.players[(r.round - 1) / 2];
+  check(r.stage === 'dice');
+  const value = random(1, 7), roller = r.players[(r.round - 1) / 2];
+  const rewards = [];
+  const gain = id => { give(r, roller, id); rewards.push({ title: ({...evidence(r), ...r.extraCards})[id].title, recipient: roller.name, destination: 'My clues · private' }); };
+  const reveal = (id, title, text) => { const c = card(id, title, 'Timeline', text); publish(r,c); rewards.push({title,recipient:'Everyone',destination:'Shared evidence board'}); };
   let text;
   if (r.round === 1) {
-    text = value >= 5 ? 'Door records are stored on independent battery power.' : r.decisions[1] === 'A' ? (value <= 2 ? 'Alex returns: “Did you need that part too?” The receipt is still obtained.' : 'The documents are read before Alex returns.') : (value <= 2 ? `${roller.name} was seen handling the envelope after a glass tipped over. This does not establish that they altered anything.` : 'The receipt is removed cleanly; the letter stays folded.');
+    text = value <= 2 ? (r.decisions[1] === 'A' ? 'The paper catches against the lining just as Alex returns. His eyes settle on the broken seal. “Was the receipt not enough?” The document you needed is safe, but the pocket yields nothing more.' : `A glass tips over. ${roller.name} lifts the envelope clear of the spreading water as Alex returns. He sees the envelope in their hand; the letter is still folded. No extra document is found.`) : value === 6 ? 'A stiff edge catches your finger behind the lining. The meeting note comes free—and with it, a second page bearing a buyer’s signature. Alex had agreed to sell before he invited you here.' : 'You ease a folded note from the lining. Alex’s own handwriting lists what he intended to settle at dinner. This invitation was not a reunion.';
+    if (value >= 3) gain('B1');
+    if (value === 6) gain('B2');
   } else if (r.round === 3) {
-    text = value <= 2 ? 'The corridor clock is unreliable. Use timestamped records.' : value <= 4 ? 'The door system kept recording throughout the blackout.' : 'The corridor clock is unreliable. The door system kept recording throughout the blackout.';
-    if (value >= 5) give(r, roller, missing(roller, ['K2', 'K3', 'K5', 'K6']));
+    const available = r.decisions[3] === 'A' ? ['K3','K2','K5','K6'] : ['K5','K6','K3','K2'];
+    const count = value === 6 ? 2 : value >= 3 ? 1 : 0;
+    for (let i=0; i<count; i++) gain(missing(roller,available));
+    text = count === 2 ? 'Behind the first report is a second, overlooked sheet. You separate them carefully: two independent pieces of the night, both now yours to compare.' : count === 1 ? 'A page was tucked beneath the stack. It gives you a second angle on the evidence you already hold.' : 'The search turns up no additional report. The first records remain intact; the group can continue with what it already knows.';
   } else {
-    text = value <= 2 ? 'A handwritten allegation has no supporting source. A claim is not a verified record.' : 'Guest cards were not exchanged, duplicated, or reassigned during dinner.';
-    if (value >= 5) publish(r, evidence(r).K6);
+    text = value <= 2 ? 'A loose scrap accuses someone without naming a source. You set it aside. There is enough suspicion in this house already; this is not evidence.' : value === 6 ? 'The false bottom lifts. Beneath a card-custody slip lies an unsent letter in Alex’s handwriting. For the first time tonight, you hear the version of events he never intended to read aloud.' : 'A custody slip is wedged in the hinge: each numbered card stayed with its assigned guest. The register can be trusted.';
+    if (value >= 3) reveal('B5','Card-custody slip','Every guest card remained with its assigned owner. No card was exchanged, copied, lost, or reassigned during dinner.');
+    if (value === 6) reveal('B6', 'Alex’s unsent letter', '“The buyers want a clean history. I have let the others carry decisions I made with them. Tomorrow the originals may undo the story I told.” The letter confirms Alex’s manipulation of the sale narrative. It does not identify his killer.');
   }
-  r.dice[r.round] = { value, roller: roller.name, text }; fact(r, `dice${r.round}`, text);
-  if (r.round === 3) speak(r, 'discussion'); else r.stage = 'discussion';
-  r.discussionUntil = Date.now() + 120000;
+  r.dice[r.round] = { value, roller: roller.name, text, rewards, extraCount: rewards.length, action: story.diceRules(r).action };
+  fact(r, `dice${r.round}`, text);
+  r.stage = 'discussion'; r.discussionUntil = Date.now() + 120000;
 }
 function resolveVote(r) {
   const values = r.players.map(p => r.submissions[p.id] || 'N');
@@ -101,6 +108,9 @@ function resolveVote(r) {
   if (r.round === 1) {
     fact(r, 'receipt', 'Independent audit appointment: tomorrow, 9:00 a.m. Original ledger required. A disputed transfer will be reviewed against the originals.');
     if (winner === 'A') fact(r, 'letter', LETTER, 'People');
+    r.stage = 'dice';
+  } else if (r.round === 3) {
+    publish(r, evidence(r)[winner === 'A' ? 'K2' : 'K6']);
     r.stage = 'dice';
   } else {
     if (winner === 'A') {
@@ -113,12 +123,13 @@ function resolveVote(r) {
 function finish(r) {
   const correct = r.players.filter(p => p.id !== r.solution.murderer && ['murderer', 'room', 'weapon'].every(k => r.submissions[p.id]?.[k] === r.solution[k])).length;
   const needed = Math.floor((r.players.length - 1) / 2) + 1;
-  r.result = { ...r.solution, murdererName: r.players.find(p => p.id === r.solution.murderer).name, correct, needed, guestsWin: correct >= needed, ballots: r.players.map(p => ({ name: p.name, ...(r.submissions[p.id] || { murderer: '', weapon: '', room: '' }) })) };
+  r.result = { confession: r.players.find(p => p.id === r.solution.murderer).role.confession, motives: r.players.map(p => ({name:p.name,title:p.role.title,motive:p.role.motive})), ...r.solution, murdererName: r.players.find(p => p.id === r.solution.murderer).name, correct, needed, guestsWin: correct >= needed, ballots: r.players.map(p => ({ name: p.name, ...(r.submissions[p.id] || { murderer: '', weapon: '', room: '' }) })) };
   Object.values(evidence(r)).forEach(c => publish(r, c));
-  r.recap = ['You came to Rain House expecting dinner and an announcement.', r.decisions[1] === 'A' ? 'You opened the whole envelope, including Morgan’s private letter.' : 'You took the receipt and left Morgan’s personal letter folded.', ...(r.dice[1]?.value >= 5 ? ['The envelope revealed that darkness would not erase the door logs.'] : r.decisions[1] === 'B' && r.dice[1]?.value <= 2 ? [`${r.dice[1].roller} was seen handling the envelope after a glass tipped over.`] : []), r.discoverers.length ? `${r.discoverers.join(' and ')} found Alex in the ${r.solution.room}.` : `A location alert brought everyone to the ${r.solution.room}.`, r.firstShare ? `${r.firstShare} was the first to put a private clue on the shared board.` : 'Much of the evidence stayed on individual phones.', r.decisions[5] === 'A' ? 'You chose a fully open archive, revealing records and personal correspondence.' : 'You kept the letters closed and chose which records to inspect.', correct >= needed ? 'By the end, enough of you had connected the same story.' : 'The complete story became clear only after the final votes.'];
+  r.recap = ['You came to Rain House expecting dinner and an announcement.', r.decisions[1] === 'A' ? 'You opened the whole envelope, including Morgan’s private letter.' : 'You took the receipt and left Morgan’s personal letter folded.', r.decisions[3] === 'A' ? 'Together, you searched the missing minutes first.' : 'Together, you searched the physical traces first.', r.discoverers.length ? `${r.discoverers.join(' and ')} found Alex in the ${r.solution.room}.` : `A location alert brought everyone to the ${r.solution.room}.`, r.firstShare ? `${r.firstShare} was the first to put a private clue on the shared board.` : 'Much of the evidence stayed on individual phones.', r.decisions[5] === 'A' ? 'You chose a fully open archive, revealing records and personal correspondence.' : 'You kept the letters closed and chose which records to inspect.', correct >= needed ? 'By the end, enough of you had connected the same story.' : 'The complete story became clear only after the final votes.'];
   r.stage = 'ending';
 }
 function next(r) {
+  if (r.stage === 'briefing') { r.submissions = {}; speak(r, 'vote'); return; }
   if (r.stage === 'speaking') return pass(r);
   if (r.stage === 'vote') return resolveVote(r);
   if (r.stage === 'dice') return roll(r);
@@ -145,10 +156,14 @@ function action(r, pid, type, data = {}) {
   check(data.round === r.round && data.stage === r.stage, 'The game moved on. Try again.');
   if (type === 'start') {
     check(pid === r.hostId && r.round === 0); check(r.players.length >= 4, 'You need 4–6 players.');
-    r.solution = { murderer: pick(r.players).id }; const codes = shuffle([17,24,38,46,59,63]); r.codes = Object.fromEntries(r.players.map((q, i) => [q.id, codes[i]])); begin(r, 1);
+    r.solution = { murderer: pick(r.players).id }; const roles = shuffle(story.ROLES);
+    r.extraCards = { B1: card('B1','Alex’s meeting note','People','“Dinner: settle the outstanding disputes. Audit: compare originals. Sale: keep the buyers away from the correspondence.” Alex expected resistance before anyone arrived.'), B2: card('B2','The signed sale offer','Timeline','The buyer signed at 4:30 p.m., hours before dinner. Alex’s announcement was not a consultation. The offer still required his final signature after the audit.') };
+    r.players.forEach((p,i) => { p.role = roles[i]; r.extraCards[`M-${p.id}`] = card(`M-${p.id}`, `${p.name} — a paper trail`, 'People', `${p.name}, ${p.role.title.toLowerCase()}: ${p.role.document} This establishes a dispute with Alex, not presence at the crime scene.`); });
+    const codes = shuffle([17,24,38,46,59,63]); r.codes = Object.fromEntries(r.players.map((q, i) => [q.id, codes[i]])); begin(r, 1); r.stage = 'briefing'; r.speakerUntil = null;
+  } else if (type === 'ready') { check(r.stage === 'briefing'); r.submissions[pid] = true;
   } else if (type === 'next') { check(pid === r.hostId, 'Only the host can advance.'); next(r);
   } else if (type === 'pass') { check(r.stage === 'speaking' && (r.speakers[r.speakerIndex] === pid || pid === r.hostId)); pass(r);
-  } else if (type === 'vote') { check(r.stage === 'vote' && ['A','B','N'].includes(data.value)); r.submissions[pid] = data.value;
+  } else if (type === 'vote') { check((r.stage === 'vote' || (r.stage === 'speaking' && r.afterSpeaking === 'vote')) && ['A','B','N'].includes(data.value)); r.submissions[pid] = data.value;
   } else if (type === 'search') {
     check(r.round === 2 && r.stage === 'action' && [...HOUSE, 'Observe'].includes(data.search));
     if (r.solution.murderer === pid) { check(ROOMS.includes(data.room) && WEAPONS.includes(data.weapon), 'Choose a crime room and weapon.'); r.solution.room = data.room; r.solution.weapon = data.weapon; }
@@ -163,7 +178,7 @@ function action(r, pid, type, data = {}) {
     give(r, p, id);
   } else if (type === 'roll') { check(r.stage === 'dice' && r.players[(r.round - 1) / 2].id === pid, 'It is another player’s turn to roll.'); roll(r);
   } else if (type === 'share') {
-    check(r.round >= 3 && r.stage !== 'ending' && p.clues.includes(data.value)); const c = { ...evidence(r), ...r.extraCards }[data.value]; check(c); publish(r, c, p);
+    check(r.round >= 1 && r.stage !== 'ending' && p.clues.includes(data.value)); const c = { ...evidence(r), ...r.extraCards }[data.value]; check(c); publish(r, c, p);
   } else if (type === 'statement') {
     check(r.round === 4 && !r.statements.some(x => x.playerId === pid));
     check(['sound','object','doubt'].includes(data.kind));
@@ -178,10 +193,10 @@ function action(r, pid, type, data = {}) {
 }
 function view(r, pid) {
   const p = r.players.find(x => x.id === pid);
-  const s = { code: r.code, gameId: r.gameId, round: r.round, stage: r.stage, hostId: r.hostId, players: r.players.map(({id,name,connected}) => ({id,name,connected})), title: TITLES[r.round - 1] || 'The evening begins here', scene: SCENES[r.round - 1] || '', board: r.board, statements: r.statements, completed: Object.keys(r.submissions).length, decisions: r.decisions, tally: r.tally, dice: r.dice, discussionUntil: r.discussionUntil, speaker: r.stage === 'speaking' ? { id: r.speakers[r.speakerIndex], until: r.speakerUntil, position: r.speakerIndex + 1 } : null, rollerId: r.stage === 'dice' ? r.players[(r.round - 1) / 2].id : null, house: HOUSE, rooms: ROOMS, weapons: WEAPONS };
-  if (p) s.me = { id: p.id, name: p.name, objective: r.round ? (r.solution.murderer === pid ? 'murderer' : 'guest') : null, clues: p.clues.map(k => ({ ...evidence(r), ...r.extraCards }[k])).filter(Boolean), submission: r.submissions[pid] || null, searchResult: r.round >= 3 ? p.searchResult : null, extraVerification: r.round === 4 && r.decisions[1] === 'B' && pid === r.players[0].id && !r.extraVerified, selection: r.round >= 2 && pid === r.solution.murderer ? { room: r.solution.room, weapon: r.solution.weapon } : null };
+  const s = { code: r.code, gameId: r.gameId, round: r.round, stage: r.stage, hostId: r.hostId, players: r.players.map(({id,name,connected,role}) => ({id,name,connected,...(role ? {roleTitle:role.title,introduction:role.introduction} : {})})), title: story.TITLES[r.round - 1] || 'An invitation from Alex', scene: story.scene(r), decision: story.DECISIONS[r.round] || null, diceRules: [1,3,5].includes(r.round) ? story.diceRules(r) : null, board: r.board, statements: r.statements, completed: Object.keys(r.submissions).length, decisions: r.decisions, tally: r.tally, dice: r.dice, discussionUntil: r.discussionUntil, speaker: r.stage === 'speaking' ? { id: r.speakers[r.speakerIndex], until: r.speakerUntil, position: r.speakerIndex + 1 } : null, rollerId: r.stage === 'dice' ? r.players[(r.round - 1) / 2].id : null, house: HOUSE, rooms: ROOMS, weapons: WEAPONS };
+  if (p) s.me = { role: p.role ? { title:p.role.title, relationship:p.role.relationship, secret:p.role.secret, motive:p.role.motive } : null, id: p.id, name: p.name, objective: r.round ? (r.solution.murderer === pid ? 'murderer' : 'guest') : null, clues: p.clues.map(k => ({ ...evidence(r), ...r.extraCards }[k])).filter(Boolean), submission: r.submissions[pid] || null, searchResult: r.round >= 3 ? p.searchResult : null, extraVerification: r.round === 4 && r.decisions[1] === 'B' && pid === r.players[0].id && !r.extraVerified, selection: r.round >= 2 && pid === r.solution.murderer ? { room: r.solution.room, weapon: r.solution.weapon } : null };
   if (r.stage === 'ending') { s.result = r.result; s.recap = r.recap; }
   return s;
 }
 function cleanup() { for (const [code, r] of rooms) if (Date.now() - r.lastActive > 24 * 60 * 60 * 1000 && !r.players.some(p => p.connected)) rooms.delete(code); }
-module.exports = { GameError, createRoom, joinRoom, getRoom, resume, action, view, tick, cleanup, rooms, HOUSE, ROOMS, WEAPONS, evidence };
+module.exports = { GameError, createRoom, joinRoom, getRoom, resume, action, view, tick, cleanup, rooms, HOUSE, ROOMS, WEAPONS, evidence, roll };

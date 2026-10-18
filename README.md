@@ -1,6 +1,6 @@
 # Last Light · Alternate Universe
 
-A playable, real-time mystery for **4–6 friends**, one shared screen, and private phones. Six rounds, approximately 35–45 minutes. Players use their own names. No acting, elimination, mandatory personal disclosure, or AI service is required.
+A playable, real-time mystery for **4–6 friends**, one shared screen, and private phones. Six rounds, approximately 35–45 minutes. Players keep their chosen names and receive a lightweight fictional identity, relationship with Alex, and motive. No acting performance, elimination, mandatory personal disclosure, or AI service is required.
 
 ## Run
 
@@ -15,7 +15,7 @@ Open `http://localhost:3000` on the computer. The server also prints the local W
 
 1. Create a room on the host’s **phone**. Everyone else enters the room code and their own name.
 2. Open **Open the shared screen** on the computer/projector. This is a separate public view, not a mirror of the host’s private phone.
-3. Start when 4–6 players have joined. The host controls pacing from their phone without access to other players’ objectives or clues.
+3. Start when 4–6 players have joined. The host controls pacing through a visible next-step panel on their phone, without access to other players’ private secrets, objectives, or clues.
 4. Use the four phone tabs: **Now**, **My clues**, **Notebook**, and **My objective**.
 5. Keep the private recovery credential if you might need to move to another browser. Reloading the same tab automatically reconnects. Do not share recovery credentials: they grant access to that player’s private view.
 
@@ -23,18 +23,18 @@ The shared-screen URL is `/?screen=ABCD`; the join link is `/?room=ABCD`. A room
 
 ## Rules implemented
 
-- Uniformly random murderer; everyone else investigates. Only the murderer receives the fictional motive. Names have no effect on assignment.
+- Uniformly random murderer, independently shuffled identities, and a distinct motive for every guest. Secrets emerge through other players’ clue cards and the archive. Names and roles have no effect on murderer assignment.
 - Six rounds: envelope decision → blackout → discovery → investigation → archive decision → final accusation.
-- Two private group decisions, each offering No preference. A wins only if A has more votes than B; otherwise B wins. Individual choices remain private after the aggregate reveal.
+- Three private group decisions (envelope, investigation priority, archive), each offering No preference. Voting is available during the 20-second speaking turns. A wins only if A has more votes than B; otherwise B wins. Individual choices remain private after the aggregate reveal.
 - Secret room and weapon selection in Round 2; the solution locks when that round ends. Three rooms × three weapons generate nine consistent case combinations.
-- Exactly three server-generated dice events in Rounds 1, 3, and 5, rotating through seats 1, 2, and 3. No rerolls; low rolls never block the case.
+- Exactly three server-generated dice events in Rounds 1, 3, and 5, rotating through seats 1, 2, and 3. No rerolls; low rolls never block the case. Rolls of 1–2 grant zero extras, 3–5 grant one, and 6 grants two. Before/after panels show the guaranteed evidence, reward titles, recipients, and destinations.
 - Asymmetric evidence, complementary door-log/register and trace/inventory pairs, voluntary permanent publication, and a persistent People/Rooms/Objects/Timeline board.
 - Private verification copies in Rounds 4 and 5. The register unlocks in Round 5. Both archive routes keep evidence accessible. The envelope choice adds a public door log or an extra private verification.
 - Optional local-only notebooks. Text is never transmitted to the server and never used in the recap.
 - Rotating 20-second speaking turns in Rounds 1, 3, and 5, with automatic timeout and Done / Pass. Suggested discussion and ballot timers leave pacing under host control.
 - One optional suggested statement per player in Round 4, explicitly labelled unverified and separated from official evidence.
 - Independent, revisable final ballots with Not enough evidence for each field. Results remain hidden until the host closes voting. A strict majority of innocent guests must identify all three parts correctly; the murderer’s ballot is excluded.
-- Solution and complete evidence-chain reveal, all final ballots, and an event-based 45–56-second recap with Pause, Skip, Read again, and a static transcript.
+- Solution and complete evidence-chain reveal, all final ballots, and an event-based 45–56-second recap with Pause, Skip, Read again, and a static transcript. The ending explains the murderer’s role-specific motive and everyone else’s stakes.
 
 The user’s requested feature numbering skips 15; every supplied feature is represented above without inventing a missing requirement.
 
@@ -42,9 +42,9 @@ The host can advance if somebody is absent. Missing actions default to No prefer
 
 ## Manuscript and design status
 
-The implementation follows `design/03-last-light-party-game.md` (version 2.0). `design/03-last-light-player-guide.md` is the spoiler-free player guide. The manuscript’s “not implemented” wording describes its original publication status; this branch adds the digital implementation.
+The implementation follows `design/03-last-light-party-game.md` (version 3). `design/03-last-light-player-guide.md` is the spoiler-free player guide. Version 3 supersedes the earlier no-fictional-identity premise. The full narrative and role text live in `server/story.js`.
 
-**Figma visual matching is pending.** The supplied design is [Alternative Universe, node 2:5](https://www.figma.com/design/B2zj8NNZnGIC4sfuUkCJyz/Alternative-Universe?node-id=2-5). Both design-context and screenshot requests returned an edit-access error from the Figma connector, including retries after access was requested. This branch extends the repository’s existing visual tokens and components; it does not claim to reproduce the inaccessible Figma design. No Figma assets have been substituted or embedded as screenshots.
+**Figma visuals integrated.** The interface uses original background fills, wax seal, and six pin SVGs from [Alternative Universe](https://www.figma.com/design/B2zj8NNZnGIC4sfuUkCJyz/Alternative-Universe?node-id=2-5), with the shared pixel-paper components and local Pixelify Sans, Special Elite, Silkscreen, and Kalam fonts. TV title/lobby/map/vote/evidence/ending/blackout frames and phone join/clue/vote frames informed the implementation. The title retains “The Gathering”; the subtitle and room labels follow the Rain House manuscript. Layouts adapt to live evidence and 4–6 guests; sample suspects, fixed vote counts, and invented routes from the mockups are not presented as real game data. Asset provenance is recorded in `public/assets/figma/provenance.json`. Screenshots are not embedded as interfaces.
 
 ## Verification
 
@@ -58,12 +58,13 @@ node scripts/simulate.js 6
 TEST_URL=http://localhost:3017 node scripts/simulate.js 4
 ```
 
-Rule tests cover all nine solutions, 4–6 players, private-state filtering, ties/abstentions, duplicate phase requests, invalid permissions, speaking timeouts, clue copies, archive branches, and scoring. Socket simulations complete full games through real connections, check the public-screen boundary, share clues, submit ballots, and verify recovery credentials and reconnects.
+Rule tests cover all nine solutions, 4–6 players, private-state filtering, ties/abstentions, duplicate phase requests, invalid permissions, speaking timeouts, clue copies, archive branches, and scoring, plus role secrecy, concurrent speaking/voting, investigation outcomes, and all six die faces in all three searches. Socket simulations complete full games through real connections, check the public-screen boundary, share clues, submit ballots, and verify recovery credentials and reconnects.
 
 Human playtesting is still needed to validate session length, discussion quality, and balance. The evidence structure is fixed, so replaying changes the solution but not the underlying puzzle.
 
 ## Code map
 
+- `server/story.js`: connected six-round prose, six fictional identities, decision prompts, and explicit dice reward previews.
 - `server/last-light.js`: deterministic narrative templates, secure random selection, state transitions, evidence, scoring, recap, and separate public/private views.
 - `server/index.js`: HTTP/Socket.IO transport, recovery authentication, public spectators, rate limits, timed turns, and host handover after 30 seconds disconnected.
 - `public/app.js`: phone and shared-screen interfaces, private local notebook, and recap controls.

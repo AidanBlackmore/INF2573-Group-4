@@ -1,548 +1,156 @@
 # LAST LIGHT
-## A six-round party mystery about evidence, trust, and the choices you make together
+## Version 3 — The people at Alex’s table
 
-**4–6 players · Approximately 35–45 minutes · One shared screen and one phone per player · No elimination · No AI required**
+4–6 players · Six rounds · Approximately 35–45 minutes · One shared screen and private phones · No elimination · No AI required
 
-**Version 2.0 — complete English game manuscript.** This replaces the previous eight-round character-based edition. It is a content and rules package, not an implemented multiplayer application. A digital version runs the written rules automatically; a manual playtest requires an additional non-playing facilitator who knows the solution.
+This revision supersedes the version 2 “play only as yourself” premise. Players keep their chosen names and speak naturally, but each receives a short fictional identity, a relationship with Alex, a secret, and a plausible motive. Nobody is required to perform an accent, disclose personal experiences, or invent facts that contradict evidence.
 
----
+The running narrative is authored in `server/story.js`. The rules and evidence are implemented in `server/last-light.js`; these files are the exact text and behavior delivered by the application.
 
-## 1. The experience
+## The story that holds the evening together
 
-You and your friends are attending dinner at Rain House, a modern private home owned by a fictional host, Alex Vale. Before Alex can finish an announcement, the lights go out. When they return, Alex is missing.
+Rain House was built by people who believed it would belong to something larger than its owner. Alex Vale has accepted an offer to sell it. Tonight he has invited the people with the strongest claims on its past. He intends to settle their disputes before an audit compares his edited account with the original records.
 
-One player secretly caused what happened. Everyone else must piece together the evidence.
+Each guest has something to lose. Alex has kept the papers that could protect them, expose them, or let him tell the story in their place. His announcement makes the dinner feel like a summons. Then the lights fail for four minutes. When they return, Alex is missing.
 
-You use your own names. You do not invent accents, perform a personality, remember a fictional career, or pretend to have years of history with the other guests. You can speak normally throughout.
+The mystery has two linked questions: **why did everyone fear this dinner?** and **which of them actually killed Alex?** Correspondence answers the first. Time, access, guest codes, and physical traces answer the second. A compelling motive is never treated as proof of guilt.
 
-The fiction supplies a situation. You supply your own judgments: what seems convincing, what should be shared, whose explanation makes sense, and when you are willing to change your mind.
+## Identities and motive design
 
-**The experience we want:** “I learned something about how my friends think while we were trying to solve this together.” The game does not score friendship or infer anyone’s real personality from their play.
+Shuffle six unique roles independently of murderer assignment; use one per player, with unused roles absent from the case. The murderer is uniformly random among the active players. The public screen shows only each role’s title and a short introduction. Each phone alone receives its owner’s relationship, secret, motive, and objective.
 
-## 2. Replace character casting with information assignment
+- **The co-founder:** helped build Rain House with Alex. Alex removed their ownership claim; the original agreement is in his archive. The sale threatens to erase their life’s work.
+- **The fund keeper:** moved restricted funds to emergency repairs at Alex’s urging. He now intends to omit those instructions and call the transfer theft. Their reputation depends on the originals.
+- **The restorer:** signed unfinished work as complete after Alex threatened to replace them. Alex intends to deny the pressure; their career is at risk.
+- **The programme organiser:** promised another year of support while trying to prevent closure. Alex means to read those promises aloud and assign them the blame for the programme’s end.
+- **The archivist:** redacted private donor stories to honor confidentiality. Alex demands the names back for the sale presentation and threatens to expose the intervention.
+- **The former protégé:** wants credit for work Alex claimed. He threatens to send a selective account of their dispute to a prospective employer.
 
-Setup assigns only three things:
+Each role has a role-specific ending explanation if that player becomes the murderer. No guest receives a predetermined alibi or power. All guests could access the timer and the three weapons. The fictional role does not change anyone’s odds, actions, or evidence rights.
 
-1. **Your name:** whatever you want the group to call you.
-2. **Your private objective:** uncover the truth, or conceal your involvement.
-3. **Your information:** clues delivered to your phone as the game unfolds.
+### How secrets emerge
 
-There are no fictional professions, relationship-building forms, personal backstories, assigned personality traits, or secret emotional obligations. Everyone has the same basic actions. The game does not select the murderer based on a quiz or the group’s opinion of someone.
+1. Before the first vote, each player can read their identity under **My objective**. The **people at Alex’s table** panel introduces the public cast.
+2. Round 1 search rewards may reveal Alex’s meeting note and the signed sale offer, showing the announcement was not a consultation.
+3. In Round 3, every player receives one paper trail about a *different* active guest. It describes a documented dispute. They choose whether to publish it.
+4. In Round 5, relevant dispute records for all active guests and the original meeting context become public in both archive routes. The privacy choice concerns unrelated personal letters, not suppression of the case’s motives.
+5. The ending connects the actual murderer’s motive to the locked forensic chain and recaps the other guests’ stakes without calling them guilty.
 
-Randomly select one murderer, independently of seating order. Everyone else is a guest. Both receive private instructions on a screen titled **Your objective**.
+## The six rounds
 
-**Guest screen**
+### 1. The envelope at your place
 
-> You did not cause Alex’s death.
->
-> Find out who did, where it happened, and what was used. Share what you find, question what you hear, and decide for yourself.
->
-> You are playing as yourself. You do not need to act.
+Rain, an uncomfortable invitation, Alex’s sale announcement, and an envelope left beside his glass establish the story. A relevant receipt is caught inside a personal letter from Morgan, a fictional non-attendee.
 
-**Murderer screen**
+**Shared decision:** read the whole envelope (A) or take only the receipt (B). No preference is available. A wins only with strictly more votes than B; ties choose B.
 
-> You are responsible for Alex’s death in this game.
->
-> Keep the group from identifying the complete solution. You may mislead people in conversation or keep your information private. You cannot edit official evidence.
->
-> In Round 2, secretly choose the room and weapon. The game handles what happened; you do not need to act out a murder or invent a backstory.
->
-> Your game-only motive: Alex discovered that you diverted money from the house’s community fund. Tonight’s announcement would expose it. This is fictional information, not a claim about you.
+**Speaking purpose:** argue for what should be revealed or protected. Players can vote privately *during* the rotating 20-second turns and revise until the host closes voting after everyone’s turn. Passing is always allowed.
 
-The murderer can still express genuine opinions in the group’s dilemmas. There is no requirement to choose a particular side to maintain cover.
+Both routes publish the audit receipt. A also publishes Morgan’s letter and creates a public door-log copy in Round 4. B preserves the letter and gives seat 1 an additional private verification in Round 4.
 
-**Facilitator note:** the minimum fictional layer is a secret game action and objective. Removing that too would turn this into a cooperative mystery rather than a hidden-murderer game.
+**Shared search 1:** seat 1 searches the envelope’s inner pocket. Preview the exact roll bands before rolling; show the actual rewards afterwards.
 
-## 3. What players need to know
+- **1–2:** interruption; zero additional clues. For A, Alex returns as the letter is read. For B, a glass tips and the roller is seen holding the envelope. Neither proves guilt. The receipt stays available.
+- **3–5:** one private clue, Alex’s meeting note (B1), in the roller’s My clues.
+- **6:** B1 plus the signed sale offer (B2): two private clues.
 
-Display before starting:
+Discuss the result, then continue. No moral points are awarded for either route.
 
-> **Be yourself. Keep your objective private.**
->
-> Speak normally. No acting or personal disclosures are required.
->
-> Official evidence is always accurate. What another player says may not be.
->
-> You may keep a clue private or publish it to the shared board. Published evidence cannot be withdrawn or rewritten.
->
-> Your notebook stays private and never appears in the ending.
->
-> You can pass when invited to speak. Nobody is eliminated.
->
-> There are six rounds and three shared dice rolls. Low rolls still move the story forward.
+### 2. A house holding its breath
 
-**Winning:** every player independently chooses a murderer, a weapon, and a room. The guests win if a strict majority of the innocent guests submits all three correctly. Otherwise, the murderer wins. The murderer also submits a ballot to preserve secrecy, but that ballot does not count toward the guests’ threshold.
+The narration acknowledges whether the group read the letter. Alex leaves again. At 10:00 the lights fail; a chair scrapes, footsteps cross the corridor, and a door shuts. At 10:04 the lights return to Alex’s empty chair.
 
-- Four players: two correct guest ballots are required.
-- Five players: three correct guest ballots are required.
-- Six players: three correct guest ballots are required.
+Everyone privately chooses a room to search after the lights return, or Observe. On the same screen, the murderer chooses the crime room and weapon. Room choices are Study, Library, and Billiard Room; weapons are brass candlestick, letter opener, and curtain cord. The host sees only one completion count per player.
 
-“Not enough evidence” is available for each answer and is not counted as correct. Everyone’s selections are revealed only after voting closes.
+When the host resolves the round, the solution locks. Missing search actions become Observe. Missing murderer choices are random and shown privately to the murderer. Searches after 10:04 are not alibis for the murder interval.
 
-## 4. The house and the interface
+### 3. Something worth searching for
 
-The house always has seven rooms: **Foyer, Dining Room, Kitchen, Study, Library, Conservatory, and Billiard Room.** The murder can occur in the Study, Library, or Billiard Room.
+Everyone who searched the crime room receives discovery credit. If nobody did, a watch alert directs everyone there. K1 is published. Four shuffled players receive K2, K3, K5, and K6 respectively; a fifth receives the battery-power fact and a sixth the no-visitor fact. Every player also receives a paper trail about another guest.
 
-The three possible weapons are a **brass candlestick, letter opener, and curtain cord**. All were accessible to all guests before dinner. Familiarity with a room or object does not prove guilt.
+**Shared decision:** reconstruct the missing minutes (A) or compare the physical traces (B).
 
-**Each phone has four persistent tabs:**
+**Speaking purpose:** use an actual clue to advocate for the investigation the group should do next. The vote is open during every speaking turn. A publishes K2; B publishes K6. Both routes preserve all other records and later individual verification access.
 
-- **Now:** the current scene, action, and submission status.
-- **My clues:** automatically saved evidence, each with **Share on screen**.
-- **Notebook:** optional freeform notes about clues, questions, or suspicions.
-- **My objective:** the player’s private game objective.
+**Shared search 2:** seat 2 searches the selected evidence source.
 
-No written explanation is required for any vote. Players discuss their reasoning aloud if they wish.
+- **1–2:** no additional copy. Original private clues and the guaranteed public record remain available.
+- **3–5:** one private core clue the roller does not already hold.
+- **6:** two distinct private core clues the roller does not already hold.
 
-**The shared screen shows:** the current scene, action completion count, discussion timer, published evidence, and speaking prompts. Evidence is grouped under People, Rooms, Objects, and Timeline. Player statements are visibly labelled **Unverified statement**, separate from official evidence.
+A prioritizes K3, K2, K5, K6; B prioritizes K5, K6, K3, K2. Skip already-held cards. K4 never appears as a reward here. Results list each awarded title, recipient, and the My clues destination. The group then discusses what the search changed.
 
-In Rounds 1, 3, and 5, begin discussion with one short turn per person:
+### 4. What the papers leave out
 
-> **[Name], your turn.**
->
-> Share one observation, explain one choice, or ask one question.
->
-> Up to 20 seconds. Passing is fine.
+The narration follows the group’s search choice: a guest number without a name, or a trace needing an inventory. The correspondence explains why everyone feared Alex; it does not place any guest in the room.
 
-The starting speaker rotates. Speaking turns are part of the discussion time, not extra time. Players tap **Done / Pass** on their phones; the host can also advance.
+Each player privately requests one copy: K2 timing, K3 door log, K5 scene traces, or K6 inventory. Passing grants a missing card. There is no global quota: multiple players may request the same record. K4 is explicitly labelled available next round.
 
-## 5. Timing and shared rules
+Apply the envelope consequence: A publishes K3; B offers seat 1 one additional private choice. If the host advances without that choice, give a missing available card.
 
-Allow four minutes for setup; approximately four, four, six, five, six, and four minutes for Rounds 1–6; and three minutes for the ending. This totals about 36 minutes. Allow up to 45 minutes for a talkative group.
+Free discussion is about which record supports or weakens a theory. There is no disconnected mandatory speaking round. Each player may publish one suggested unverified statement about a room, object, or accusation; it remains separate from official evidence.
 
-Each round has a scene, a small action, its result, and discussion. Players can share existing clues at any time before final voting closes.
+### 5. The price of opening everything
 
-There are exactly three group dice rolls: in Rounds 1, 3, and 5. Each uses one six-sided die, with results grouped as 1–2, 3–4, or 5–6. Players in seats 1, 2, and 3 roll respectively. No rerolls or extra resources are needed.
+The archive reveals the original meeting context: Alex arranged the sale before consulting the people who built the house and intended to control whose account survived. Relevant motive records for every active guest are published in both routes. Unrelated personal letters remain subject to the group’s decision.
 
-A digital version records one server-generated result per event; repeated taps cannot reroll it. A manual facilitator can use a physical die.
+**Shared decision:** open the entire archive (A), or request only needed records (B).
 
-Group decisions use A, B, or **No preference**. A wins only if it has more votes than B; otherwise B wins. No-preference votes do not count. Show this tie rule before voting.
+**Speaking purpose:** identify the records a theory needs and argue how broadly to expose the archive. Vote while listening; revise until the host closes voting after the turns.
 
-The host controls pacing without seeing anyone’s private objective. When someone cannot submit, the host can continue using these defaults: no preference on group decisions, Observe on investigation actions, a missing clue on verification actions, and Not enough evidence on final ballots. Default murderer selections are random and privately shown to that player.
+A publishes K3, K4, and the personal correspondence. B leaves personal correspondence closed. In **both** routes, everyone requests one private case record from K2–K6. Passing grants K4 if missing, otherwise another missing card. No player can monopolize the register.
 
----
+**Shared search 3:** seat 3 searches the false bottom after everyone’s requested verification is saved.
 
-# THE SIX ROUNDS
+- **1–2:** an unsupported allegation, zero extra clues. No existing record is removed.
+- **3–5:** publish an additional card-custody slip (B5), corroborating K4’s custody rule.
+- **6:** publish B5 and Alex’s unsent letter (B6), explaining how he shifted responsibility onto the others. These are two explicit extra records, not a change to the solution.
 
-## Round 1 — Before dinner ends
+Discuss the last connections. Access to core case evidence never depends on a high roll.
 
-**Purpose:** introduce a real disagreement between friends without asking them to perform fictional relationships.
+### 6. Before the rain lets up
 
-**Shared-screen narration**
+The narration recalls whether the archive was opened or the letters protected. Everyone now knows why each guest feared the announcement. The question is which account fits the records.
 
-> Rain presses against the windows of Rain House.
->
-> Alex Vale stands at the end of the dining table.
->
-> “Tomorrow morning, I’m handing the house’s community-fund records to an independent auditor. Tonight, I want to explain why.”
->
-> Alex leaves to collect the original ledger.
->
-> On the table is an envelope marked: **Private correspondence. Please do not read aloud.** A payment receipt is caught inside its folded pages.
+Allow final free discussion, then the host opens private accusations. Every player chooses murderer, weapon, and room; each field offers Not enough evidence. Ballots can be revised until the host closes them. Never reveal partial results.
 
-**Phone choice**
+A strict majority of innocent guests must identify all three parts correctly: two guests in a four-player game, three in a five- or six-player game. The murderer submits to preserve secrecy but is excluded from the threshold. Missing ballots are Not enough evidence.
 
-> The receipt may explain the announcement. The surrounding letter belongs to someone who is not at this dinner.
->
-> **A — Open and read the whole envelope.** Everyone receives a complete copy, including the private letter.
->
-> **B — Extract only the receipt.** Keep the personal letter folded and read only the relevant document.
->
-> **No preference.**
+## Fixed case and evidence
 
-Players first get a short speaking turn. They then vote privately; the result is public. Do not require anyone to relate the dilemma to their own life.
+At setup, secretly assign unique codes from 17, 24, 38, 46, 59, and 63. Nobody receives their code until the register becomes available. The murderer schedules a four-minute blackout using a timer everyone could access and draws Alex to the chosen room using a role-specific pretext. Alex enters first; the murderer enters at 10:01:50 and leaves at 10:03:10. Death occurs between 10:02 and 10:03.
 
-**The receipt — both routes, published immediately**
+There is no accomplice, second entrance, remote mechanism, moved body, or exchanged guest card. These are fixed facts, never changed by the die, a role, or a spoken claim.
 
-> Independent audit appointment: tomorrow, 9:00 a.m.
->
-> Original ledger required. A disputed transfer will be reviewed against the original records.
+- **K1 — Discovery:** identifies the chosen room; the body was not moved.
+- **K2 — Time and access:** establishes the interval, secured windows, and lack of alternative access or remote mechanism.
+- **K3 — Door log:** gives the sole guest code entering and leaving during the interval; it does not name its owner.
+- **K4 — Register:** maps every active guest to a unique code and confirms no card transfers. Available in Round 5.
+- **K5 — Traces:** matches the selected weapon: chipped circular base and green wax; nicked narrow blade and decorative brass; or double-braided cord with blue fibers and resin.
+- **K6 — Inventory:** describes all three objects so the trace can be matched. Previous handling proves nothing by itself.
 
-**If A wins, show the letter:**
+Deduction: **K1 → room; K2 + K3 + K4 → murderer; K5 + K6 → weapon.** Motive correspondence supplies meaning and suspicion, never a substitute for this chain.
 
-> “Alex, I accepted help from the fund when I was struggling. Please do not turn that difficult period into a story for everyone else. I have repaid the support. I would like to decide who knows about it.”
+## Ending and recap
 
-The letter is about a fictional person, Morgan, who is not a player or suspect. It does not accuse Morgan of the disputed transfer.
+Reveal the locked solution, the murderer’s role-specific explanation, every guest’s motive, all ballots, and all six core cards. Explain the guest-majority outcome. The game never judges real honesty or intelligence.
 
-**Fixed consequence of A:** the group keeps the full envelope. In Round 4, its attached archive reference provides one additional public copy of the door log, K3.
+A seven-line authored recap takes 56 seconds and references actual envelope, search-priority, discovery, sharing, archive, and result events. Offer Pause, Skip, Read again, and a static transcript. Never read private notes, infer feelings, or invent dialogue.
 
-**Fixed consequence of B:** Morgan’s letter remains private. In Round 4, the Round 1 roller receives a private choice of one extra available clue. It is a normal clue, not privileged truth, and they decide whether to share it.
+## Interface and implementation requirements
 
-**Dice roll 1 — Handling the envelope**
+- UI and visual assets must come from the user’s original Figma file: `B2zj8NNZnGIC4sfuUkCJyz`, node `2:5`. Original exported artwork is now bundled locally. The interface follows the TV and phone paper components, fonts, ink borders, tape, wax seal, pins, and manor backgrounds. Live story text, evidence counts, seven manuscript rooms, and voting results replace mockup content.
+- Phones retain Now, My clues, Notebook, and My objective. Notes stay local and private.
+- The shared screen receives public roles, narrative, aggregate progress, speaking prompts, dice previews/outcomes, and published evidence. It never receives private identities’ secrets, hidden clues, murderer choices, or individual live votes.
+- Every speaking stage contains its decision question, both options and their consequences, a private vote control, and Done / Pass for the current speaker. Turn completion does not submit a vote.
+- Every search shows guaranteed evidence, 1–2/3–5/6 rewards, designated roller, actual count of extras, titles, recipients, and destination. Low rolls explicitly say zero extras and explain that baseline evidence remains.
+- Host advancement is visible as **You’re hosting · next step**, not hidden inside a collapsed controls panel. The host still deliberately closes votes and ballots.
+- Recovery uses a private token. Dice and phase resolution are server-authoritative. Repeated requests cannot reroll or duplicate rewards.
 
-For A:
+## Validation
 
-- **1–2:** Alex returns as the private letter is being read. “Did you need that part too?” The receipt is still obtained.
-- **3–4:** The documents are read before Alex returns.
-- **5–6:** An enclosure is found: “Door records are stored on independent battery power.” Publish this fact.
+Automated tests cover role uniqueness and private boundaries, all nine room/weapon solutions, all three concurrent discussion/vote stages, both investigation priorities, all six die faces at each search, immutable rewards, clue copies, archive routes, and scoring. Real socket simulations exercise 4–6 phones plus a public screen.
 
-For B:
+Human playtesting is still required for pacing, role balance, the salience of motives, and whether the new narrative gives players enough reason to discuss the decisions.
 
-- **1–2:** A glass tips over while the receipt is being extracted. Alex returns to see the roller holding the open envelope. Publish: “[Name] was seen handling the envelope. This does not establish that they altered anything.” The receipt is still obtained.
-- **3–4:** The receipt is removed cleanly; the letter stays folded.
-- **5–6:** The same battery-power enclosure is found and published.
-
-Allow brief discussion, then move on. Do not award moral points for either choice.
-
-## Round 2 — Four minutes of darkness
-
-**Purpose:** establish the murder quickly and give everyone an action.
-
-**Shared-screen narration**
-
-> Alex sets an empty glass beside the envelope.
->
-> “Give me a moment. I’ll bring the ledger, and then we can finish this.”
->
-> At 10:00 p.m., the lights go out.
->
-> A chair moves. Somewhere down the corridor, a door closes.
-
-**Phone action for everyone**
-
-> When the lights return, where will you look first?
->
-> Choose any of the seven rooms.
-
-**Additional private fields for the murderer, submitted on the same screen**
-
-> Choose where the crime happens: Study / Library / Billiard Room.
->
-> Choose the weapon: brass candlestick / letter opener / curtain cord.
->
-> These choices lock when the round closes. Your public search destination can be anywhere.
-
-The shared screen shows only how many players have submitted, not how many fields each player completed.
-
-When all actions are resolved, the game locks the solution and executes the fixed incident described later in this manuscript. Nobody acts out the event.
-
-**Shared-screen continuation**
-
-> At 10:04 p.m., the lights return.
->
-> Alex’s place at the table is empty. Their phone is still beside the glass.
->
-> No one answers when you call their name.
-
-Allow about one minute of discussion. Search selections happen after the lights return and cannot establish where someone was during the murder.
-
-## Round 3 — What each of you found
-
-**Purpose:** discover the body and begin cooperative deduction through distributed evidence.
-
-Resolve the searches selected in Round 2.
-
-If someone selected the murder room, publish:
-
-> [Name / Names] find Alex in the [room]. Alex has been killed here. The body has not been moved.
-
-If nobody selected it, publish:
-
-> Alex’s phone receives a location alert from their watch. Following it together, you find Alex in the [room]. Alex has been killed here. The body has not been moved.
-
-The discovery always happens this round. The location becomes public as K1. The weapon is concealed at the scene and is not identified merely by finding the body.
-
-**Other room results**
-
-- Foyer: “There is no record of an outside visitor arriving during the blackout.”
-- Dining Room: “All three possible weapons were accessible to all guests before dinner.”
-- Kitchen: “Emergency lighting failed. The door-recording system has separate battery power.”
-- Conservatory: “The windows remain sealed from the inside.”
-- An unused candidate room: “No second crime scene is found here.”
-
-These results can be shared, but none grants an alibi.
-
-**Distribute private evidence**
-
-After the discovery, everyone helps sort what has been found. Deal K2, K3, K5, and K6 to four different players. In a five-player game, the fifth gets the battery-power fact. In a six-player game, the sixth gets confirmation that no external visitor entered. Shuffle recipients; the murderer may receive any card.
-
-The phone distinguishes the player’s **Search result** from **Evidence you helped examine**. A player need not have searched the murder room to receive a scene report.
-
-The name register K4 is still locked in Alex’s archive and will become available in Round 5. Players do not receive their own door-code numbers during setup.
-
-**Dice roll 2 — A closer look**
-
-- **1–2:** Publish: “The corridor clock is unreliable. Use the timestamped records when comparing accounts.”
-- **3–4:** Publish: “The door system kept recording throughout the blackout.”
-- **5–6:** Publish both facts, and give the roller a private duplicate of one of K2, K3, K5, or K6 they do not already hold.
-
-All core evidence is dealt regardless of the roll.
-
-**Shared speaking prompt**
-
-> Your clue may be incomplete on its own. Tell the group what it establishes—and what it does not.
-
-Run the short speaking round, then allow free discussion. Players may read aloud, summarize, keep information private, or publish it. No assigned pairs or separate conversations are required.
-
-## Round 4 — Connect the pieces
-
-**Purpose:** let players choose what to verify, without introducing another character ability or mandatory speech.
-
-**Shared-screen narration**
-
-> Some of the evidence describes a time. Some describes a number. Some describes an object.
->
-> Several accounts sound plausible. They cannot all explain the same four minutes.
-
-**Individual phone action**
-
-Choose one:
-
-- **Check the timing:** receive K2.
-- **Inspect the door log:** receive K3.
-- **Examine the scene traces:** receive K5.
-- **Check the objects:** receive K6.
-
-Every player gets the selected official card, even if someone else already holds it. Players who select the same option all receive it. A player may pass; the default supplies an available clue they do not hold.
-
-Apply the envelope consequence from Round 1: A publishes K3; B grants the Round 1 roller one additional private selection from the same four cards.
-
-**Shared discussion prompt**
-
-> What can you now connect? What information would still change your mind?
-
-Players may question one another directly; answers are not typed into the game. Nobody is forced to answer. The name register is visibly marked **Available next round**, so players know why the code cannot yet be fully resolved.
-
-The murderer may make an optional unverified statement through the same **Add a statement** feature available to everyone. Suggested buttons are:
-
-- “I think the sound came from [room].”
-- “Someone may have handled [object] before dinner.”
-- “I’m not convinced that this proves [player] did it.”
-
-Each player can submit at most one suggested statement this round; free spoken discussion remains unrestricted. Names and statements appear as claims, never as official evidence. There is no power to destroy or rewrite clues.
-
-## Round 5 — How much should everyone see?
-
-**Purpose:** resolve the missing identity information through a second decision about trust and access.
-
-**Shared-screen narration**
-
-> The sealed archive is recovered from Alex’s desk. Inside are the guest-code register and private correspondence from people who are not here.
->
-> A note on the cover reads:
->
-> “The records may need checking. The personal letters are not part of the accounts.”
->
-> You can display the whole archive, or inspect only what you need.
-
-**Phone group choice**
-
-> **A — Open archive.** Display the guest-code register and a verified door-log copy for everyone, together with the private correspondence.
->
-> **B — Targeted access.** Leave the personal letters closed. Each person requests the single record they want to inspect and chooses whether to share it.
->
-> **No preference.**
-
-Hold the short speaking round, then vote. A wins only if A has more votes than B; otherwise B.
-
-**If A wins:** publish K3 and K4 immediately. Display two short archive excerpts:
-
-> Morgan: “I wanted the support I received to stay private, even after I repaid it.”
->
-> Taylor: “I considered leaving the project. Please let me tell people myself if I decide to go.”
-
-Morgan and Taylor are fictional non-attendees, not additional suspects. If Morgan’s letter was already opened in Round 1, acknowledge that rather than presenting it as a new disclosure.
-
-**If B wins:** the correspondence remains closed. Nobody loses access to case evidence.
-
-**Then, in both routes, every player chooses one verification:** timing K2, door log K3, name register K4, scene traces K5, or object list K6. Receive the selected card privately. No global limit or first-come restriction applies. This prevents one player from monopolizing the register. Passing defaults to K4 if the player lacks it, otherwise the lowest-numbered missing card.
-
-**Dice roll 3 — The archive’s extra enclosure**
-
-- **1–2:** Publish: “A handwritten allegation has no supporting source. A claim is not the same as a verified record.” No existing evidence is lost.
-- **3–4:** Publish: “The guest cards were not exchanged, duplicated, or reassigned during dinner.”
-- **5–6:** Publish that custody confirmation and a duplicate of K6, the object list.
-
-These are supplemental findings. K4 already contains the custody rule; low rolls do not withhold it.
-
-**Final discussion prompt**
-
-> Before accusing anyone, connect the number to a name and the trace to an object. Which parts are evidence, and which parts are someone’s interpretation?
-
-Allow players to share their new cards. The privacy route is not a hidden penalty or the only morally acceptable choice: A makes verification immediately public; B preserves the letters and relies on player communication. Both can solve the case.
-
-## Round 6 — Make your call
-
-**Shared-screen narration**
-
-> The rain has not stopped.
->
-> You have heard each other’s explanations. You have seen what people chose to share.
->
-> Make your own judgment.
-
-Allow two final discussion minutes, then one minute for a private ballot:
-
-1. Who caused Alex’s death? Select a player or Not enough evidence.
-2. What was used? Candlestick / Letter opener / Curtain cord / Not enough evidence.
-3. Where did it happen? Study / Library / Billiard Room / Not enough evidence.
-
-Players can revise until the ballot closes. Do not reveal partial results. Resolve the guest-majority threshold stated in the opening rules.
-
----
-
-# EVIDENCE AND THE FIXED CASE
-
-This section is for the facilitator or implementation, not for distribution to players before the reveal.
-
-## The solution variables
-
-Let **M** be the randomly selected murderer, **R** their selected room, and **W** their selected weapon. At setup, randomly assign each player a unique internal door code from 17, 24, 38, 46, 59, and 63. This mapping stays private until K4 is obtained.
-
-Once Round 2 closes, M, R, W, and the code mapping cannot change. Dice never alter them.
-
-## What actually happened
-
-Before dinner, M used the house’s accessible lighting timer to schedule a four-minute blackout. Everyone could access that timer, so this does not implicate a profession or player by itself. Backup lighting was already faulty; door logs had independent batteries.
-
-M drew Alex to R by claiming to have found information about the disputed transfer. Alex entered before M. At 10:01:50, M entered using their own guest card. The murder occurred between 10:02 and 10:03. M concealed W in the room and left at 10:03:10. The lights returned at 10:04.
-
-No other guest was in R during the murder interval. There was no hidden entrance, accomplice, remote mechanism, transferred guest card, or moved body. Round 2 search selections take place after 10:04. Players cannot invent an alibi that rewrites those facts.
-
-## The six core evidence cards
-
-**K1 — Discovery / public in Round 3**
-
-> Alex was found in the **[R]**. Scene examination confirms that the death occurred here. The body was not moved from another room.
-
-**K2 — Time and access / private from Round 3**
-
-> The incident occurred between **10:02 and 10:03 p.m.** The room’s windows remained secured, and there was no second entrance or remote mechanism. Anyone responsible had to be inside during that interval.
->
-> A search after 10:04 does not establish where someone was earlier.
-
-This is an explicit game-provided finding. Players do not need real forensic knowledge.
-
-**K3 — Door log / private from Round 3**
-
-> **[R] — verified battery-backed record**
->
-> 10:01:50 — Guest code **[code of M]** enters.
->
-> 10:03:10 — The same guest code leaves.
->
-> No second guest enters during that interval. Alex, the house owner, is already inside and is not represented by a guest code.
->
-> The record has not been altered. The code alone does not identify a name.
-
-**K4 — Guest register / available in Round 5**
-
-> **Tonight’s guest-code register**
->
-> [List every active player and their unique code.]
->
-> Guest cards remained with their assigned owners. No card was exchanged, copied, lost, or reassigned during this case.
->
-> This register identifies codes; it does not by itself establish who entered a room.
-
-**K5 — Scene traces / private from Round 3**
-
-Use only the paragraph matching W:
-
-- **Candlestick:** “The relevant trace matches a hard circular base with a chipped edge. Green wax is attached to the matching surface.”
-- **Letter opener:** “The relevant trace matches a short, narrow blade with a nick. A fragment of decorative brass was recovered.”
-- **Curtain cord:** “The relevant trace matches a double-braided cord. Dark-blue fibers and resin-coated strands were recovered.”
-
-**K6 — Object inventory / private from Round 3**
-
-> Brass candlestick: hard circular base, chipped edge, green wax.
->
-> Letter opener: short narrow blade, nicked edge, decorative brass.
->
-> Curtain cord: double braid, dark-blue fibers, resin-coated ends.
->
-> All three were accessible before dinner. Handling an object earlier is not sufficient evidence of murder.
-
-**The deduction:** K1 identifies R. K2 + K3 + K4 identify M. K5 + K6 identify W.
-
-The first K3 and K4 copies go to different players where possible; since Round 5 allows individual requests, any player can later obtain both. K5 and K6 must start with different players. Copies are identical to their originals. Sharing is a decision; access to the complete solution is not dependent on one player’s cooperation.
-
----
-
-# THE ENDING
-
-## First: reveal the solution
-
-Show the murderer, room, and weapon, followed by the actual evidence chain:
-
-> **[M] caused Alex’s death in the [R], using the [W].**
->
-> Alex’s planned audit would expose a diverted fund payment. [M] arranged the blackout and drew Alex into the room.
->
-> The scene report established the time. The door log established the guest code. The register linked that code to [M]. The recovered trace matched the [W].
->
-> Earlier handling of the envelope or another object was not proof of guilt.
-
-Display all six core cards now, including any that stayed private. Reveal all final ballots and explain whether the threshold was met.
-
-**Guest victory:**
-
-> Enough of you connected the evidence correctly. The truth came together before the night ended.
-
-**Murderer victory:**
-
-> The group did not submit enough complete, correct answers. [M] kept the pieces apart long enough to win this round.
-
-This is a game result, not a judgment about anyone’s real honesty or intelligence.
-
-## Then: a 45–60 second scrolling recap
-
-Use at most seven lines selected from recorded events. Include Pause, Skip, and Read again controls; keep a static version available on phones.
-
-1. “You came to Rain House expecting dinner and an announcement.”
-2. Round 1 A: “You opened the whole envelope, including Morgan’s private letter.” Or B: “You took the receipt and left Morgan’s personal letter folded.”
-3. If applicable: “[Roller] was seen handling the envelope after a glass tipped over.” Or: “The envelope revealed that darkness would not erase the door logs.” Omit this line if neither occurred.
-4. “[Discoverer names] found Alex in the [R].” Or: “A location alert brought everyone to the [R].”
-5. If someone actively published a clue: “[Name] was the first to put a private clue on the shared board.” Otherwise: “Much of the evidence stayed on individual phones.” Automatic publication does not count as a player sharing.
-6. Round 5 A: “You chose a fully open archive, revealing both records and personal correspondence.” Or B: “You kept the letters closed and chose which records to inspect.”
-7. Guest victory: “By the end, enough of you had connected the same story.” Murderer victory: “The complete story became clear only after the final votes.”
-
-The recap never reads notebooks, invents conversations, infers emotions, or claims that someone understood a clue just because they held it. It needs only fixed text and actual events.
-
-**Optional final screen**
-
-> Did anyone’s explanation make you see a choice differently?
->
-> Talk about it if you want—or start another game.
-
-No compulsory confession, prediction exercise, or friendship leaderboard follows.
-
----
-
-# FACILITATOR AND IMPLEMENTATION NOTES
-
-## A ready-to-run manual session
-
-Use one non-playing facilitator in addition to the 4–6 players. Prepare private guest/murderer slips, seven room choices, three weapon choices, the six evidence templates, a die, and a shared evidence display. Keep enough copies or private messages available for repeated verification requests.
-
-Assign M and codes privately. Read each round’s screen text aloud. Collect selections privately; in Round 2, collect R and W from M without announcing extra actions. Fill the evidence placeholders before distributing them. Use the fixed dice outcomes and tie rules, track only actual events, and end with the evidence reveal and selected recap lines.
-
-A digital version uses the same procedure automatically and requires no extra facilitator. It has not been implemented by this manuscript.
-
-## Minimal rules engine
-
-Store players, private objective, code mapping, solution, current round, submissions, held/published clue IDs, the two group decisions, three die results, final ballots, and recap events.
-
-Use fixed templates for scenes, clues, dice outcomes, and recaps. The only variable narrative fields are player names, room, weapon, code, and recorded choices. No generative agent is needed.
-
-Private objectives, unpublished clues, and murderer selections must be sent only to the entitled player. A public screen or participating host must not receive them. Notebook text should remain local to the player’s device and outside the public room or recap data.
-
-Reconnect to the same player identity using a private recovery credential, not a public name. Preserve committed actions; duplicate requests must not reroll dice, duplicate votes, or replay consequences.
-
-## Key edge cases
-
-- Nobody searches R: the watch alert reveals it in Round 3.
-- The murderer keeps K3 private: other players can request K3 in Round 4 or 5.
-- Nobody voluntarily asks for K4: players passing in Round 5 receive it by default if missing; active players remain responsible for choosing useful evidence.
-- Everyone actively chooses other cards in Round 5: do not secretly replace their choices. They may fail to identify M; the interface clearly shows that the name register is available.
-- Group vote ties or everyone abstains: choose B.
-- Player misses the final ballot: use Not enough evidence.
-- Murderer misses Round 2: randomly commit R and W, privately notify them, continue.
-- Multiple players search R: credit them together, not by connection speed.
-- Everyone withholds information: continue; evidence access is guaranteed, successful collaboration is not.
-
-## Scope and validation
-
-The written game has six rounds, two group dilemmas, three dice events, and one consistent evidence chain. It retains the house, secret murderer, private/public clues, complementary information, phone notes, speaking prompts, and event-based ending while removing character performance and reducing setup.
-
-**Still to validate through human playtesting:** actual session length, whether the privacy choices produce worthwhile discussion, how easily groups connect the evidence, and whether the murderer has enough room to mislead. The first replay will be less surprising because the evidence structure is fixed; different names, rooms, and weapons vary the solution but do not create a wholly new mystery.
+Before the first speaking turn, an untimed invitation briefing lets every player read their identity and mark Ready. The host then begins discussion; readiness is cleared and never counts as a vote.

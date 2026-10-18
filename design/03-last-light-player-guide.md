@@ -1,55 +1,43 @@
-# LAST LIGHT
-## Player welcome — no spoilers
+# LAST LIGHT — your invitation
 
-4–6 players · About 35–45 minutes · Six rounds · No acting required
+4–6 players · Six rounds · About 35–45 minutes
 
-## 1. The experience
+Alex has invited everyone who helped make Rain House what it is. He says he wants to settle a few things before the house is sold. Your invitation tells you why that worries you. Everyone at the table has a history with Alex. Someone will decide he cannot be allowed to finish the evening.
 
-You and your friends are attending dinner at Rain House, a modern private home owned by a fictional host, Alex Vale. Before Alex can finish an announcement, the lights go out. When they return, Alex is missing.
+## Before the dinner
 
-One player secretly caused what happened. Everyone else must piece together the evidence.
+Join on your phone using your name and the room code. Open **My objective** to read your fictional identity, your connection to Alex, and what you want to protect. One randomly selected player receives the murderer objective. You do not need an accent or acting experience; speak naturally. Nobody needs to discuss real private experiences.
 
-You use your own names. You do not invent accents, perform a personality, remember a fictional career, or pretend to have years of history with the other guests. You can speak normally throughout.
+Keep the shared screen on a separate computer. Do not mirror your phone: your identity’s secret, objective, and unpublished clues belong to you.
 
-The fiction supplies a situation. You supply your own judgments: what seems convincing, what should be shared, whose explanation makes sense, and when you are willing to change your mind.
+## What happens next
 
-**The experience we want:** “I learned something about how my friends think while we were trying to solve this together.” The game does not score friendship or infer anyone’s real personality from their play.
+1. **An envelope at dinner.** Discuss whether to read a personal letter or take only the receipt. Vote while others speak. After the host closes the vote, the first player searches the envelope by rolling the die.
+2. **Four minutes of darkness.** Choose where you will search when the lights return. The murderer also chooses the crime room and weapon in private.
+3. **The discovery.** Read your first evidence and a document about another guest. Discuss and vote: follow the timeline first, or examine the physical traces? The second player rolls to search that source.
+4. **A second look.** Request a copy of the evidence your theory needs. Everyone can request the same record. Compare stories and documents. Motive alone is not proof.
+5. **The archive.** Decide together whether to open everything or protect unrelated personal letters. Vote while discussing. Each person then requests a case record, including the newly available guest register. The third player searches the archive with the die.
+6. **Your accusation.** After final discussion, independently choose a person, a weapon, and a room. You may choose Not enough evidence for any field. The host closes ballots, and the truth is revealed.
 
-## 3. What players need to know
+## Why speak? Why roll?
 
-Display before starting:
+Every timed turn belongs to an actual group decision: the envelope, investigation priority, or archive. Explain which option you support and what a clue changes. You may pass. You can vote before, during, or after your own turn, and change your vote until the host closes voting. Only totals become public. Ties and all-abstention choose B.
 
-> **Be yourself. Keep your objective private.**
->
-> Speak normally. No acting or personal disclosures are required.
->
-> Official evidence is always accurate. What another player says may not be.
->
-> You may keep a clue private or publish it to the shared board. Published evidence cannot be withdrawn or rewritten.
->
-> Your notebook stays private and never appears in the ending.
->
-> You can pass when invited to speak. Nobody is eliminated.
->
-> There are six rounds and three shared dice rolls. Low rolls still move the story forward.
-
-**Winning:** every player independently chooses a murderer, a weapon, and a room. The guests win if a strict majority of the innocent guests submits all three correctly. Otherwise, the murderer wins. The murderer also submits a ballot to preserve secrecy, but that ballot does not count toward the guests’ threshold.
-
-- Four players: two correct guest ballots are required.
-- Five players: three correct guest ballots are required.
-- Six players: three correct guest ballots are required.
-
-“Not enough evidence” is available for each answer and is not counted as correct. Everyone’s selections are revealed only after voting closes.
-
+A die is a **search reward**, not a pass/fail test. The screen tells you what each band does before rolling. On 1–2, you gain no extra clue but keep everything already found. On 3–5, the search gives one extra record. On 6, it gives two. Check the result panel: it names the records, who receives them, and whether to look in **My clues** or on the shared board. Three rolls happen in the whole game; no rerolls.
 
 ## Your phone
 
-Use **Now** for your action, **My clues** to review or share evidence, **Notebook** for private optional notes, and **My objective** for your private instructions.
+- **Now:** the scene, the current decision or action, and its result.
+- **My clues:** your saved evidence. Share a card on screen if you want; published cards stay available.
+- **Notebook:** optional notes stored only in this browser, never sent into the game recap.
+- **My objective:** your fictional identity, personal stakes, and secret game objective.
 
-## The evening
+Official evidence is accurate. A player’s interpretation may not be. Published statements are labelled unverified. Copies of important records prevent anyone from blocking your access. No one is eliminated.
 
-An envelope → A blackout → A discovery → Connecting evidence → Opening the archive → Your final judgment.
+## Hosting and winning
 
-You will make two group decisions and take part in three shared dice events. There are brief speaking turns in Rounds 1, 3, and 5; you can always pass.
+The host’s Now screen has a visible **You’re hosting · next step** panel. The game waits for the host to close votes, resolve actions, and open the next round. Speaking turns end after 20 seconds or when passed. The host can provide defaults for absent players.
 
-After the reveal, a short recap revisits the choices the group actually made. It does not analyze personalities or publish your notes.
+Guests win if a strict majority of innocent guests answers all three final questions correctly: two correct guests in a four-player game, three in a five- or six-player game. The murderer’s ballot does not count. Otherwise the murderer wins. This result says nothing about anyone’s real personality or honesty.
+
+Before the first speaking turn, an untimed invitation briefing lets every player read their identity and mark Ready. The host then begins discussion; readiness is cleared and never counts as a vote.

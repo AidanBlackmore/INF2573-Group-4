@@ -1,0 +1,92 @@
+{
+  "file": "B2zj8NNZnGIC4sfuUkCJyz",
+  "url": "https://www.figma.com/design/B2zj8NNZnGIC4sfuUkCJyz/Alternative-Universe?node-id=2-5",
+  "retrieved": "2026-10-18",
+  "note": "Original exported fills and SVG components. Screenshots are reference-only and not used as UI.",
+  "assets": [
+    {
+      "node": "16:190",
+      "name": "imgWaxSeal",
+      "url": "https://www.figma.com/api/mcp/asset/03000b60-9c3e-42ac-a9d6-7caf602b5e65.svg",
+      "file": "WaxSeal.svg"
+    },
+    {
+      "node": "16:190",
+      "name": "imgTvTitle",
+      "url": "https://www.figma.com/api/mcp/asset/387c3c51-f755-4210-9e86-4c7afd2c034b.png",
+      "file": "TvTitle.png"
+    },
+    {
+      "node": "16:201",
+      "name": "imgTvLobby",
+      "url": "https://www.figma.com/api/mcp/asset/7d5617ef-564f-4071-be3d-f59c6bede8a7.png",
+      "file": "TvLobby.png"
+    },
+    {
+      "node": "16:246",
+      "name": "imgTvMap",
+      "url": "https://www.figma.com/api/mcp/asset/cea86868-e7e0-4edc-86e1-af00634beb14.png",
+      "file": "TvMap.png"
+    },
+    {
+      "node": "25:141",
+      "name": "imgTvEvidenceBoard",
+      "url": "https://www.figma.com/api/mcp/asset/e8140ce5-3ad8-4e82-a01a-4050b563d610.png",
+      "file": "TvEvidenceBoard.png"
+    },
+    {
+      "node": "25:163",
+      "name": "imgTvEndingTheTruth",
+      "url": "https://www.figma.com/api/mcp/asset/54d35cdc-0840-4a8f-9109-0ebd8cc0de32.png",
+      "file": "TvEndingTheTruth.png"
+    },
+    {
+      "node": "16:320",
+      "name": "imgTvVote",
+      "url": "https://www.figma.com/api/mcp/asset/f69fe86b-fe4b-403f-8461-042c11203778.png",
+      "file": "TvVote.png"
+    },
+    {
+      "node": "25:137",
+      "name": "imgTvBlackout",
+      "url": "https://www.figma.com/api/mcp/asset/22ee1d81-45fa-4c60-81de-830fcb870acd.png",
+      "file": "TvBlackout.png"
+    },
+    {
+      "node": "17:23",
+      "name": "imgPin",
+      "url": "https://www.figma.com/api/mcp/asset/b6556351-d96d-42e1-86b0-65591eb5212a.svg",
+      "file": "pin.svg"
+    },
+    {
+      "node": "17:23",
+      "name": "imgPin1",
+      "url": "https://www.figma.com/api/mcp/asset/db1e2a14-a504-4d96-ac1f-cbbe5ab6a0fe.svg",
+      "file": "pin1.svg"
+    },
+    {
+      "node": "17:23",
+      "name": "imgPin2",
+      "url": "https://www.figma.com/api/mcp/asset/3c4890fa-0469-43d8-b531-ce82c8bae2b7.svg",
+      "file": "pin2.svg"
+    },
+    {
+      "node": "17:23",
+      "name": "imgPin3",
+      "url": "https://www.figma.com/api/mcp/asset/e158932a-4636-44f0-a20a-2042464f13fe.svg",
+      "file": "pin3.svg"
+    },
+    {
+      "node": "17:23",
+      "name": "imgPin4",
+      "url": "https://www.figma.com/api/mcp/asset/e42a2a09-95b9-41f4-8f55-e676052f8761.svg",
+      "file": "pin4.svg"
+    },
+    {
+      "node": "17:23",
+      "name": "imgPin5",
+      "url": "https://www.figma.com/api/mcp/asset/9673f102-61e2-4820-bac9-780632e74f76.svg",
+      "file": "pin5.svg"
+    }
+  ]
+}

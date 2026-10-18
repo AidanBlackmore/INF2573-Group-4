@@ -6,6 +6,7 @@ const express = require('express');
 const http = require('node:http');
 const { Server } = require('socket.io');
 const game = require('./last-light');
+const QRCode = require('qrcode');
 const PORT = Number(process.env.PORT || 3000);
 const app = express();
 app.disable('x-powered-by');
@@ -13,6 +14,13 @@ app.use((req, res, next) => { res.setHeader('Referrer-Policy', 'no-referrer'); r
 app.use(express.static(path.join(__dirname, '..', 'public')));
 const lanUrls = () => Object.values(os.networkInterfaces()).flat().filter(i => i && i.family === 'IPv4' && !i.internal).map(i => `http://${i.address}:${PORT}`);
 app.get('/info', (req, res) => res.json({ urls: lanUrls(), port: PORT }));
+app.get('/join-qr', async (req, res) => {
+  const code = String(req.query.room || '').toUpperCase();
+  if (!/^[A-Z]{4}$/.test(code)) return res.status(400).send('Invalid room');
+  const origin = ['localhost','127.0.0.1'].includes(req.hostname) ? (lanUrls()[0] || `http://localhost:${PORT}`) : `${req.protocol}://${req.get('host')}`;
+  try { res.type('svg').send(await QRCode.toString(`${origin}/?room=${code}`, { type: 'svg', margin: 2, color: { dark: '#141414', light: '#e8d9b8' } })); }
+  catch { res.status(500).send('QR unavailable'); }
+});
 const server = http.createServer(app);
 const io = new Server(server, { maxHttpBufferSize: 16384 });
 const players = new Map();
