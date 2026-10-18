@@ -3,8 +3,9 @@
 const { io } = require('socket.io-client');
 const assert = require('node:assert/strict');
 const url = process.env.TEST_URL || 'http://localhost:3000';
-const count = Number(process.argv[2] || 4);
-if (![4,5,6].includes(count)) throw new Error('Choose 4, 5, or 6 players.');
+const demo = process.argv[2] === 'demo';
+const count = demo ? 1 : Number(process.argv[2] || 4);
+if (!demo && ![4,5,6].includes(count)) throw new Error('Choose 4, 5, or 6 players.');
 const clients = [];
 async function connect() {
   const socket = io(url, { transports: ['websocket'], reconnection: false });
@@ -21,7 +22,7 @@ async function waitFor(fn) { const end=Date.now()+5000;while(!fn()){if(Date.now(
   for(let i=1;i<count;i++){const c=await connect();await emit(c,'join',{code,name:`Guest ${i}`});}
   const watcher=await connect();await emit(watcher,'watch',{code});
   const phones=clients.slice(0,count);
-  await action(host,'start');
+  await action(host,demo ? 'demoStart' : 'start');
   let steps=0;
   while(host.state.stage!=='ending') {
     if(++steps>100)throw new Error('Game did not finish');
@@ -30,7 +31,7 @@ async function waitFor(fn) { const end=Date.now()+5000;while(!fn()){if(Date.now(
     if(s.round===2&&s.stage==='action')for(const c of phones)await action(c,'search',{search:'Study',...(c.state.me.objective==='murderer'?{room:'Library',weapon:'Curtain cord'}:{})});
     if((s.round===4&&s.stage==='action')||s.stage==='verify')for(const c of phones)await action(c,'verify',{value:s.round===5?'K4':'K3'});
     if(s.stage==='accuse') {
-      const murderer=phones.find(c=>c.state.me.objective==='murderer').state.me.id;
+      const murderer=phones.find(c=>c.state.me.objective==='murderer')?.state.me.id || '';
       for(const c of phones)await action(c,'accuse',{murderer,room:'Library',weapon:'Curtain cord'});
       assert.equal(watcher.state.result,undefined);
     }
@@ -38,10 +39,11 @@ async function waitFor(fn) { const end=Date.now()+5000;while(!fn()){if(Date.now(
     assert.equal(watcher.state.me,undefined);assert.equal(watcher.state.solution,undefined);assert.equal(watcher.state.codes,undefined);
     await action(host,'next');
   }
-  assert.equal(host.state.result.guestsWin,true);
-  assert.equal(host.state.result.correct,count-1);
-  const saved=phones[1].credential, pid=phones[1].state.me.id;
-  phones[1].socket.disconnect();const restored=await connect();await emit(restored,'resume',saved);await waitFor(()=>restored.state);
+  if (!demo) { assert.equal(host.state.result.guestsWin,true); assert.equal(host.state.result.correct,count-1); }
+  else { assert.equal(host.state.players.filter(p=>p.bot).length,3); assert.equal(host.state.result.ballots.length,4); }
+  const recovering=phones[demo ? 0 : 1];
+  const saved=recovering.credential, pid=recovering.state.me.id;
+  recovering.socket.disconnect();const restored=await connect();await emit(restored,'resume',saved);await waitFor(()=>restored.state);
   assert.equal(restored.state.me.id,pid);assert.equal(restored.state.stage,'ending');assert.ok(restored.state.me.clues.length);
   const invalid=await connect();await assert.rejects(emit(invalid,'resume',{code,token:'invalid'}));
   await assert.rejects(emit(watcher,'action',{type:'next',round:6,stage:'ending'}));

@@ -77,3 +77,9 @@ The earlier AI prototype’s modules in `server/gm`, `server/rooms.js`, `server/
 ## Hosting and storage limits
 
 Game rooms live in memory. Restarting the server ends active games; disconnected rooms expire after 24 hours. Notebooks stay in the same browser’s local storage, keyed by game and player. Use one Node process; there is no cross-instance room store. For deployment beyond a trusted local playtest, provide HTTPS through a reverse proxy and a durable room store if restart recovery is needed. The shared screen is accessible to anyone who knows its room code.
+
+### Solo presentation mode
+
+Create a room with only yourself, then choose **Start solo demo · add 3 bots** in the lobby. Three labelled scripted guests fill the table and automatically submit votes, search, verify records, share their clues and make evidence-based accusations. No AI service is used. Your own role remains random, so you can also demonstrate the murderer’s private choices.
+
+Use **You’re hosting · next step** to move through chapters, advance speaking turns, close votes and roll for bots. Dice remain random; all reward bands are explained before rolling. Open the shared-screen link before starting if presenting publicly. Demo labels remain visible, and bot ballots can be incomplete when evidence was withheld. Normal multiplayer still requires 4–6 people.

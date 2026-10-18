@@ -62,7 +62,7 @@ io.on('connection', s => {
     if (players.get(key) !== s) return;
     players.delete(key);
     const r = game.getRoom(s.data.code); const p = r.players.find(x => x.id === s.data.playerId); p.connected = false; broadcast(r);
-    if (r.hostId === p.id) { const timer = setTimeout(() => { if (!p.connected && r.hostId === p.id) { const replacement = r.players.find(x => x.connected); if (replacement) { r.hostId = replacement.id; broadcast(r); } } }, 30000); timer.unref(); }
+    if (r.hostId === p.id) { const timer = setTimeout(() => { if (!p.connected && r.hostId === p.id) { const replacement = r.players.find(x => x.connected && !x.bot); if (replacement) { r.hostId = replacement.id; broadcast(r); } } }, 30000); timer.unref(); }
   });
 });
 setInterval(() => { for (const r of game.rooms.values()) if (game.tick(r)) broadcast(r); }, 250).unref();

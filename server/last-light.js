@@ -148,7 +148,7 @@ function next(r) {
   if (r.stage === 'discussion' && r.round < 6) return begin(r, r.round + 1);
   check(false);
 }
-function action(r, pid, type, data = {}) {
+function applyAction(r, pid, type, data = {}) {
   check(r && r.players.some(p => p.id === pid), 'Join on your phone first.');
   check(data && typeof data === 'object' && !Array.isArray(data), 'Invalid action.');
   const p = r.players.find(p => p.id === pid);
@@ -191,12 +191,59 @@ function action(r, pid, type, data = {}) {
   } else check(false, 'Unknown action.');
   r.lastActive = Date.now();
 }
+// Scripted demo seats use the same validated actions as human players.
+// They never advance the chapter: the presenter controls every transition.
+function runBots(r) {
+  if (!r.demo || r.stage === 'ending') return;
+  const bots = r.players.filter(p => p.bot);
+  const perform = (p,type,data={}) => applyAction(r,p.id,type,{round:r.round,stage:r.stage,...data});
+  for (const [i,p] of bots.entries()) {
+    if (!r.submissions[p.id]) {
+      if (r.stage === 'briefing') perform(p,'ready');
+      else if (r.stage === 'speaking' || r.stage === 'vote') perform(p,'vote',{value:['A','B','N'][i]});
+      else if (r.round === 2 && r.stage === 'action') perform(p,'search',{search:HOUSE[i+2],room:ROOMS[i],weapon:WEAPONS[i]});
+      else if ((r.round === 4 && r.stage === 'action') || r.stage === 'verify') perform(p,'verify',{value:r.round===5?'K4':missing(p,['K2','K3','K5','K6'])});
+    }
+    for (const id of p.clues) if (!r.board.some(c=>c.id===id)) perform(p,'share',{value:id});
+  }
+  if (r.stage === 'accuse') for (const p of bots) {
+    if (r.submissions[p.id]) continue;
+    // Only evidence available to this seat is considered, never the solution.
+    const cards = new Map([...r.board,...view(r,p.id).me.clues].map(c=>[c.id,c.text]));
+    const code = cards.get('K3')?.match(/guest code (\d+) enters/)?.[1];
+    const name = code && cards.get('K2') && cards.get('K4')?.split('\n').find(line=>line.endsWith(': '+code))?.slice(0,-code.length-2);
+    const trace = cards.get('K5') || '';
+    perform(p,'accuse',{
+      murderer:r.players.find(q=>q.name===name)?.id || '',
+      room:ROOMS.find(room=>cards.get('K1')?.includes(`in the ${room}.`)) || '',
+      weapon:cards.has('K6') ? (trace.includes('circular base') ? WEAPONS[0] : trace.includes('narrow blade') ? WEAPONS[1] : trace.includes('double-braided') ? WEAPONS[2] : '') : ''
+    });
+  }
+}
+function action(r,pid,type,data={}) {
+  if (type === 'demoStart') {
+    check(r && pid === r.hostId && r.round === 0 && r.players.length === 1, 'Solo demo requires a lobby with only the host.');
+    check(data.round === r.round && data.stage === r.stage, 'The game moved on. Try again.');
+    for (let i=0;i<3;i++) {
+      let name=`Demo ${['Robin','Ellis','Kit'][i]}`;
+      if(r.players.some(p=>p.name.toLowerCase()===name.toLowerCase())) name += ' (bot)';
+      addPlayer(r,name).bot=true;
+    }
+    r.demo=true;
+    applyAction(r,pid,'start',data);
+  } else applyAction(r,pid,type,data);
+  runBots(r);
+}
 function view(r, pid) {
   const p = r.players.find(x => x.id === pid);
-  const s = { code: r.code, gameId: r.gameId, round: r.round, stage: r.stage, hostId: r.hostId, players: r.players.map(({id,name,connected,role}) => ({id,name,connected,...(role ? {roleTitle:role.title,introduction:role.introduction} : {})})), title: story.TITLES[r.round - 1] || 'An invitation from Alex', scene: story.scene(r), decision: story.DECISIONS[r.round] || null, diceRules: [1,3,5].includes(r.round) ? story.diceRules(r) : null, board: r.board, statements: r.statements, completed: Object.keys(r.submissions).length, decisions: r.decisions, tally: r.tally, dice: r.dice, discussionUntil: r.discussionUntil, speaker: r.stage === 'speaking' ? { id: r.speakers[r.speakerIndex], until: r.speakerUntil, position: r.speakerIndex + 1 } : null, rollerId: r.stage === 'dice' ? r.players[(r.round - 1) / 2].id : null, house: HOUSE, rooms: ROOMS, weapons: WEAPONS };
+  const s = { demo: Boolean(r.demo), code: r.code, gameId: r.gameId, round: r.round, stage: r.stage, hostId: r.hostId, players: r.players.map(({id,name,connected,role,bot}) => ({id,name,connected,bot:Boolean(bot),...(role ? {roleTitle:role.title,introduction:role.introduction} : {})})), title: story.TITLES[r.round - 1] || 'An invitation from Alex', scene: story.scene(r), decision: story.DECISIONS[r.round] || null, diceRules: [1,3,5].includes(r.round) ? story.diceRules(r) : null, board: r.board, statements: r.statements, completed: Object.keys(r.submissions).length, decisions: r.decisions, tally: r.tally, dice: r.dice, discussionUntil: r.discussionUntil, speaker: r.stage === 'speaking' ? { id: r.speakers[r.speakerIndex], until: r.speakerUntil, position: r.speakerIndex + 1 } : null, rollerId: r.stage === 'dice' ? r.players[(r.round - 1) / 2].id : null, house: HOUSE, rooms: ROOMS, weapons: WEAPONS };
+  if (r.demo && s.speaker && r.players.find(q=>q.id===s.speaker.id)?.bot) {
+    const index=r.players.filter(q=>q.bot).findIndex(q=>q.id===s.speaker.id);
+    s.speaker.script = index===0 ? `I would ${s.decision.A.toLowerCase()}. I want us to have more information before deciding what happened.` : index===1 ? `I would ${s.decision.B.toLowerCase()}. Let’s focus on what the case actually needs.` : 'I have no preference yet. Which clue would change your mind?';
+  }
   if (p) s.me = { role: p.role ? { title:p.role.title, relationship:p.role.relationship, secret:p.role.secret, motive:p.role.motive } : null, id: p.id, name: p.name, objective: r.round ? (r.solution.murderer === pid ? 'murderer' : 'guest') : null, clues: p.clues.map(k => ({ ...evidence(r), ...r.extraCards }[k])).filter(Boolean), submission: r.submissions[pid] || null, searchResult: r.round >= 3 ? p.searchResult : null, extraVerification: r.round === 4 && r.decisions[1] === 'B' && pid === r.players[0].id && !r.extraVerified, selection: r.round >= 2 && pid === r.solution.murderer ? { room: r.solution.room, weapon: r.solution.weapon } : null };
   if (r.stage === 'ending') { s.result = r.result; s.recap = r.recap; }
   return s;
 }
-function cleanup() { for (const [code, r] of rooms) if (Date.now() - r.lastActive > 24 * 60 * 60 * 1000 && !r.players.some(p => p.connected)) rooms.delete(code); }
+function cleanup() { for (const [code, r] of rooms) if (Date.now() - r.lastActive > 24 * 60 * 60 * 1000 && !r.players.some(p => p.connected && !p.bot)) rooms.delete(code); }
 module.exports = { GameError, createRoom, joinRoom, getRoom, resume, action, view, tick, cleanup, rooms, HOUSE, ROOMS, WEAPONS, evidence, roll };

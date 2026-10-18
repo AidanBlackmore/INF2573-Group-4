@@ -111,3 +111,44 @@ test('identity briefing has no running speaking clock and readiness never become
   assert.throws(()=>act(r,r.hostId,'vote',{value:'A'}),g.GameError);
   host(r);assert.equal(r.stage,'speaking');assert.equal(g.view(r).completed,0);assert.ok(r.speakerUntil>Date.now());
 });
+
+test('solo demo adds three bots and completes all six rounds with only host input',()=>{
+  for(let attempt=0;attempt<8;attempt++) {
+    const {room:r,player}=g.createRoom('Demo Robin');
+    act(r,player.id,'demoStart');
+    assert.equal(r.demo,true);assert.equal(r.players.length,4);
+    assert.equal(new Set(r.players.map(p=>p.name)).size,4);
+    assert.equal(r.players.filter(p=>p.bot).length,3);
+    assert.equal(g.view(r).completed,3);
+    let steps=0;
+    while(r.stage!=='ending') {
+      assert.ok(++steps<70);
+      const publicView=g.view(r);
+      assert.equal(publicView.me,undefined);assert.equal(publicView.solution,undefined);
+      if(r.stage==='speaking') assert.equal(Boolean(publicView.speaker.script),Boolean(r.players.find(p=>p.id===publicView.speaker.id).bot));
+      if(['vote','accuse','verify'].includes(r.stage) || (r.stage==='action' && [2,4].includes(r.round))) assert.equal(r.players.filter(p=>p.bot && r.submissions[p.id]).length,3);
+      host(r);
+    }
+    assert.deepEqual(Object.keys(r.dice),['1','3','5']);
+    assert.equal(r.result.ballots.length,4);
+    assert.ok(r.board.some(c=>c.sharedBy?.startsWith('Demo ')));
+    assert.equal(g.resume(r.code,player.token).player.id,player.id);
+  }
+});
+test('demo is host-only and cannot change a multiplayer or started session',()=>{
+  const r=setup();const before=r.players.length;
+  assert.throws(()=>act(r,r.players[1].id,'demoStart'));
+  assert.throws(()=>act(r,r.hostId,'demoStart'));assert.equal(r.players.length,before);
+  const {room:solo}=g.createRoom('Host');
+  assert.throws(()=>act(solo,solo.hostId,'start'));
+  assert.throws(()=>g.action(solo,solo.hostId,'demoStart',{round:1,stage:'lobby'}));assert.equal(solo.players.length,1);
+  act(solo,solo.hostId,'demoStart');assert.throws(()=>act(solo,solo.hostId,'demoStart'));
+  assert.equal(solo.players.length,4);
+});
+test('demo bots do not accuse from hidden solution and idle bots do not prevent cleanup',()=>{
+  const {room:r}=g.createRoom('Host');act(r,r.hostId,'demoStart');reach(r,6,'discussion');
+  r.board=[];r.players.filter(p=>p.bot).forEach(p=>p.clues=[]);
+  host(r);for(const p of r.players.filter(p=>p.bot))assert.deepEqual(r.submissions[p.id],{murderer:'',room:'',weapon:''});
+  r.players.find(p=>!p.bot).connected=false;r.lastActive=Date.now()-25*60*60*1000;
+  g.cleanup();assert.equal(g.rooms.has(r.code),false);
+});
