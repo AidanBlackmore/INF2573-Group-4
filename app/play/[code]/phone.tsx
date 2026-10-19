@@ -94,7 +94,7 @@ export function JoinStep({ initial, onJoined }: { initial: string; onJoined: (ro
       <h2>Join the gathering</h2>
       <p className="p-small">Type the 5-letter code on the TV, or scan its QR code.</p>
       <span className="p-eyebrow">Room code</span>
-      <input className="code-boxes" maxLength={5} autoComplete="off" spellCheck={false} autoCapitalize="characters" aria-label="Room code" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} />
+      <CodeBoxes value={code} onChange={setCode} />
       <p className="hand">It&apos;s on the right of the TV screen.</p>
       {error && <div className="err">{error}</div>}
       <div className="spacer" />
@@ -102,6 +102,64 @@ export function JoinStep({ initial, onJoined }: { initial: string; onJoined: (ro
         Join
       </button>
     </form>
+  );
+}
+
+// The room code as five boxes, one character each. Typing moves to the next box,
+// backspace on an empty box goes back, and a pasted code fills them all.
+const CODE_LEN = 5;
+function CodeBoxes({ value, onChange }: { value: string; onChange: (code: string) => void }) {
+  const boxes = useRef<(HTMLInputElement | null)[]>([]);
+  // How many characters are filled, kept ahead of re-renders so focus can move straight away.
+  const filled = useRef(value.length);
+  useEffect(() => {
+    filled.current = value.length;
+  }, [value]);
+  const set = (code: string) => {
+    filled.current = code.length;
+    onChange(code);
+  };
+  const focus = (i: number) => boxes.current[Math.max(0, Math.min(i, CODE_LEN - 1))]?.focus();
+  const type = (i: number, raw: string) => {
+    const old = value[i] ?? "";
+    // The box's old character may still be in there if it wasn't selected.
+    const typed = (raw.length > 1 && old && raw.includes(old) ? raw.replace(old, "") : raw).toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (!typed) {
+      set(value.slice(0, i) + value.slice(i + 1));
+      return;
+    }
+    const at = Math.min(i, value.length);
+    set((value.slice(0, at) + typed + value.slice(at + typed.length)).slice(0, CODE_LEN));
+    focus(at + typed.length);
+  };
+  return (
+    <div className="code-boxes" role="group" aria-label="Room code">
+      {Array.from({ length: CODE_LEN }, (_, i) => (
+        <input
+          key={i}
+          ref={(el) => {
+            boxes.current[i] = el;
+          }}
+          value={value[i] ?? ""}
+          aria-label={`Room code, character ${i + 1}`}
+          autoComplete="off"
+          autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
+          enterKeyHint={i === CODE_LEN - 1 ? "go" : "next"}
+          onFocus={(e) => (i > filled.current ? focus(filled.current) : e.target.select())}
+          onChange={(e) => type(i, e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Backspace" && !value[i] && i > 0) {
+              e.preventDefault();
+              set(value.slice(0, i - 1) + value.slice(i));
+              focus(i - 1);
+            } else if (e.key === "ArrowLeft") focus(i - 1);
+            else if (e.key === "ArrowRight") focus(Math.min(i + 1, value.length));
+          }}
+        />
+      ))}
+    </div>
   );
 }
 

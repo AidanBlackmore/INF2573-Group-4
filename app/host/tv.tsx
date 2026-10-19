@@ -15,29 +15,19 @@ import { Art, Avatar, Line, Ring, Tag, ageOf, since } from "../_ui/bits";
 import { HousePlan } from "../_ui/house";
 import { Weather, type WeatherHandle } from "../_ui/weather";
 
-const STORAGE_KEY = "gathering:tv-room";
-
 export default function TvScreen({ feedbackUrl }: { feedbackUrl: string | null }) {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [fatal, setFatal] = useState<string | null>(null);
 
-  // Sign in, then reuse this TV's room (a refresh keeps the game) or make a new one.
+  // Sign in, then open a new room: every load of the TV gets a fresh code and lobby.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         await ensureSignedIn();
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          const { error } = await supabase.rpc("get_view", { p_room_id: saved });
-          if (!error) {
-            if (!cancelled) setRoomId(saved);
-            return;
-          }
-        }
+        if (cancelled) return;
         const { data, error } = await supabase.rpc("create_room");
         if (error) throw error;
-        localStorage.setItem(STORAGE_KEY, data.id);
         if (!cancelled) setRoomId(data.id);
       } catch (e) {
         if (!cancelled) setFatal(errorMessage(e));
@@ -51,7 +41,6 @@ export default function TvScreen({ feedbackUrl }: { feedbackUrl: string | null }
   const newRoom = useCallback(async () => {
     const { data, error } = await supabase.rpc("create_room");
     if (error) return setFatal(error.message);
-    localStorage.setItem(STORAGE_KEY, data.id);
     setRoomId(data.id);
   }, []);
 

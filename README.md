@@ -17,7 +17,7 @@ Phones and the laptop never talk to each other directly. Every action goes to Su
 
 ## How a game works
 
-1. **Join The Gathering.** Open `/host` on the laptop. It shows the title, a QR code, the address (`inf-2573-group-4.vercel.app`) and a room code (like `OAK47`). Each phone scans the QR code (or types the code on the home page), then picks a **name and one of six colours** (a colour someone has is faded) and taps **I'm in**. Their name tag appears on the TV. With 3 or more in, the host taps **We're in** (on the TV, or on the host's phone: the first player in is the host). Anyone who joined the room but didn't finish is left out of this gathering.
+1. **Join The Gathering.** Open `/host` on the laptop. It shows the title, a QR code, the address (`inf-2573-group-4.vercel.app`) and a room code (like `OAK47`). Every time the page loads it opens a new room with a new code. Each phone scans the QR code (or types the code into the five boxes on the home page), then picks a **name and one of six colours** (a colour someone has is faded) and taps **I'm in**. Their name tag appears on the TV. With 3 or more in, the host taps **We're in** (on the TV, or on the host's phone: the first player in is the host). Anyone who joined the room but didn't finish is left out of this gathering.
 2. **Pick a story.** The TV becomes a full-screen story browser. Anyone can swipe on their phone (or use the arrows and thumbnails on the TV) and every screen follows, with the new story wiping in over the old one. Marlowe Manor brings rain, lightning and its music; Station Zero has drifting dust and its own looping track. The host taps **Enter this story** to step in.
 3. **Inside Marlowe Manor**, each player picks one of six detective portraits and answers **three questions** ("What's your most irrational fear?"). Players can shuffle to a different question but must answer to continue. Answers are private and final.
 4. **Start the night** (on the TV, or on the host's phone: the first player to join gets host controls). Each phone opens a sealed envelope with its secret role: one **murderer**, everyone else **detectives**. The night starts once everyone has tapped **Got it**.
@@ -132,5 +132,5 @@ First-time setup:
 - [ ] Refresh a phone mid-round. It comes back as the same player on the same screen.
 - [ ] Vote. The TV counts the votes one at a time, then **Reveal the verdict**. Vote out the murderer: the detectives win and the TV shows whose every note was.
 - [ ] **Play again** starts a new night with the same players. **Choose another story** goes back to the story browser with the same group.
-- [ ] Optional: refresh the laptop mid-game. It returns to the same room and round.
+- [ ] Refresh the laptop. It opens a new room with a different code; phones join again. (A game already under way carries on for the phones, but the TV leaves it, so only refresh between games.)
 - [ ] Optional: a 7th phone tries to join and sees "This game is full".

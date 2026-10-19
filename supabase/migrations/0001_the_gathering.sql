@@ -772,14 +772,25 @@ declare
   v_words text[] := array['OAK', 'ASH', 'ELM', 'FOG', 'INK', 'OWL', 'BAT', 'KEY', 'FIR', 'YEW',
                           'RYE', 'TEA', 'CUP', 'LOG', 'MAP', 'JAM', 'GIN', 'RUM', 'PIE', 'ORB'];
   v_code text;
+  v_old text[];
   v_room public.rooms;
 begin
   if v_uid is null then
     raise exception 'Not signed in';
   end if;
+  -- Every load of the TV opens a new room, so free up codes: this TV's lobbies
+  -- nobody started, and any room left idle for half a day.
+  with gone as (
+    delete from public.rooms
+    where (host_id = v_uid and phase = 'join') or phase_at < now() - interval '12 hours'
+    returning code
+  )
+  select coalesce(array_agg(code), '{}') into v_old from gone;
   for attempt in 1..50 loop
     v_code := v_words[1 + floor(random() * array_length(v_words, 1))::int]
               || lpad(floor(random() * 100)::int::text, 2, '0');
+    -- Never hand this TV back the code it just had.
+    continue when v_code = any(v_old);
     begin
       insert into public.rooms (code, host_id) values (v_code, v_uid) returning * into v_room;
       return v_room;
