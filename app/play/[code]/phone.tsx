@@ -8,6 +8,7 @@ import {
 import {
   TIMED, act, alive, clues, nameOf, playerOf, useAdvanceWhenDue, useGame, useSecondsLeft, type MyLock, type View,
 } from "@/lib/gathering/game";
+import { track } from "@/lib/analytics";
 import { ensureSignedIn, errorMessage, supabase } from "@/lib/supabase";
 import { Art, Avatar, KnifeSvg, Ring, Tag, colorOf, since } from "../../_ui/bits";
 
@@ -26,7 +27,14 @@ export default function PhoneScreen() {
         const { data: room } = await supabase.from("rooms").select("id").eq("code", urlCode).maybeSingle();
         if (room) {
           const { data: me } = await supabase.from("players").select("id").eq("room_id", room.id).eq("user_id", uid).maybeSingle();
-          if (me && !cancelled) setRoomId(room.id);
+          if (me && !cancelled) {
+            // Just typed the code on the home page, or came back after a refresh or lock.
+            if (new URLSearchParams(location.search).get("via") === "code") {
+              rememberJoin("code");
+              window.history.replaceState(null, "", `/play/${urlCode}`);
+            } else track("phone_rejoined", { room_id: room.id });
+            setRoomId(room.id);
+          }
         }
       } finally {
         if (!cancelled) setChecked(true);
@@ -40,6 +48,8 @@ export default function PhoneScreen() {
   if (!checked) return <Page><div className="p-msg"><p className="p-small">Opening…</p></div></Page>;
   if (!roomId) {
     const joined = (id: string, code: string) => {
+      // The QR code's link carries the code; anything else was typed.
+      rememberJoin(urlCode && code === urlCode ? "qr" : "code");
       // Typed a different code than the link had: keep the address in step, so a refresh rejoins.
       if (code !== urlCode) window.history.replaceState(null, "", `/play/${code}`);
       setRoomId(id);
@@ -47,6 +57,16 @@ export default function PhoneScreen() {
     return <Page><JoinStep initial={urlCode} onJoined={joined} /></Page>;
   }
   return <Joined roomId={roomId} />;
+}
+
+// How this phone got in, until its name and colour are set (player_joined).
+const JOIN_KEY = "gathering:joined-via";
+function rememberJoin(via: "qr" | "code") {
+  try {
+    sessionStorage.setItem(JOIN_KEY, via);
+  } catch {
+    // Analytics only.
+  }
 }
 
 function Page({ children }: { children: ReactNode }) {
@@ -85,6 +105,7 @@ export function JoinStep({ initial, onJoined }: { initial: string; onJoined: (ro
       onJoined(data.room_id, code.trim().toUpperCase());
     } catch (e) {
       setError(errorMessage(e));
+      track("join_failed", { error: errorMessage(e) });
     } finally {
       setBusy(false);
     }
@@ -190,15 +211,26 @@ function Phone({ view, reload, left }: { view: View; reload: () => Promise<void>
       setFailure(null);
       try {
         await act(reload, fn, { p_room_id: view.room.id, ...args });
+        if (fn === "set_name_color") {
+          let via = null;
+          try {
+            via = sessionStorage.getItem(JOIN_KEY);
+            sessionStorage.removeItem(JOIN_KEY);
+          } catch {
+            // Analytics only.
+          }
+          track("player_joined", { room_id: view.room.id, join_method: via ?? "unknown", seconds_to_join: Math.round(performance.now() / 1000), color: args.p_color });
+        }
         return true;
       } catch (e) {
         setFailure({ on: screenKey, msg: errorMessage(e) });
+        track("action_failed", { room_id: view.room.id, action: fn, phase: view.room.phase, error: errorMessage(e) });
         return false;
       } finally {
         setBusy(false);
       }
     },
-    [reload, view.room.id, screenKey],
+    [reload, view.room.id, view.room.phase, screenKey],
   );
   const ctx: Ctx = { view, left, run, busy, error };
   const me = playerOf(view, view.me);
@@ -494,6 +526,11 @@ function Questions({ view, run, busy, error }: { view: View; run: Ctx["run"]; bu
   const [answers, setAnswers] = useState(["", "", ""]);
   const [i, setI] = useState(0);
   const [local, setLocal] = useState<string | null>(null);
+  const shuffles = useRef(0);
+  const started = useRef(0);
+  useEffect(() => {
+    started.current = Date.now();
+  }, []);
   useEffect(() => {
     try {
       sessionStorage.setItem(key, JSON.stringify(qs));
@@ -506,13 +543,16 @@ function Questions({ view, run, busy, error }: { view: View; run: Ctx["run"]; bu
     let n;
     do n = Math.floor(Math.random() * QUESTIONS.length);
     while (qs.includes(n));
+    shuffles.current++;
     setQs(qs.map((q, j) => (j === i ? n : q)));
   };
   const nextQ = () => {
     if (!answers[i].trim()) return setLocal("Answer to continue.");
     setLocal(null);
     if (i < 2) return setI(i + 1);
-    void run("submit_answers", { p_questions: qs.map((q) => QUESTIONS[q]), p_answers: answers.map((a) => a.trim()) });
+    void run("submit_answers", { p_questions: qs.map((q) => QUESTIONS[q]), p_answers: answers.map((a) => a.trim()) }).then((ok) => {
+      if (ok) track("answers_submitted", { room_id: view.room.id, shuffles: shuffles.current, seconds: Math.round((Date.now() - started.current) / 1000) });
+    });
   };
   return (
     <div className="ob">

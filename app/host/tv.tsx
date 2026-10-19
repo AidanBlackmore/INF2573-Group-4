@@ -2,7 +2,7 @@
 
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { track } from "@/lib/analytics";
+import { secondsSince, track } from "@/lib/analytics";
 import {
   BEATS, LOCK_NAME, MEET_PROMPTS, NARRATION, PROLOGUE, STORIES, TITLE, chapterOf, names, noteText, roomName, type Sky,
 } from "@/lib/gathering/content";
@@ -28,6 +28,7 @@ export default function TvScreen({ feedbackUrl }: { feedbackUrl: string | null }
         if (cancelled) return;
         const { data, error } = await supabase.rpc("create_room");
         if (error) throw error;
+        track("room_created", { room_id: data.id });
         if (!cancelled) setRoomId(data.id);
       } catch (e) {
         if (!cancelled) setFatal(errorMessage(e));
@@ -41,6 +42,7 @@ export default function TvScreen({ feedbackUrl }: { feedbackUrl: string | null }
   const newRoom = useCallback(async () => {
     const { data, error } = await supabase.rpc("create_room");
     if (error) return setFatal(error.message);
+    track("room_created", { room_id: data.id });
     setRoomId(data.id);
   }, []);
 
@@ -100,7 +102,7 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
   const sky: Sky = phase === "join" ? "stars" : phase === "browse" ? story.sky : "rain";
   const music: Track | null = world === "marlowe" ? "marlowe" : phase === "browse" ? story.music : null;
   useSoundCues(view, left, weather, music, sky === "rain");
-  useAnalytics(view);
+  const abandon = useAnalytics(view);
   const go = (to: number, dir: number) => void run("browse_story", { p_to: (to + STORIES.length) % STORIES.length, p_dir: dir });
 
   // Arrow keys browse the stories; Enter is the main button.
@@ -148,7 +150,7 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
 
   return (
     <div className="gathering tv-page">
-      <SoundBar onNewRoom={onNewRoom} />
+      <SoundBar onNewRoom={() => { abandon("new_room"); onNewRoom(); }} />
       <section className={`tv${entered >= 1800 && entered < 3300 ? " arrive" : ""}`} data-scene={scene} data-world={world} ref={tv} aria-label="Shared TV screen">
         <Weather ref={weather} sky={sky} />
         {world === "marlowe" && (
@@ -279,36 +281,114 @@ function useSoundCues(view: View, left: number, weather: React.RefObject<Weather
   }, [phase, left]);
 }
 
-// Analytics come from the TV only, so each event is counted once per game.
+// Group analytics come from the TV only, so each is counted once per room (see README).
+// Returns `abandon`, for when the TV leaves a game before its ending.
 function useAnalytics(view: View) {
-  const { phase, round, id } = view.room;
-  const last = useRef<string | null>(null);
+  const { phase, round, id, focus } = view.room;
+  const story = view.room.story ?? STORIES[focus]?.key ?? null;
+  const players = view.players.length;
+  const last = useRef<{ phase: string; round: number; focus: number } | null>(null);
   const opened = useRef<Set<string>>(new Set());
+  // When each stage began, for durations; and how much the group browsed.
+  const since = useRef({ room: 0, phase: 0, game: 0, viewed: new Set<string>() });
   useEffect(() => {
+    since.current.room = since.current.phase = Date.now();
+  }, []);
+  const taskDeadline = useRef<number | null>(null);
+  const live = useRef({ phase, round, players, id });
+  useEffect(() => {
+    live.current = { phase, round, players, id };
+  });
+
+  useEffect(() => {
+    const t = since.current;
     for (const p of view.pairs ?? []) {
       const k = `${round}:${p.idx}`;
       if (phase === "tasks" && p.solved && !opened.current.has(k)) {
         opened.current.add(k);
-        track("lock_opened", { room_id: id, round, lock_type: p.lock_type, tries: p.tries, players: p.members.length });
+        track("lock_opened", { room_id: id, round, lock_type: p.lock_type, tries: p.tries, players: p.members.length, seconds: secondsSince(t.phase) });
       }
     }
-    const key = `${phase}:${round}`;
-    if (last.current === null) {
-      last.current = key;
-      return;
+    if (phase === "tasks" && view.room.deadline) taskDeadline.current = new Date(view.room.deadline).getTime();
+
+    const prev = last.current;
+    last.current = { phase, round, focus };
+    if (!prev) return;
+    const base = { room_id: id, round, players };
+    // Swiping in the story browser: which stories catch the group's eye (Coming soon ones too).
+    if (phase === "browse" && (prev.phase !== "browse" || prev.focus !== focus)) {
+      const s = STORIES[focus];
+      t.viewed.add(s?.key ?? String(focus));
+      track("story_viewed", { room_id: id, players, story: s?.key, playable: Boolean(s?.open), position: focus });
     }
-    if (last.current === key) return;
-    last.current = key;
-    const base = { room_id: id, round, players: view.players.length };
-    if (phase === "browse") track("stories_opened", base);
-    if (phase === "lobby") track("story_entered", { ...base, story: view.room.story });
-    if (phase === "roles") track("game_started", base);
+    if (prev.phase === phase && prev.round === round) return;
+    const stageSecs = secondsSince(t.phase);
+    t.phase = Date.now();
+
+    if (prev.phase === "join" && phase === "browse") track("lobby_completed", { ...base, lobby_seconds: secondsSince(t.room) });
+    if (prev.phase === "ended") {
+      track("replay_chosen", { ...base, choice: phase === "browse" ? "another_story" : "same_story" });
+      if (phase === "browse") t.viewed = new Set([STORIES[focus]?.key ?? ""]);
+    }
+    if (phase === "lobby") {
+      track("story_entered", { ...base, story, browse_seconds: prev.phase === "browse" ? stageSecs : 0, stories_viewed: t.viewed.size });
+      t.viewed = new Set();
+    }
+    if (phase === "roles") {
+      t.game = Date.now();
+      opened.current.clear();
+      track("game_started", { ...base, story, setup_seconds: prev.phase === "lobby" ? stageSecs : null });
+    }
     if (phase === "tasks") track("round_started", { ...base, pairs: view.pairs?.length ?? 0 });
-    if (phase === "quiet") track("round_quiet", base);
-    if (phase === "discuss") track("meeting_called", { ...base, death: Boolean(view.report), notes_found: view.found?.filter((f) => f.round === round).length ?? 0 });
-    if (phase === "revealed") track("vote_revealed", { ...base, ejected: Boolean(view.result?.ejected), was_murderer: Boolean(view.result?.was_murderer), tie: Boolean(view.result?.tie) });
-    if (phase === "ended") track("game_ended", { ...base, outcome: view.outcome, rounds: round });
+    if (prev.phase === "tasks" && (phase === "quiet" || phase === "discuss")) {
+      const pairs = view.pairs ?? [];
+      track("round_ended", {
+        ...base,
+        locks_opened: pairs.filter((p) => p.solved).length,
+        locks_total: pairs.length,
+        timed_out: taskDeadline.current !== null && Date.now() >= taskDeadline.current - 1500,
+        seconds: stageSecs,
+        murderer_notes: view.found?.filter((f) => f.round === round && f.murderer).length ?? 0,
+        death: Boolean(view.report),
+        meeting: phase === "discuss",
+      });
+    }
+    if (phase === "revealed") {
+      const counts = view.result?.counts ?? [];
+      track("vote_revealed", {
+        ...base,
+        ejected: Boolean(view.result?.ejected),
+        was_murderer: Boolean(view.result?.was_murderer),
+        tie: Boolean(view.result?.tie),
+        votes_cast: counts.reduce((n, c) => n + c.n, 0),
+      });
+    }
+    if (phase === "ended") {
+      track("game_ended", {
+        ...base,
+        story,
+        outcome: view.outcome,
+        rounds: round,
+        minutes: t.game ? Math.round(secondsSince(t.game) / 6) / 10 : null,
+        locks_opened: opened.current.size,
+        survivors: alive(view).length,
+      });
+    }
   });
+
+  // The TV is closed or reloaded with a group still in the room.
+  const abandon = useCallback((how: "closed" | "new_room") => {
+    const { phase: at, round: r, players: n, id: roomId } = live.current;
+    if (at === "ended" || n === 0) return;
+    const t = since.current;
+    track("game_abandoned", { room_id: roomId, round: r, players: n, phase: at, how, in_game: t.game > 0, minutes: Math.round(secondsSince(t.game || t.room) / 6) / 10 }, true);
+  }, []);
+  useEffect(() => {
+    const onLeave = () => abandon("closed");
+    addEventListener("pagehide", onLeave);
+    return () => removeEventListener("pagehide", onLeave);
+  }, [abandon]);
+  return abandon;
 }
 
 // ---------- screens ----------
@@ -852,7 +932,7 @@ function Ended({ view, busy, onReplay, onAnother, feedbackUrl }: { view: View; b
           Choose another story
         </button>
         {feedbackUrl && (
-          <a className="tool" href={feedbackUrl} target="_blank" rel="noopener noreferrer">
+          <a className="tool" href={feedbackUrl} target="_blank" rel="noopener noreferrer" onClick={() => track("feedback_clicked", { room_id: view.room.id, outcome: view.outcome })}>
             Give feedback
           </a>
         )}

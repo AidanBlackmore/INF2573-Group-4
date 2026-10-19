@@ -63,21 +63,59 @@ Every timer is 2 minutes (locks, discussion and vote). The host's phone can add 
 | `FEEDBACK_URL` | no | "Give feedback" link on the TV's ending screen. Hidden if empty. |
 | `NEXT_PUBLIC_SITE_URL` | no | Where the TV's QR code and "or go to" line send phones. Defaults to `https://inf-2573-group-4.vercel.app`. |
 
-PostHog records pageviews plus these events, all sent from the TV (so each is counted once per game) and all with `room_id`, `round` and `players`:
+### Analytics (PostHog)
 
-| Event | When | Extra properties |
-|---|---|---|
-| `stories_opened` | Everyone's in and the story browser opens | |
-| `story_entered` | The group steps into a story | `story` (`marlowe`) |
-| `game_started` | Roles are dealt | |
-| `round_started` | Each round (hour) starts | `pairs` |
-| `lock_opened` | A pair opens their lock | `lock_type` (`fuse`, `charade`, `sketch` or `lie`), `tries` (failed tries first) |
-| `round_quiet` | A round ends with no murderer's note and no death, so no vote | |
-| `meeting_called` | The group gathers to talk | `death`, `notes_found` |
-| `vote_revealed` | The verdict is shown | `ejected`, `was_murderer`, `tie` |
-| `game_ended` | The ending | `outcome` (`detectives` or `murderer`), `rounds` |
+PostHog records pageviews plus the events below. Every event has `screen` (`tv` or `phone`) and, once there is one, `room_id`. **Group events come from the TV only**, so each is counted once per room; phones only send what happens to that one player. No answers, names or other things players type are ever sent.
 
-A funnel of `stories_opened → story_entered → game_started → round_started → game_ended` shows where groups stop. `lock_opened` by `lock_type` with `tries` shows which locks are too hard.
+**Joining** (is it easy to get a group in?)
+
+| Event | Sent by | When | Properties |
+|---|---|---|---|
+| `room_created` | TV | The TV opens a new lobby (every page load) | |
+| `join_failed` | phone | A typed code is wrong, the room is full or already started | `error` |
+| `player_joined` | phone | A player sets their name and colour | `join_method` (`qr` or `code`), `seconds_to_join`, `color` |
+| `lobby_completed` | TV | The host taps **We're in** | `players`, `lobby_seconds` |
+| `phone_rejoined` | phone | A refreshed or relocked phone comes back into its room | |
+
+**Choosing a story** (which stories do groups want?)
+
+| Event | Sent by | When | Properties |
+|---|---|---|---|
+| `story_viewed` | TV | A story comes on screen in the browser | `story`, `playable` (false for Station Zero and Coming soon), `position`, `players` |
+| `story_entered` | TV | The group steps into a story | `story`, `players`, `browse_seconds`, `stories_viewed` |
+
+**Playing** (is the game fun, fair and the right length?)
+
+| Event | Sent by | When | Properties |
+|---|---|---|---|
+| `answers_submitted` | phone | A player locks in their three answers | `shuffles` (questions skipped), `seconds` |
+| `game_started` | TV | Roles are dealt | `story`, `players`, `setup_seconds` (portraits and questions) |
+| `round_started` | TV | Each round (hour) starts | `round`, `players`, `pairs` |
+| `lock_opened` | TV | A pair opens their lock | `lock_type` (`fuse`, `charade`, `sketch` or `lie`), `tries` (failed tries first), `seconds`, `players` |
+| `round_ended` | TV | The search ends | `locks_opened`, `locks_total`, `timed_out`, `seconds`, `murderer_notes`, `death`, `meeting` (false = a quiet round, no vote) |
+| `vote_revealed` | TV | The verdict is shown | `ejected`, `was_murderer`, `tie`, `votes_cast` |
+| `game_ended` | TV | The ending | `story`, `outcome` (`detectives` or `murderer`), `rounds`, `minutes`, `locks_opened`, `survivors` |
+
+**Coming back** (do groups want more?)
+
+| Event | Sent by | When | Properties |
+|---|---|---|---|
+| `replay_chosen` | TV | From the ending, the host picks what's next | `choice` (`same_story` or `another_story`), `players` |
+| `feedback_clicked` | TV | **Give feedback** on the ending screen | `outcome` |
+| `game_abandoned` | TV | The TV is closed, reloaded or starts a new room while a group is still in it | `phase`, `round`, `players`, `in_game`, `minutes`, `how` (`closed` or `new_room`) |
+| `action_failed` | phone | Anything a player tries is refused (name taken, colour gone, etc.) | `action`, `phase`, `error` |
+
+Insights worth building in PostHog:
+
+- **Group funnel:** `room_created → lobby_completed → story_entered → game_started → game_ended`. Where groups stop is the biggest thing to fix.
+- **Joining:** median `seconds_to_join`, QR vs typed (`join_method`), and `join_failed` by `error`.
+- **Story demand:** `story_viewed` by `story`. Views of Station Zero and the Coming soon cards show which story to build next.
+- **Balance:** `game_ended` by `outcome` (aim for close to 50/50), and `rounds` and `minutes` (aim for about 25 minutes). `vote_revealed` with `was_murderer` shows how often the group guesses right.
+- **Lock difficulty:** `lock_opened` by `lock_type` with average `tries` and `seconds`, and `round_ended` with `locks_opened / locks_total` and `timed_out`.
+- **Retention:** `replay_chosen` per `game_ended`, and `game_abandoned` by `phase` (where groups give up).
+- **Friction:** `answers_submitted` `shuffles` (are the questions good?), `action_failed` by `error`, and `phone_rejoined` (how often phones drop out).
+
+The game used to send other events that are no longer sent: `stories_opened` (now `lobby_completed`), `round_quiet` and `meeting_called` (now `round_ended`), plus `act_started`, `round_N_started`, `universe_*`, `vote_submitted`, `choice_auto_selected`, `icebreaker_answered` and `mystery_*` from the old versions. To hide them, go to **Data management > Events** in PostHog and mark them hidden.
 
 On Vercel, changes to environment variables only apply after a redeploy (**Deployments**, then **...** next to the latest deployment, then **Redeploy**).
 

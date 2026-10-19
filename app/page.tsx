@@ -10,7 +10,7 @@ export default function Home() {
   return (
     <main className="gathering home" data-world="shell">
       <div className="screen">
-        <JoinStep initial="" onJoined={(_, code) => router.push(`/play/${code}`)} />
+        <JoinStep initial="" onJoined={(_, code) => router.push(`/play/${code}?via=code`)} />
         <Link href="/host" className="p-small" style={{ textAlign: "center", color: "var(--ink)" }}>
           Hosting? Open the TV screen on this device
         </Link>
