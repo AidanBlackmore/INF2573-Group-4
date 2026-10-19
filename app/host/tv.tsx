@@ -4,14 +4,14 @@ import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { track } from "@/lib/analytics";
 import {
-  BEATS, LOCK_NAME, MEET_PROMPTS, NARRATION, PROLOGUE, TITLE, chapterOf, names, noteText, roomName,
+  BEATS, LOCK_NAME, MEET_PROMPTS, NARRATION, PROLOGUE, STORIES, TITLE, chapterOf, names, noteText, roomName, type Sky,
 } from "@/lib/gathering/content";
 import {
   TIMED, act, alive, clues, nameOf, playerOf, useAdvanceWhenDue, useGame, useSecondsLeft, type View,
 } from "@/lib/gathering/game";
-import { sound, type SoundSettings } from "@/lib/gathering/sound";
+import { sound, type SoundSettings, type Track } from "@/lib/gathering/sound";
 import { ensureSignedIn, errorMessage, supabase } from "@/lib/supabase";
-import { Art, Avatar, Line, Ring, since } from "../_ui/bits";
+import { Art, Avatar, Line, Ring, Tag, ageOf, since } from "../_ui/bits";
 import { HousePlan } from "../_ui/house";
 import { Weather, type WeatherHandle } from "../_ui/weather";
 
@@ -72,7 +72,7 @@ export default function TvScreen({ feedbackUrl }: { feedbackUrl: string | null }
   ) : (
     <div className="gathering tv-page">
       <section className="tv" data-scene="lobby">
-        <p className="muted">Setting up the manor…</p>
+        <p className="muted">Setting up The Gathering…</p>
       </section>
     </div>
   );
@@ -105,8 +105,36 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
   );
   const next = () => run("host_next", { p_phase: phase });
 
-  useSoundCues(view, left, weather);
+  // Where we are: The Gathering's lobby, its story browser, or inside a story.
+  const story = STORIES[view.room.focus] ?? STORIES[0];
+  const world = phase === "join" ? "shell" : phase === "browse" ? "browse" : "marlowe";
+  const sky: Sky = phase === "join" ? "stars" : phase === "browse" ? story.sky : "rain";
+  const music: Track | null = world === "marlowe" ? "marlowe" : phase === "browse" ? story.music : null;
+  useSoundCues(view, left, weather, music, sky === "rain");
   useAnalytics(view);
+  const go = (to: number, dir: number) => void run("browse_story", { p_to: (to + STORIES.length) % STORIES.length, p_dir: dir });
+
+  // Arrow keys browse the stories; Enter is the main button.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement).closest("input, textarea, select")) return;
+      if (phase === "browse" && e.key === "ArrowRight") go(view.room.focus + 1, 1);
+      else if (phase === "browse" && e.key === "ArrowLeft") go(view.room.focus - 1, -1);
+      else if (phase === "browse" && e.key === "Enter" && story.open) void run("enter_story");
+      else if (phase === "join" && e.key === "Enter") void run("we_are_in");
+    };
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
+  });
+
+  // Stepping into a story: a flash and the title (1.8 s), then the manor fades up from black.
+  const [, redraw] = useState(0);
+  const entered = phase === "lobby" ? ageOf(view.room.phase_at) : Infinity;
+  useEffect(() => {
+    if (phase !== "lobby") return;
+    const timers = [1800, 3300].map((ms) => setTimeout(() => redraw((n) => n + 1), ms));
+    return () => timers.forEach(clearTimeout);
+  }, [phase, view.room.phase_at]);
 
   // The narrator reads this screen's lines once.
   useLayoutEffect(() => {
@@ -116,6 +144,8 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
 
   const scene = phase === "discuss" && view.report ? "blackout" : phase;
   const screens: Record<string, () => React.ReactNode> = {
+    join: () => <Join view={view} busy={busy} onGo={() => run("we_are_in")} />,
+    browse: () => <Browse view={view} busy={busy} onGo={go} onEnter={() => run("enter_story")} />,
     lobby: () => <Lobby view={view} busy={busy} onStart={() => run("start_game")} />,
     roles: () => <Roles view={view} />,
     tasks: () => <Tasks view={view} busy={busy} onNext={next} />,
@@ -124,23 +154,28 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
     meeting: () => <Meeting view={view} busy={busy} onNext={next} />,
     tally: () => <Tally view={view} busy={busy} onNext={next} />,
     revealed: () => <Revealed view={view} busy={busy} onNext={next} />,
-    ended: () => <Ended view={view} busy={busy} onReplay={() => run("start_game")} feedbackUrl={feedbackUrl} />,
+    ended: () => <Ended view={view} busy={busy} onReplay={() => run("start_game")} onAnother={() => run("another_story")} feedbackUrl={feedbackUrl} />,
   };
 
   return (
     <div className="gathering tv-page">
       <SoundBar onNewRoom={onNewRoom} />
-      <section className="tv" data-scene={scene} ref={tv} aria-label="Shared TV screen">
-        <Weather ref={weather} />
-        <div className="tv-head">
-          <span>{phase === "lobby" ? "The Gathering" : TITLE}</span>
-          {phase !== "lobby" && (
+      <section className={`tv${entered >= 1800 && entered < 3300 ? " arrive" : ""}`} data-scene={scene} data-world={world} ref={tv} aria-label="Shared TV screen">
+        <Weather ref={weather} sky={sky} />
+        {world === "marlowe" && (
+          <div className="tv-head">
+            <span>{TITLE}</span>
             <span className="code">
-              Join with code <b>{view.room.code}</b>
+              Room <b>{view.room.code}</b>
             </span>
-          )}
-        </div>
+          </div>
+        )}
         {screens[phase]()}
+        {entered < 1800 && (
+          <div className="entering" style={{ "--t": since(view.room.phase_at) } as CSSProperties}>
+            <span>{TITLE}</span>
+          </div>
+        )}
         {error && <p className="report">{error}</p>}
         {TIMED.includes(phase) && <Ring left={left} total={view.room.total_secs} big />}
       </section>
@@ -184,17 +219,35 @@ function SoundBar({ onNewRoom }: { onNewRoom: () => void }) {
 }
 
 // What just happened? Play the matching sound.
-function useSoundCues(view: View, left: number, weather: React.RefObject<WeatherHandle | null>) {
-  const { phase, round } = view.room;
+function useSoundCues(view: View, left: number, weather: React.RefObject<WeatherHandle | null>, music: Track | null, stormy: boolean) {
+  const { phase, round, focus } = view.room;
   const solved = view.pairs?.filter((p) => p.solved).length ?? 0;
   const last = useRef<{ key: string; solved: number } | null>(null);
   const lastBeat = useRef<number | null>(null);
 
   useEffect(() => {
     const s = sound();
-    s.setPhase(phase);
+    s.setScene(phase, music, stormy);
     s.flash = () => weather.current?.flash();
-  }, [phase, weather]);
+  }, [phase, music, stormy, weather]);
+
+  // The story browser: a whoosh as each story slides in; arriving at the manor brings lightning.
+  const lastFocus = useRef<string | null>(null);
+  useEffect(() => {
+    const key = phase === "browse" ? `${focus}:${view.room.focus_at}` : null;
+    const prev = lastFocus.current;
+    lastFocus.current = key;
+    if (!key || prev === null || prev === key) return;
+    const s = sound();
+    s.whoosh(view.room.focus_dir);
+    if (STORIES[focus]?.sky === "rain") {
+      const t = setTimeout(() => {
+        weather.current?.flash();
+        s.thunder(0.7);
+      }, 650);
+      return () => clearTimeout(t);
+    }
+  }, [phase, focus, view.room.focus_at, view.room.focus_dir, weather]);
 
   useEffect(() => {
     const s = sound();
@@ -203,6 +256,12 @@ function useSoundCues(view: View, left: number, weather: React.RefObject<Weather
     last.current = { key, solved };
     if (!prev) return; // first load: no sounds for a screen that was already showing
     if (prev.key !== key) {
+      if (phase === "browse") s.whoosh(1);
+      // Stepping into Marlowe Manor.
+      if (phase === "lobby") {
+        s.thunder(1);
+        weather.current?.flash();
+      }
       if (phase === "roles") {
         s.thunder(1);
         weather.current?.flash();
@@ -252,6 +311,8 @@ function useAnalytics(view: View) {
     if (last.current === key) return;
     last.current = key;
     const base = { room_id: id, round, players: view.players.length };
+    if (phase === "browse") track("stories_opened", base);
+    if (phase === "lobby") track("story_entered", { ...base, story: view.room.story });
     if (phase === "roles") track("game_started", base);
     if (phase === "tasks") track("round_started", { ...base, pairs: view.pairs?.length ?? 0 });
     if (phase === "quiet") track("round_quiet", base);
@@ -265,27 +326,166 @@ function useAnalytics(view: View) {
 
 type ScreenProps = { view: View; busy: boolean; onNext: () => void };
 
+// Where phones join: the live site on Vercel, unless NEXT_PUBLIC_SITE_URL says otherwise (e.g. testing on a local network).
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://inf-2573-group-4.vercel.app").replace(/\/$/, "");
+
+// The Gathering's lobby: scan the QR code (or go to the address) and type the code.
+// Names and colours only: characters come with the story.
+function Join({ view, busy, onGo }: { view: View; busy: boolean; onGo: () => void }) {
+  const url = `${SITE_URL}/play/${view.room.code}`;
+  const joined = view.players.filter((p) => p.joined);
+  const n = joined.length;
+  return (
+    <div className="lobby2">
+      <div className="title-plate pp">
+        <h1>THE GATHERING</h1>
+        <p>How well do you know your friends?</p>
+      </div>
+      <div className="lobby2-row">
+        <div className="lobby2-left">
+          <h2 className="shell-h">Grab your phone. Everyone in?</h2>
+          <p className="shell-p">Join with the code, then we&apos;ll vote on which world to visit tonight.</p>
+          <div className="seats">
+            {joined.map((p, i) => (
+              <Tag key={p.id} view={view} player={p} style={{ animationDelay: `${i * 0.05}s` }} />
+            ))}
+            {Array.from({ length: Math.max(0, 6 - n) }, (_, i) => (
+              <span key={i} className="seat-open">
+                Open seat
+              </span>
+            ))}
+          </div>
+          <div className="lobby-go">
+            <button className="btn" disabled={busy || n < 3} onClick={onGo}>
+              We&apos;re in
+            </button>
+            {n < 3 && <span>{n} of 6 · 3 needed to start</span>}
+          </div>
+        </div>
+        <div className="join-card pp">
+          <span className="lbl">Scan to join</span>
+          <QRCodeSVG className="qr-svg" value={url} size={240} marginSize={2} bgColor="#ffffff" fgColor="#111113" title={`Scan to join: ${url}`} />
+          <span className="url">or go to {SITE_URL.replace(/^https?:\/\//, "")}</span>
+          <p className="bigcode">{view.room.code}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Title words rise in one at a time.
+function Words({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(" ").map((w, i) => (
+        <span key={i}>
+          <span className="w" style={{ animationDelay: `calc(var(--t) + ${(0.42 + i * 0.075).toFixed(3)}s)` }}>
+            {w}
+          </span>{" "}
+        </span>
+      ))}
+    </>
+  );
+}
+
+// The story browser: the story on screen fills the TV; the others wait in a strip.
+// Anyone can swipe on their phone (or use the arrows here) and every screen follows.
+function Browse({ view, busy, onGo, onEnter }: { view: View; busy: boolean; onGo: (to: number, dir: number) => void; onEnter: () => void }) {
+  const { focus, focus_dir: dir, focus_at } = view.room;
+  const st = STORIES[focus] ?? STORIES[0];
+  // Remember the story that was showing, so it can slide away under the new one.
+  const [shown, setShown] = useState<{ cur: number; prev: number | null }>({ cur: focus, prev: null });
+  if (shown.cur !== focus) setShown({ cur: focus, prev: shown.cur });
+  const fresh = ageOf(focus_at) < 1400;
+  const side = shown.prev === null ? "first" : dir > 0 ? "r" : "l";
+  const prev = fresh && shown.prev !== null ? STORIES[shown.prev] : null;
+  const t = since(focus_at);
+  const bg = (s: (typeof STORIES)[number], cls: string) =>
+    s.coming ? (
+      <div className={`story-bg ${cls} coming`} />
+    ) : (
+      <div className={`story-bg ${cls}`}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={s.bg} alt="" />
+      </div>
+    );
+  return (
+    <>
+      <div className="story-bgs" style={{ "--t": t, "--dir": dir, "--hue": st.hue } as CSSProperties}>
+        {prev && bg(prev, "prev")}
+        {bg(st, `cur ${side}`)}
+        {side !== "first" && fresh && <i className={`seam ${side}`} />}
+        <i className="story-shade" />
+      </div>
+      <div className="here">
+        {view.players.map((p) => (
+          <Tag key={p.id} view={view} player={p} />
+        ))}
+      </div>
+      <div className="story-ui" style={{ "--t": t, "--dir": dir, "--hue": st.hue, "--sink": st.ink } as CSSProperties}>
+        <div className="story-info" key={`${focus}:${focus_at}`}>
+          <span className="s-tag">{st.tag}</span>
+          <h2 className="s-title">
+            <Words text={st.title} />
+          </h2>
+          <p className="s-desc">{st.desc}</p>
+          {st.chips.length > 0 && (
+            <div className="chips">
+              {st.chips.map((c) => (
+                <span key={c}>{c}</span>
+              ))}
+            </div>
+          )}
+          {!st.coming && (
+            <button className="btn" disabled={busy || !st.open} onClick={onEnter}>
+              {st.open ? "Enter this story" : "Coming soon"}
+            </button>
+          )}
+        </div>
+        <div className="story-foot">
+          <div className="strip">
+            {STORIES.map((s, i) => (
+              <button
+                key={s.key}
+                className={`thumb${i === focus ? " on" : ""}${s.coming ? " coming" : ""}`}
+                style={{ "--hue": s.hue } as CSSProperties}
+                aria-label={s.title}
+                aria-pressed={i === focus}
+                onClick={() => i !== focus && onGo(i, i > focus ? 1 : -1)}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {!s.coming && <img src={s.thumb} alt="" />}
+                <span>{s.short}</span>
+              </button>
+            ))}
+          </div>
+          <div className="browse-hint">
+            <button aria-label="Previous story" onClick={() => onGo(focus - 1, -1)}>
+              ‹
+            </button>
+            <button aria-label="Next story" onClick={() => onGo(focus + 1, 1)}>
+              ›
+            </button>
+            <span>Browse stories</span>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// Inside Marlowe Manor: everyone picks a detective and answers three questions.
 function Lobby({ view, busy, onStart }: { view: View; busy: boolean; onStart: () => void }) {
-  const [origin, setOrigin] = useState("");
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- the address is only known in the browser
-  useEffect(() => setOrigin(window.location.origin), []);
-  const url = `${origin}/play/${view.room.code}`;
-  const waiting = view.players.filter((p) => !p.name || !p.answered);
+  const waiting = view.players.filter((p) => !p.picked || !p.answered);
   const ready = view.players.length >= 3 && waiting.length === 0;
   return (
     <div className="lobby-grid">
       <div>
-        <span className="eyebrow">Join with this code</span>
-        <p className="joincode">{view.room.code}</p>
-        {origin && (
-          <div className="qr" aria-label={`Scan to join: ${url}`}>
-            <QRCodeSVG value={url} size={132} bgColor="#e8d9b8" fgColor="#141414" />
-          </div>
-        )}
-        <span className="eyebrow">Detectives ({view.players.length} of 6)</span>
+        <span className="eyebrow">Pick your detective on your phone</span>
+        <span className="eyebrow">Detectives ({view.players.length})</span>
         <div className="avatars">
           {view.players.map((p) => (
-            <Avatar key={p.id} view={view} player={p} size="md" extra={p.name && p.answered ? "done" : "waiting"} />
+            <Avatar key={p.id} view={view} player={p} size="md" extra={p.picked && p.answered ? "done" : "waiting"} />
           ))}
         </div>
       </div>
@@ -299,11 +499,7 @@ function Lobby({ view, busy, onStart }: { view: View; busy: boolean; onStart: ()
           <button className="btn" disabled={!ready || busy} onClick={onStart}>
             Start the night
           </button>
-          {view.players.length < 3 ? (
-            <span className="hint">Needs 3 to 6 players.</span>
-          ) : (
-            waiting.length > 0 && <span className="hint">Waiting for {names(waiting.map((p) => p.name ?? "someone joining"))}.</span>
-          )}
+          {waiting.length > 0 && <span className="hint">Waiting for {names(waiting.map((p) => p.name ?? "someone"))}.</span>}
         </div>
       </div>
     </div>
@@ -631,7 +827,7 @@ function Revealed({ view, busy, onNext }: ScreenProps) {
   );
 }
 
-function Ended({ view, busy, onReplay, feedbackUrl }: { view: View; busy: boolean; onReplay: () => void; feedbackUrl: string | null }) {
+function Ended({ view, busy, onReplay, onAnother, feedbackUrl }: { view: View; busy: boolean; onReplay: () => void; onAnother: () => void; feedbackUrl: string | null }) {
   const won = view.outcome === "detectives";
   const said = won ? "end-detectives" : "end-murderer";
   const m = nameOf(view, view.murderer);
@@ -662,6 +858,9 @@ function Ended({ view, busy, onReplay, feedbackUrl }: { view: View; busy: boolea
       <div className="row">
         <button className="btn" disabled={busy} onClick={onReplay}>
           Play again
+        </button>
+        <button className="btn ghost" disabled={busy} onClick={onAnother}>
+          Choose another story
         </button>
         {feedbackUrl && (
           <a className="tool" href={feedbackUrl} target="_blank" rel="noopener noreferrer">

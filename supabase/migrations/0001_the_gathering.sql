@@ -1,12 +1,15 @@
--- The Gathering: Murder at Marlowe Manor.
+-- The Gathering, and its first story: Murder at Marlowe Manor.
 --
 -- One database file for the whole game. Run it once in the Supabase SQL Editor.
--- It is safe to run on a project that still has the old Alternate Universes
--- tables: the first section removes them.
+-- It is safe to run again, and on a project that still has the old Alternate
+-- Universes tables: the first section removes them (and any games in progress).
 --
 -- How the game works
--- - The TV (host laptop) creates a room. Up to 6 phones join with the code,
---   pick a name and a detective portrait, and answer three questions.
+-- - The TV (host laptop) creates a room. Up to 6 phones scan the QR code (or
+--   type the code) and pick a name and a colour. Once everyone's in, the group
+--   browses the stories together and the host enters one.
+-- - In Murder at Marlowe Manor, everyone picks a detective portrait and answers
+--   three questions.
 -- - One player is secretly the murderer. Every answer becomes a note hidden in
 --   the house; the murderer's notes are the clues.
 -- - Each round, players are split into pairs (a trio if odd). Each pair goes to
@@ -55,7 +58,8 @@ begin
         -- This file's own functions, so it can be run again.
         'set_identity', 'pick_portrait', 'submit_answers', 'start_game', 'open_envelope', 'got_it',
         'cut_wire', 'guess_word', 'new_word', 'add_stroke', 'clear_sketch', 'choose_lie', 'spot_lie',
-        'forge_note', 'strike', 'cast_vote', 'host_next', 'add_time', 'advance_if_due', 'get_view'
+        'forge_note', 'strike', 'cast_vote', 'host_next', 'add_time', 'advance_if_due', 'get_view',
+        'pick_color', 'set_name_color', 'we_are_in', 'browse_story', 'enter_story', 'another_story'
       )
   loop
     execute 'drop function ' || r.sig || ' cascade';
@@ -75,8 +79,15 @@ create table public.rooms (
   id uuid primary key default gen_random_uuid(),
   code text not null unique,
   host_id uuid not null references auth.users (id) on delete cascade,
-  phase text not null default 'lobby'
-    check (phase in ('lobby', 'roles', 'tasks', 'quiet', 'discuss', 'meeting', 'tally', 'revealed', 'ended')),
+  -- 'join' and 'browse' are The Gathering's lobby and story browser; the rest are the story.
+  phase text not null default 'join'
+    check (phase in ('join', 'browse', 'lobby', 'roles', 'tasks', 'quiet', 'discuss', 'meeting', 'tally', 'revealed', 'ended')),
+  -- The story on screen in the browser (0 = Marlowe Manor), which way the last swipe went, and when.
+  focus int not null default 0 check (focus between 0 and 3),
+  focus_dir int not null default 1 check (focus_dir in (-1, 1)),
+  focus_at timestamptz not null default now(),
+  -- The story being played.
+  story text,
   round int not null default 0,
   -- When the current phase started (animations on every screen start from here).
   phase_at timestamptz not null default now(),
@@ -100,7 +111,13 @@ create table public.players (
   -- Set on the "Who are you tonight?" step.
   name text check (char_length(name) between 1 and 12),
   -- Which of the six detective portraits (1 to 6).
+  -- The player's colour (1 to 6), picked in the lobby and used everywhere.
+  color int check (color between 1 and 6),
+  -- Set when the player taps "I'm in" (name and colour chosen).
+  joined_at timestamptz,
+  -- Which of the six detective portraits (1 to 6), picked inside Marlowe Manor.
   portrait int check (portrait between 1 and 6),
+  picked boolean not null default false,
   answered boolean not null default false,
   -- Opened the role envelope / tapped "Got it".
   opened boolean not null default false,
@@ -113,6 +130,7 @@ create table public.players (
 );
 create unique index players_room_name_idx on public.players (room_id, lower(name)) where name is not null;
 create unique index players_room_portrait_idx on public.players (room_id, portrait) where portrait is not null;
+create unique index players_room_color_idx on public.players (room_id, color) where color is not null;
 create index players_user_id_idx on public.players (user_id);
 
 -- Everything below is secret: no client can read these tables.
@@ -406,14 +424,14 @@ as $$
   select * from public.players where room_id = p_room_id and user_id = auth.uid();
 $$;
 
--- The first player to join is the host: their phone gets the same controls as the TV.
+-- The first player to join (tap "I'm in") is the host: their phone gets the same controls as the TV.
 create function private.host_player(p_room_id uuid)
 returns uuid
 language sql
 stable
 set search_path = ''
 as $$
-  select id from public.players where room_id = p_room_id order by created_at, id limit 1;
+  select id from public.players where room_id = p_room_id order by joined_at nulls last, created_at, id limit 1;
 $$;
 
 create function private.require_controller(p_room public.rooms)
@@ -795,27 +813,175 @@ begin
   if found then
     return v_player;
   end if;
-  if v_room.phase <> 'lobby' then
+  if v_room.phase <> 'join' then
     raise exception 'This game has already started';
   end if;
   if (select count(*) from public.players where room_id = v_room.id) >= 6 then
     raise exception 'This game is full (6 players)';
   end if;
 
-  -- Start with a free portrait; the player can pick another on the next step.
-  insert into public.players (room_id, user_id, portrait)
-  values (v_room.id, v_uid, (
-    select k from generate_series(1, 6) k
-    where k not in (select portrait from public.players where room_id = v_room.id and portrait is not null)
-    order by random() limit 1
-  ))
-  returning * into v_player;
+  insert into public.players (room_id, user_id) values (v_room.id, v_uid) returning * into v_player;
   perform private.touch(v_room.id);
   return v_player;
 end;
 $$;
 
--- Step 2: "Who are you tonight?" Name and detective portrait.
+-- The Gathering: picking a colour before "I'm in", so everyone else sees it as taken.
+create function public.pick_color(p_room_id uuid, p_color int)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+  v_player public.players := private.me(p_room_id);
+begin
+  if v_player.id is null or v_room.phase <> 'join' or p_color is null or p_color not between 1 and 6 then
+    return;
+  end if;
+  if exists (select 1 from public.players where room_id = p_room_id and id <> v_player.id and color = p_color) then
+    raise exception 'That colour is taken';
+  end if;
+  update public.players set color = p_color where id = v_player.id;
+  perform private.touch(p_room_id);
+end;
+$$;
+
+-- The Gathering: "What should we call you?" A name and a colour, then "I'm in".
+create function public.set_name_color(p_room_id uuid, p_name text, p_color int)
+returns public.players
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+  v_player public.players := private.me(p_room_id);
+  v_name text := btrim(coalesce(p_name, ''));
+begin
+  if v_player.id is null then
+    raise exception 'You are not in this room';
+  end if;
+  if v_room.phase <> 'join' then
+    raise exception 'This game has already started';
+  end if;
+  if char_length(v_name) not between 1 and 12 then
+    raise exception 'Type your name to continue.';
+  end if;
+  if p_color is null or p_color not between 1 and 6 then
+    raise exception 'Pick a color.';
+  end if;
+  if exists (select 1 from public.players where room_id = p_room_id and id <> v_player.id and color = p_color) then
+    raise exception 'That colour is taken';
+  end if;
+  if exists (select 1 from public.players where room_id = p_room_id and id <> v_player.id and lower(name) = lower(v_name)) then
+    raise exception 'Someone here already has that name.';
+  end if;
+  update public.players set name = v_name, color = p_color, joined_at = coalesce(joined_at, clock_timestamp())
+  where id = v_player.id returning * into v_player;
+  perform private.touch(p_room_id);
+  return v_player;
+end;
+$$;
+
+-- "We're in": everyone who finished joining plays. Anyone who didn't is left out.
+create function public.we_are_in(p_room_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+begin
+  perform private.require_controller(v_room);
+  if v_room.phase <> 'join' then
+    return;
+  end if;
+  if (select count(*) from public.players where room_id = p_room_id and joined_at is not null) < 3 then
+    raise exception 'Needs at least 3 players';
+  end if;
+  delete from public.players where room_id = p_room_id and joined_at is null;
+  update public.rooms set focus = 0, focus_dir = 1, focus_at = now() where id = p_room_id;
+  perform private.set_phase(p_room_id, 'browse');
+end;
+$$;
+
+-- Anyone (the TV or a phone) can swipe through the stories; every screen follows.
+-- p_to is the story to show (0 to 3); p_dir is the way the swipe went (1 or -1).
+create function public.browse_story(p_room_id uuid, p_to int, p_dir int)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+begin
+  if v_room.phase <> 'browse' or p_to is null or p_to not between 0 and 3 or p_to = v_room.focus then
+    return;
+  end if;
+  update public.rooms set focus = p_to, focus_dir = case when p_dir < 0 then -1 else 1 end, focus_at = now(),
+    version = version + 1
+  where id = p_room_id;
+end;
+$$;
+
+-- "Enter this story". Only Murder at Marlowe Manor (story 0) is open so far.
+create function public.enter_story(p_room_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+begin
+  perform private.require_controller(v_room);
+  if v_room.phase <> 'browse' then
+    return;
+  end if;
+  if v_room.focus <> 0 then
+    raise exception 'This story is coming soon';
+  end if;
+  -- Everyone starts with a different detective portrait, and can pick another.
+  update public.players p set portrait = pick.k, picked = false
+  from (
+    select id, row_number() over (order by random()) as k
+    from public.players where room_id = p_room_id
+  ) pick
+  where p.id = pick.id;
+  update public.rooms set story = 'marlowe' where id = p_room_id;
+  perform private.set_phase(p_room_id, 'lobby');
+end;
+$$;
+
+-- "Choose another story" at the end: back to the browser with the same people.
+create function public.another_story(p_room_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+begin
+  perform private.require_controller(v_room);
+  if v_room.phase <> 'ended' then
+    return;
+  end if;
+  delete from public.votes where room_id = p_room_id;
+  delete from public.pairs where room_id = p_room_id;
+  delete from public.notes where room_id = p_room_id;
+  delete from public.games where room_id = p_room_id;
+  update public.players set opened = false, ready = false, dead = null, dead_at = null where room_id = p_room_id;
+  update public.rooms set round = 0, story = null, focus_at = now() where id = p_room_id;
+  perform private.set_phase(p_room_id, 'browse');
+end;
+$$;
+
+-- Marlowe Manor, step 1: "Who are you tonight?" The detective portrait (the name is from the lobby).
 create function public.set_identity(p_room_id uuid, p_name text, p_portrait int)
 returns public.players
 language plpgsql
@@ -845,7 +1011,7 @@ begin
   if exists (select 1 from public.players where room_id = p_room_id and id <> v_player.id and lower(name) = lower(v_name)) then
     raise exception 'Someone here already has that name';
   end if;
-  update public.players set name = v_name, portrait = p_portrait where id = v_player.id returning * into v_player;
+  update public.players set name = v_name, portrait = p_portrait, picked = true where id = v_player.id returning * into v_player;
   perform private.touch(p_room_id);
   return v_player;
 end;
@@ -1481,7 +1647,8 @@ begin
     'room', jsonb_build_object(
       'id', v_room.id, 'code', v_room.code, 'phase', v_room.phase, 'round', v_room.round,
       'phase_at', v_room.phase_at, 'deadline', v_room.deadline, 'total_secs', v_room.total_secs,
-      'version', v_room.version
+      'version', v_room.version, 'focus', v_room.focus, 'focus_dir', v_room.focus_dir,
+      'focus_at', v_room.focus_at, 'story', v_room.story
     ),
     'server_now', now(),
     'me', v_me.id,
@@ -1489,12 +1656,13 @@ begin
     'host_player', private.host_player(p_room_id),
     'players', coalesce((
       select jsonb_agg(jsonb_build_object(
-        'id', p.id, 'name', p.name, 'portrait', p.portrait, 'answered', p.answered,
+        'id', p.id, 'name', p.name, 'color', p.color, 'joined', p.joined_at is not null,
+        'portrait', p.portrait, 'picked', p.picked, 'answered', p.answered,
         'opened', p.opened, 'ready', p.ready, 'dead', p.dead, 'dead_at', p.dead_at,
         'voted', v_room.phase = 'meeting' and exists (
           select 1 from public.votes v where v.room_id = p_room_id and v.round = v_room.round and v.voter_id = p.id
         )
-      ) order by p.created_at, p.id)
+      ) order by p.joined_at nulls last, p.created_at, p.id)
       from public.players p where p.room_id = p_room_id
     ), '[]')
   );
@@ -1506,7 +1674,7 @@ begin
     ), '[]'));
   end if;
 
-  if v_room.phase = 'lobby' or v_game.room_id is null then
+  if v_room.phase in ('join', 'browse', 'lobby') or v_game.room_id is null then
     return v_view;
   end if;
 

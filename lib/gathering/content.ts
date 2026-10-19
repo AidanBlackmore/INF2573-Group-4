@@ -4,6 +4,50 @@
 
 export const TITLE = "Murder at Marlowe Manor";
 
+// ---------- The Gathering: the stories ----------
+// The group browses these together after joining. Only Marlowe Manor is playable so far;
+// the order matches rooms.focus in the database (0 = Marlowe Manor).
+export type Sky = "rain" | "dust" | "stars";
+export type Story = {
+  key: string;
+  short: string;
+  title: string;
+  tag: string;
+  line: string;
+  desc: string;
+  chips: string[];
+  bg: string;
+  thumb: string;
+  // The story's own colours: accent, title ink and its card on phones.
+  hue: string;
+  ink: string;
+  tile: string;
+  sky: Sky;
+  music: "marlowe" | "station" | null;
+  open: boolean;
+  coming?: boolean;
+};
+const COMING: Omit<Story, "key"> = {
+  short: "Coming soon", title: "Coming soon", tag: "Uncharted", line: "Coming soon", desc: "New worlds, same game. This timeline is still being written.",
+  chips: [], bg: "", thumb: "", hue: "#ededef", ink: "#ededef", tile: "#ededef", sky: "stars", music: null, open: false, coming: true,
+};
+export const STORIES: Story[] = [
+  {
+    key: "marlowe", short: "Marlowe Manor", title: "Murder at Marlowe Manor", tag: "Timeline 01 · 1891", line: "One of you is the murderer.",
+    desc: "A storm traps everyone at Lord Fenwick's birthday dinner. By dessert, he's dead, and one of you knows why.",
+    chips: ["3–6 players", "25 min", "1 murderer"], bg: "/figma/bg-marlowe-hall.jpg", thumb: "/figma/bg-map-exterior.jpg",
+    hue: "#c42b22", ink: "#e8d9b8", tile: "#e8d9b8", sky: "rain", music: "marlowe", open: true,
+  },
+  {
+    key: "station", short: "Station Zero", title: "Sabotage on Station Zero", tag: "Timeline 02 · 2187", line: "One of you is a spy.",
+    desc: "A research station drifts at the edge of the system. Someone aboard is cutting the lines, one by one.",
+    chips: ["3–6 players", "25 min", "1 spy"], bg: "/figma/bg-station.jpg", thumb: "/figma/thumb-station.jpg",
+    hue: "#e8833a", ink: "#d8ece9", tile: "#d5e0e0", sky: "dust", music: "station", open: false,
+  },
+  { key: "soon-1", ...COMING },
+  { key: "soon-2", ...COMING },
+];
+
 // The three questions each player answers. Every answer becomes a note hidden in the house.
 export const QUESTIONS = [
   "Write down an embarrassing moment.",

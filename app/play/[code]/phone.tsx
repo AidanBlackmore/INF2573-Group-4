@@ -3,13 +3,13 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
-  FUSE_RULES, QUESTIONS, ROOM_SCENE, WIRE_HEX, chapterOf, halfText, names, noteText, roomName,
+  FUSE_RULES, QUESTIONS, ROOM_SCENE, STORIES, WIRE_HEX, chapterOf, halfText, names, noteText, roomName,
 } from "@/lib/gathering/content";
 import {
   TIMED, act, alive, clues, nameOf, playerOf, useAdvanceWhenDue, useGame, useSecondsLeft, type MyLock, type View,
 } from "@/lib/gathering/game";
 import { ensureSignedIn, errorMessage, supabase } from "@/lib/supabase";
-import { Art, Avatar, KnifeSvg, Ring, colorOf, since } from "../../_ui/bits";
+import { Art, Avatar, KnifeSvg, Ring, Tag, colorOf, since } from "../../_ui/bits";
 
 export default function PhoneScreen() {
   const params = useParams<{ code: string }>();
@@ -37,7 +37,7 @@ export default function PhoneScreen() {
     };
   }, [urlCode]);
 
-  if (!checked) return <Page><div className="p-msg"><p className="p-small">Opening the case file…</p></div></Page>;
+  if (!checked) return <Page><div className="p-msg"><p className="p-small">Opening…</p></div></Page>;
   if (!roomId) {
     const joined = (id: string, code: string) => {
       // Typed a different code than the link had: keep the address in step, so a refresh rejoins.
@@ -51,7 +51,7 @@ export default function PhoneScreen() {
 
 function Page({ children }: { children: ReactNode }) {
   return (
-    <main className="gathering phone-page">
+    <main className="gathering phone-page" data-world="shell">
       <div className="screen">{children}</div>
     </main>
   );
@@ -61,7 +61,7 @@ function Steps({ step, code }: { step: number; code?: string }) {
   return (
     <div className="ob-head">
       <span className="steps">
-        {[0, 1, 2, 3, 4].map((i) => (
+        {[0, 1, 2, 3].map((i) => (
           <i key={i} className={i === step ? "on" : i < step ? "past" : ""} />
         ))}
       </span>
@@ -91,12 +91,11 @@ export function JoinStep({ initial, onJoined }: { initial: string; onJoined: (ro
   };
   return (
     <form className="ob" onSubmit={(e) => { e.preventDefault(); void join(); }}>
-      <Steps step={0} />
-      <h2>Join the case</h2>
-      <p className="p-small">Type the 5-letter code shown on the TV.</p>
+      <h2>Join the gathering</h2>
+      <p className="p-small">Type the 5-letter code on the TV, or scan its QR code.</p>
       <span className="p-eyebrow">Room code</span>
       <input className="code-boxes" maxLength={5} autoComplete="off" spellCheck={false} autoCapitalize="characters" aria-label="Room code" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} />
-      <p className="hand">Can&apos;t see it? It&apos;s in the top-right of the TV screen.</p>
+      <p className="hand">It&apos;s on the right of the TV screen.</p>
       {error && <div className="err">{error}</div>}
       <div className="spacer" />
       <button className="p-btn" type="submit" disabled={busy || code.trim().length < 5}>
@@ -110,7 +109,11 @@ function Joined({ roomId }: { roomId: string }) {
   const { view, error, reload, now } = useGame(roomId);
   const left = useSecondsLeft(view, now);
   useAdvanceWhenDue(view, left, reload);
-  if (!view) return <Page><div className="p-msg"><p className="p-small">{error ?? "Opening the case file…"}</p></div></Page>;
+  // Removed from the room: they joined but didn't finish before "We're in".
+  if (error?.includes("not in this room")) return <Page><Msg title="Already started" text="This gathering started without you. Join the next one." /></Page>;
+  if (!view) {
+    return <Page><div className="p-msg"><p className="p-small">{error ?? "Opening…"}</p></div></Page>;
+  }
   return <Phone view={view} reload={reload} left={left} />;
 }
 
@@ -144,7 +147,9 @@ function Phone({ view, reload, left }: { view: View; reload: () => Promise<void>
   const host = view.me !== null && view.me === view.host_player;
 
   let body: ReactNode;
-  if (phase === "lobby") body = <Onboarding ctx={ctx} />;
+  if (phase === "join") body = me?.joined ? <YoureIn ctx={ctx} /> : <NameAndColor ctx={ctx} />;
+  else if (phase === "browse") body = <BrowsePhone ctx={ctx} />;
+  else if (phase === "lobby") body = <Onboarding ctx={ctx} />;
   else if (phase === "roles") body = <Envelope ctx={ctx} />;
   else if (phase === "tasks") body = <TaskPhone ctx={ctx} />;
   else if (phase === "discuss") body = <DiscussPhone ctx={ctx} />;
@@ -163,9 +168,20 @@ function Phone({ view, reload, left }: { view: View; reload: () => Promise<void>
   }
 
   return (
-    <main className="gathering phone-page">
+    <main className="gathering phone-page" data-world={phase === "join" || phase === "browse" ? "shell" : "marlowe"}>
       <div className="screen">
-        {me?.name && (
+        {(phase === "join" || phase === "browse") && (
+          <div className="p-head">
+            <span className="room">Room {view.room.code}</span>
+            {me?.joined && (
+              <span className="me">
+                {me.name}
+                {host ? " · host" : ""}
+              </span>
+            )}
+          </div>
+        )}
+        {me?.name && phase !== "join" && phase !== "browse" && (
           <div className="p-head">
             <span className="me">
               <Avatar view={view} player={me} size="xs" />
@@ -175,7 +191,7 @@ function Phone({ view, reload, left }: { view: View; reload: () => Promise<void>
           </div>
         )}
         {body}
-        {phase !== "lobby" && error && <div className="err">{error}</div>}
+        {phase !== "lobby" && phase !== "join" && error && <div className="err">{error}</div>}
         {host && <HostPanel ctx={ctx} />}
       </div>
     </main>
@@ -202,7 +218,146 @@ function RoundHead({ ctx, label }: { ctx: Ctx; label: string }) {
   );
 }
 
-// ---------- lobby: who are you, then three questions ----------
+// ---------- The Gathering: name and colour, then the stories ----------
+
+// "What should we call you?" A name and one of six colours (faded = taken).
+function NameAndColor({ ctx }: { ctx: Ctx }) {
+  const { view, run, busy, error } = ctx;
+  const me = playerOf(view, view.me)!;
+  const [name, setName] = useState("");
+  const owner = (k: number) => view.players.find((o) => o.id !== me.id && o.color === k);
+  return (
+    <form className="ob" onSubmit={(e) => { e.preventDefault(); void run("set_name_color", { p_name: name, p_color: me.color }); }}>
+      <h2>What should we call you?</h2>
+      <span className="p-eyebrow">Your name</span>
+      <input className="name-line" maxLength={12} aria-label="Your name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="given-name" />
+      <span className="p-eyebrow">Pick a color</span>
+      <div className="colors">
+        {[1, 2, 3, 4, 5, 6].map((k) => {
+          const mine = me.color === k, o = owner(k);
+          return (
+            <button
+              key={k}
+              type="button"
+              className={`cpick pp${mine ? " mine" : ""}${o ? " taken" : ""}`}
+              disabled={Boolean(o) || busy}
+              aria-pressed={mine}
+              aria-label={`Colour ${k}${o ? ", taken" : ""}`}
+              onClick={() => void run("pick_color", { p_color: k })}
+            >
+              <i style={{ "--pc": `var(--player-${k})` } as CSSProperties} />
+            </button>
+          );
+        })}
+      </div>
+      <p className="hand">Faded = taken</p>
+      {error && <div className="err">{error}</div>}
+      <div className="spacer" />
+      <button className="p-btn" type="submit" disabled={busy || !name.trim() || !me.color}>
+        I&apos;m in
+      </button>
+    </form>
+  );
+}
+
+function YoureIn({ ctx }: { ctx: Ctx }) {
+  const { view } = ctx;
+  const me = playerOf(view, view.me)!;
+  const n = view.players.filter((p) => p.joined).length;
+  const host = view.me === view.host_player;
+  return (
+    <div className="p-msg">
+      <div className="you-tag">
+        <Tag view={view} player={me} />
+      </div>
+      <h2>You&apos;re in</h2>
+      <p className="p-small">
+        {n < 3
+          ? `Waiting for more players: ${n} of 6, 3 needed.`
+          : `When everyone's here, ${host ? "tap “We're in”" : `${nameOf(view, view.host_player)} taps “We're in”`}.`}{" "}
+        Then we pick a story together.
+      </p>
+    </div>
+  );
+}
+
+// Swipe through the stories (or tap the arrows). Every screen follows, and the host opens one.
+function BrowsePhone({ ctx }: { ctx: Ctx }) {
+  const { view, run, busy } = ctx;
+  const { focus, focus_dir: dir, focus_at } = view.room;
+  const st = STORIES[focus] ?? STORIES[0];
+  const host = view.me === view.host_player;
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const go = (d: number) => void run("browse_story", { p_to: (focus + d + STORIES.length) % STORIES.length, p_dir: d });
+  const style = { "--t": since(focus_at), "--dir": dir, "--hue": st.hue, "--tile": st.tile } as CSSProperties;
+  return (
+    <>
+      <h2>Where are we going tonight?</h2>
+      <p className="p-small">Swipe to browse. The TV follows along.</p>
+      <div
+        className="swipe"
+        onPointerDown={(e) => (start.current = { x: e.clientX, y: e.clientY })}
+        onPointerUp={(e) => {
+          const s0 = start.current;
+          start.current = null;
+          if (!s0) return;
+          const dx = e.clientX - s0.x, dy = e.clientY - s0.y;
+          if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) go(dx < 0 ? 1 : -1);
+        }}
+      >
+        <div className={`s-card pp${st.coming ? " coming" : ""}`} style={style} key={`${focus}:${focus_at}`}>
+          {st.coming ? (
+            <>
+              <div className="s-hole">?</div>
+              <span className="s-tag" style={{ color: "#7a7a82" }}>
+                Coming soon
+              </span>
+              <b>More stories</b>
+              <span className="p-small">New worlds, same game.</span>
+            </>
+          ) : (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={st.thumb} alt="" />
+              <span className="s-tag">{st.line}</span>
+              <b>{st.title}</b>
+              <span className="p-small">{st.chips.slice(0, 2).join(" · ")}</span>
+            </>
+          )}
+        </div>
+      </div>
+      <div className="s-nav">
+        <button className="p-btn2" aria-label="Previous story" onClick={() => go(-1)}>
+          ‹
+        </button>
+        <span className="dots">
+          {STORIES.map((s, i) => (
+            <i key={s.key} className={i === focus ? "on" : ""} />
+          ))}
+        </span>
+        <button className="p-btn2" aria-label="Next story" onClick={() => go(1)}>
+          ›
+        </button>
+      </div>
+      <div className="spacer" />
+      {host ? (
+        st.open ? (
+          <button className="p-btn story-go" style={{ "--hue": st.hue } as CSSProperties} disabled={busy} onClick={() => void run("enter_story")}>
+            Enter this story
+          </button>
+        ) : (
+          <button className="p-btn" disabled>
+            {st.coming ? "Coming soon" : "Not open yet"}
+          </button>
+        )
+      ) : (
+        <p className="p-small">{nameOf(view, view.host_player)} opens the story when you&apos;re ready.</p>
+      )}
+    </>
+  );
+}
+
+// ---------- inside Marlowe Manor: pick a detective, then three questions ----------
 
 function Onboarding({ ctx }: { ctx: Ctx }) {
   const { view, run, busy, error } = ctx;
@@ -221,21 +376,22 @@ function Onboarding({ ctx }: { ctx: Ctx }) {
       </div>
     );
   }
-  if (!me.name) return <WhoAreYou ctx={ctx} />;
+  if (!me.picked) return <WhoAreYou ctx={ctx} />;
   return <Questions view={view} run={run} busy={busy} error={error} />;
 }
 
 function WhoAreYou({ ctx }: { ctx: Ctx }) {
   const { view, run, busy, error } = ctx;
   const me = playerOf(view, view.me)!;
-  const [name, setName] = useState("");
+  const name = me.name ?? "";
   const owner = (k: number) => view.players.find((o) => o.id !== me.id && o.portrait === k);
   return (
     <form className="ob" onSubmit={(e) => { e.preventDefault(); void run("set_identity", { p_name: name, p_portrait: me.portrait }); }}>
-      <Steps step={1} code={view.room.code} />
+      <Steps step={0} code={view.room.code} />
       <h2>Who are you tonight?</h2>
-      <span className="p-eyebrow">Your name</span>
-      <input className="name-line" maxLength={12} aria-label="Your name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="given-name" />
+      <p className="p-small">
+        You&apos;re <b>{name}</b> tonight. Pick the detective you&apos;ll play.
+      </p>
       <span className="p-eyebrow">Pick a detective</span>
       <div className="picker">
         {[1, 2, 3, 4, 5, 6].map((k) => {
@@ -257,7 +413,7 @@ function WhoAreYou({ ctx }: { ctx: Ctx }) {
       </div>
       {error && <div className="err">{error}</div>}
       <div className="spacer" />
-      <button className="p-btn" type="submit" disabled={busy || !name.trim()}>
+      <button className="p-btn" type="submit" disabled={busy || !me.portrait}>
         That&apos;s me
       </button>
     </form>
@@ -302,7 +458,7 @@ function Questions({ view, run, busy, error }: { view: View; run: Ctx["run"]; bu
   };
   return (
     <div className="ob">
-      <Steps step={i + 2} code={view.room.code} />
+      <Steps step={i + 1} code={view.room.code} />
       <h2>{QUESTIONS[qs[i]]}</h2>
       <p className="p-small">Only you see this. Your answer becomes a note hidden in the house.</p>
       <div className="answer-note">
@@ -843,13 +999,18 @@ function MeetingPhone({ ctx }: { ctx: Ctx }) {
 function HostPanel({ ctx }: { ctx: Ctx }) {
   const { view, run, busy } = ctx;
   const phase = view.room.phase;
-  const allIn = view.players.length >= 3 && view.players.every((p) => p.name && p.answered);
+  const allIn = view.players.length >= 3 && view.players.every((p) => p.picked && p.answered);
   const next = (label: string) => (
     <button disabled={busy} onClick={() => void run("host_next", { p_phase: phase })}>
       {label}
     </button>
   );
   const buttons: Partial<Record<string, ReactNode>> = {
+    join: (
+      <button disabled={busy || view.players.filter((p) => p.joined).length < 3} onClick={() => void run("we_are_in")}>
+        We&apos;re in
+      </button>
+    ),
     lobby: (
       <button disabled={busy || !allIn} onClick={() => void run("start_game")}>
         Start the night
@@ -862,9 +1023,14 @@ function HostPanel({ ctx }: { ctx: Ctx }) {
     tally: next(view.result?.ejected ? "Reveal the verdict" : "Continue"),
     revealed: next(view.result?.was_murderer ? "See the ending" : "Next round"),
     ended: (
-      <button disabled={busy} onClick={() => void run("start_game")}>
-        Play again
-      </button>
+      <>
+        <button disabled={busy} onClick={() => void run("start_game")}>
+          Play again
+        </button>
+        <button disabled={busy} onClick={() => void run("another_story")}>
+          Another story
+        </button>
+      </>
     ),
   };
   const timed = TIMED.includes(phase);

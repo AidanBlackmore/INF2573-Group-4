@@ -4,10 +4,10 @@ import type { CSSProperties } from "react";
 import { fmt } from "@/lib/gathering/content";
 import type { Player, View } from "@/lib/gathering/game";
 
-// Each player's colour is their join order: the first player is --player-1, and so on.
+// Each player's colour is the one they picked in the lobby (join order until they pick).
 export function colorOf(view: View, id: string | null | undefined) {
   const i = view.players.findIndex((p) => p.id === id);
-  return `var(--player-${(i < 0 ? 0 : i) + 1})`;
+  return `var(--player-${view.players[i]?.color ?? (i < 0 ? 0 : i) + 1})`;
 }
 
 // A negative animation delay = time already passed, so animations pick up where
@@ -89,5 +89,18 @@ export function KnifeSvg() {
         <circle cx="80" cy="204" r="5.5" fill="#e8d9b8" strokeWidth="2.6" />
       </g>
     </svg>
+  );
+}
+
+// How long ago something happened, in milliseconds.
+export const ageOf = (at: string | number | null | undefined) => Date.now() - (at ? new Date(at).getTime() : 0);
+
+// A name tag in the player's colour (The Gathering lobby: names and colours only, no characters yet).
+export function Tag({ view, player, style, className = "" }: { view: View; player: Player; style?: CSSProperties; className?: string }) {
+  return (
+    <span className={`tag pp ${className}`} style={{ "--pc": colorOf(view, player.id), ...style } as CSSProperties}>
+      <i />
+      {player.name}
+    </span>
   );
 }
