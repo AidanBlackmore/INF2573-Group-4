@@ -1,10 +1,10 @@
 import { Suspense } from "react";
-import PlayerScreen from "./player-screen";
+import PhoneScreen from "./phone";
 
 export default function PlayPage() {
   return (
     <Suspense>
-      <PlayerScreen />
+      <PhoneScreen />
     </Suspense>
   );
 }

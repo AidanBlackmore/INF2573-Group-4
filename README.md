@@ -1,11 +1,11 @@
-# Alternate Universes (party game prototype)
+# The Gathering: Murder at Marlowe Manor
 
-A Jackbox-style party game: one shared screen on a TV, phones as controllers. Pick one of five universes on the shared screen. Four are pre-written episodes in four acts; the fifth is a murder mystery of up to ten acts. There is no AI yet.
+A party murder mystery for 3 to 6 players. One shared screen on a TV, phones as controllers. One of you is secretly the murderer; everyone else has to work out who before it's too late.
 
-- `/host`: the shared screen. Open it on a laptop connected to the TV.
-- `/play/CODE`: the phone controller. Players get there by scanning the QR code or typing the room code on the home page.
+- `/host`: the shared screen (the TV). Open it on a laptop connected to the TV. It also plays the music, the narrator and the sound effects.
+- `/play/CODE`: the phone. Players get there by scanning the QR code on the TV, or by typing the room code on the home page.
 
-Phones and the laptop never talk to each other directly. Every action goes to Supabase, and Supabase Realtime tells each screen when something changed. Each screen then reloads the current state from the database. That is also how a phone recovers after a refresh or after the screen locks.
+Phones and the laptop never talk to each other directly. Every action goes to Supabase, and Supabase Realtime tells each screen when something changed. Each screen then reloads what it is allowed to see. That is also how a phone recovers after a refresh or after the screen locks.
 
 ## What is in this repo
 
@@ -15,38 +15,36 @@ Phones and the laptop never talk to each other directly. Every action goes to Su
 
 ## How a game works
 
-The laptop page is the shared screen. There is no separate host: whoever is next to the laptop clicks its buttons.
+1. **Join.** Open `/host` on the laptop. It shows a room code (like `OAK47`) and a QR code. Each phone joins with the code, then picks a name and one of six detective portraits, and answers **three questions** ("What's your most irrational fear?"). Players can shuffle to a different question but must answer to continue. Answers are private and final. The TV shows everyone as they join.
+2. **Start the night** (on the TV, or on the host's phone: the first player to join gets host controls). Each phone opens a sealed envelope with its secret role: one **murderer**, everyone else **detectives**. The night starts once everyone has tapped **Got it**.
+3. **Each round is an hour of the night** (nine o'clock to dawn). Everyone is split into pairs (a trio if odd), with new partners each round. Each pair goes to a room of the house and opens a **lock** together. Each lock needs both phones:
+   - **Fuse box:** one phone sees the wires, the other has the manual.
+   - **Charades** and **Sketch:** one phone sees what to act or draw, the other types the guess.
+   - **Two truths and a lie:** one player tells three things about themselves, the others spot the lie. Every round, one pair gets this lock.
+4. **Behind every lock is a torn note**, and each partner sees half. Every answer from the start is a note somewhere in the house; the murderer's say "the murderer" and everyone else's say "an innocent person". One pair finds one of the murderer's notes each round, while they last. Locks nobody opens keep their notes for later rounds.
+5. **The murderer** has secret moves on their phone: **forge a note** once (a fake secret that turns up as one of theirs) and **strike someone** in even rounds. The person who was with the victim looks guilty.
+6. **The meeting.** When time runs out (or the host calls it), everyone gathers. If a murderer's note turned up or someone died, the TV shows the notes and the group talks it through, then everyone **votes** on their phone (or skips). The TV counts the votes one mark at a time, then the verdict. If nothing turned up, there's no vote that round.
+7. **Ghosts.** Killed or voted out players become ghosts: they still pair up and open locks, but can't vote.
+8. **The end.** The detectives win by voting out the murderer. The murderer wins when only one detective is left. The TV then reveals whose every note was. **Play again** starts a new night with the same players and answers.
 
-1. Create a room on the laptop. Players join (2 to 6). Before voting, everyone answers an **icebreaker question** on their phone, such as "Write down an embarrassing moment." Everyone starts with the same question, and can tap **Different question** to shuffle to another, but must answer one to continue. Answers are private and locked once submitted. The game can't start until everyone has answered. Then everyone votes for one of the five universes on their phones. The screen shows the votes live, and players can change their vote until the game starts. Click **Start** on the screen to play the most-voted universe. If the top votes are tied, the screen shows the tied universes and you click the one to play.
-2. Each act: the scenario shows on the TV, everyone picks secretly on their phone, and the TV shows who has submitted (not what). Each vote starts with a **20-second discussion**: everyone sees the scenario and the options, but phones can't choose yet, so the group talks it over first. Then voting opens with a **60-second timer**, shown on the TV and on every phone. When everyone has chosen, someone clicks **Reveal now**, or the timer runs out, all choices are revealed together, followed by the outcome. If the timer runs out, the server picks at random for anyone who hasn't chosen, and the reveal marks those choices "picked at random, time ran out". Click **Next act** to continue.
-3. Acts 1 and 4 are about picking a person (anyone, including yourself). Acts 2 and 3 have options A, B and C.
-4. Split rules: **Together** means everyone chose the same. **Majority** means one answer got more than half the votes. **Divided** means no answer got more than half. If the most votes are tied, click **Vote again**: everyone re-votes on their phone, choosing only between the tied answers. If the re-vote ties again, click the winner on the screen. Ties are never broken automatically. The split type (and the opener) comes from the first vote; re-votes do not count in the ending recap.
-5. After act 4, the ending recap shows counts only (never motives), plus **Play another universe** (back to the vote, same players, votes cleared) and **Replay this one**.
-
-### Murder at Marlowe Manor (murder mystery)
-
-Needs 3 to 6 players. When it starts, the server secretly picks one player as the **murderer** and hides Lord Fenwick's body in one of the 9 rooms. Each phone shows its own role: the murderer is told where the body is, and everyone else is a detective. The TV shows a **blueprint of the mansion**.
-
-- **Search acts (up to 9):** after the discussion, everyone (the murderer too) votes on their phone by tapping a room on the map. The most-voted room is searched. It's either empty, has evidence the murderer planted, or holds the body. Searched rooms are marked on the map.
-- **The murderer's secret move:** once per search act, on their phone. They can **plant evidence** framing someone in a room (it turns up if that room is searched), **move the body** (once per game, and everyone hears something being dragged), or **lie low**. Detectives get a private "who do you suspect?" notebook in the same spot, so nobody stands out for tapping their phone.
-- **Finding the body** reveals a note pinned to it: the **murderer's icebreaker answer**. The next act is the **accusation** (act 10): who wrote the note, and who did it? The detectives win if they name the murderer. Everyone else's answers are never shown.
-- **The murderer wins** if the body is still hidden after 9 searches, or if the group accuses the wrong person. A game is at most 10 acts.
-
-The rules run in the database (`0007_murder_mystery.sql`). No screen can read who the murderer is, where the body is, or anyone's answer until the game reveals it.
+Every timer is 2 minutes (locks, discussion and vote). The host's phone can add a minute.
 
 ## Where things live
 
-- **Story content:** [`content/universes.ts`](content/universes.ts). The four story universes, every scenario, opener and outcome. Add or edit a universe here without touching game logic. `{winner}` and `{runner_up}` are filled in automatically.
-- **Murder mystery:** [`content/murder-mystery.ts`](content/murder-mystery.ts). The mansion's rooms (name, position on the blueprint, what a search finds), the search scenarios and the accusation outcomes.
-- **Icebreaker questions:** [`content/icebreakers.ts`](content/icebreakers.ts).
-- **Game rules:** [`lib/game.ts`](lib/game.ts). Split rules, ties, outcome text and the recap. `getOpener()` is the placeholder for a future AI-generated opener.
-- **Screens:** `app/host/` (shared screen) and `app/play/[code]/` (phone).
-- **Database:** [`supabase/migrations/`](supabase/migrations). Run the files in order. `0005_choice_timer.sql` adds the voting timer, `0006_discussion_window.sql` adds the discussion before it, and `0007_murder_mystery.sql` adds the icebreaker question and the murder mystery. To change their lengths, change the `choice_seconds` (10 to 600) and `discussion_seconds` (0 to 300, 0 turns the discussion off) defaults on `rooms`.
+- **Database and rules:** [`supabase/migrations/0001_the_gathering.sql`](supabase/migrations/0001_the_gathering.sql). Every rule runs here: pairing, locks, notes, the murderer's moves, votes and the ending. It also holds the charades and sketch words. To change the timers, change the `task_secs`, `talk_secs` and `vote_secs` defaults on `rooms`.
+- **Story and text:** [`lib/gathering/content.ts`](lib/gathering/content.ts). The questions, the story for each hour, every narrated line, room names and the floor plan.
+- **Screens:** [`app/host/tv.tsx`](app/host/tv.tsx) (the TV) and [`app/play/[code]/phone.tsx`](app/play/[code]/phone.tsx) (the phone). Shared pieces (avatars, timer ring, floor plan, rain) are in [`app/_ui/`](app/_ui). The design system is [`app/gathering.css`](app/gathering.css).
+- **Sound:** [`lib/gathering/sound.ts`](lib/gathering/sound.ts). Music, narrator and sound effects, TV only.
+- **Images, music and narration:** [`public/`](public).
+  - `public/figma/`: backgrounds, portraits, clue art and paper ephemera from the Figma design system.
+  - `public/audio/ambience.mp3`: the background music. It loops by crossfading the last 4 seconds into the start.
+  - `public/narration/<line>.mp3`: the narrator (ElevenLabs, "Harry"). One file per line in `NARRATION` in `content.ts`. If a file is missing, the browser's own voice reads that line.
+  - `public/sfx/<name>.mp3` (optional): recorded sound effects (`thunder`, `lock`, `chime`, `scream`, `sting`, `gavel`, `bark`, `heartbeat`, `tick`). Without them, the sounds are synthesised in the browser.
 
 ## Privacy and server rules
 
-- **Only the server writes.** Devices can only read tables. Every action (create room, join, vote for a universe, start a universe, submit, reveal, re-vote, next act, pick a winner) is a database function that checks the request first. Examples: only the laptop that created the room can run the game, you can only submit while an act is open, a person pick must be someone in the room, and an option must be one of the act's options. A second tap is ignored, so you get one choice per player per act. Rooms are limited to 6 players.
-- **Choices are private (Row Level Security).** You can read your own choice. Other people's choices for an act only become readable to the room once that act is revealed. The TV sees who has submitted through `players.submitted_round`, not by reading choices.
+- **Only the server writes.** Devices can only read rooms and the players in their own room. Every action (join, pick a portrait, answer, open a lock, forge, strike, vote, next) is a database function that checks the request first. Examples: only the TV or the host's phone can move the game on, only the lead in a pair can see what to act or draw, only the murderer can forge or strike, and ghosts can't vote.
+- **Secrets stay on the server.** Who the murderer is, the notes, the lock answers and the votes are in tables no device can read. Each screen reads its own slice through `get_view()`: the TV gets the public picture, each phone also gets its own role, its side of its lock and its half of the note. Whose note was whose only comes out at the end.
 
 ## Environment variables
 
@@ -56,26 +54,21 @@ The rules run in the database (`0007_murder_mystery.sql`). No screen can read wh
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | yes | Supabase publishable key |
 | `NEXT_PUBLIC_POSTHOG_KEY` | no | PostHog project API key. Without it, analytics is skipped. |
 | `NEXT_PUBLIC_POSTHOG_HOST` | no | `https://us.i.posthog.com` (default) or `https://eu.i.posthog.com` |
-| `FEEDBACK_URL` | no | Link for "Give feedback" on the shared screen. Hidden if empty. |
+| `FEEDBACK_URL` | no | "Give feedback" link on the TV's ending screen. Hidden if empty. |
 
-PostHog records pageviews plus these events:
+PostHog records pageviews plus these events, all sent from the TV (so each is counted once per game) and all with `room_id`, `round` and `players`:
 
-| Event | Sent from | When | Properties |
-|---|---|---|---|
-| `universe_selected` | Shared screen | A universe starts (not on replay) | `universe_id` |
-| `universe_selected_<universe>` | Shared screen | Same moment, one event name per universe: `universe_selected_mall_night`, `universe_selected_last_train`, `universe_selected_station_zero`, `universe_selected_moonlight_academy` | `universe_id` |
-| `round_1_started`, `round_2_started`… | Shared screen | Each act starts. A round is one act of the universe being played: `round_1_started` is act 1 ("The money" in Mall Night, "The blanket" in Last Train…), up to `round_4_started` for a 4-act universe. | Act properties (below) |
-| `universe_vote_cast` | Phone | A player votes (or changes their vote) for a universe in the lobby | `universe_id` |
-| `vote_submitted` | Phone | Every time a player submits a vote, in an act or a tie-break re-vote. One event per vote. | Act properties, `stage` (`vote` or `revote`), and what they voted for: `choice` and `choice_label` for options (e.g. `B`, "Hide in the food court"); for person picks, `choice` is `self` or `another_player` and `picked_self` (names are never sent) |
-| `choice_auto_selected` | Shared screen | The timer ran out and the server picked at random for a player. One event per auto-picked player. | Act properties, `stage` |
-| `icebreaker_answered` | Phone | A player submits their icebreaker answer (the text is never sent) | `question_index`, `shuffles` |
-| `mystery_room_searched` | Shared screen | A room of the mansion is searched | Act properties, `room`, `result` (`empty`, `evidence` or `body`) |
-| `mystery_murderer_action` | Phone (murderer only) | The murderer makes their secret move | `action` (`plant`, `move` or `lie_low`) |
-| `mystery_solved` | Shared screen | The accusation is made | `universe_id`, `correct`, `acts_used`, `room_id` |
+| Event | When | Extra properties |
+|---|---|---|
+| `game_started` | Roles are dealt | |
+| `round_started` | Each round (hour) starts | `pairs` |
+| `lock_opened` | A pair opens their lock | `lock_type` (`fuse`, `charade`, `sketch` or `lie`), `tries` (failed tries first) |
+| `round_quiet` | A round ends with no murderer's note and no death, so no vote | |
+| `meeting_called` | The group gathers to talk | `death`, `notes_found` |
+| `vote_revealed` | The verdict is shown | `ejected`, `was_murderer`, `tie` |
+| `game_ended` | The ending | `outcome` (`detectives` or `murderer`), `rounds` |
 
-**Act properties**, the same on every round and vote event, so they join up in PostHog: `universe_id`, `universe_title`, `act_id` (e.g. `mall-night:act_1`, stable across games), `act_number`, `act_title`, `act_kind` (`player` or `option`), `round` (same as `act_number`), `total_rounds`, and `room_id` + `play_round`, which identify one play of that act in one game. Filter `vote_submitted` by `act_id` to see every vote ever cast on an act, or by `room_id` + `play_round` to see the votes behind one `round_N_started`.
-
-A funnel of `round_1_started → round_2_started → round_3_started → round_4_started` shows which round groups stop in. Comparing `choice_auto_selected` with `vote_submitted` per round shows where people run out of time.
+A funnel of `game_started → round_started → game_ended` shows where groups stop. `lock_opened` by `lock_type` with `tries` shows which locks are too hard.
 
 On Vercel, changes to environment variables only apply after a redeploy (**Deployments**, then **...** next to the latest deployment, then **Redeploy**).
 
@@ -85,7 +78,7 @@ You need Node.js 20 or newer.
 
 1. Copy `.env.example` to `.env.local` and fill in the values. Find the Supabase ones in the Supabase dashboard under **Project Settings > API Keys**.
 2. In the Supabase dashboard, open **Authentication > Sign In / Providers** and turn on **Allow anonymous sign-ins**.
-3. Run each file in `supabase/migrations/` once, in order. Paste it into **SQL Editor** and click **Run**.
+3. Paste [`supabase/migrations/0001_the_gathering.sql`](supabase/migrations/0001_the_gathering.sql) into **SQL Editor** and click **Run**. It's one file for the whole game. On a project that ran the old Alternate Universes migrations, it removes those tables first (any old games are deleted). It's safe to run again.
 4. Install and start the app:
 
 ```bash
@@ -101,7 +94,7 @@ npm run dev
 ipconfig getifaddr en0
 ```
 
-1. On the laptop, open **`http://<your IP>:3000/host`**, for example `http://192.168.1.23:3000/host`, not `localhost`. The QR code uses the address the shared screen was opened with. A phone cannot open `localhost`, because on a phone that means the phone itself.
+1. On the laptop, open **`http://<your IP>:3000/host`**, for example `http://192.168.1.23:3000/host`, not `localhost`. The QR code uses the address the TV screen was opened with. A phone cannot open `localhost`, because on a phone that means the phone itself.
 2. Scan the QR code with each phone's camera.
 
 University and guest Wi-Fi networks often block devices from talking to each other. In that case, test the deployed Vercel version instead.
@@ -118,15 +111,14 @@ First-time setup:
 
 ## Test checklist
 
-- [ ] Open `/host` and click **Create game**. A room code and a QR code appear.
-- [ ] Two phones join. They appear on the TV without a refresh, and each phone shows the five universes (after answering the icebreaker question) to vote for.
-- [ ] Vote on both phones. The vote counts and checks update on the TV live. Change one vote and see the count move.
-- [ ] With a tie, the TV shows a start button for each tied universe. Otherwise it shows **Start** with the leading universe's name. Click it.
-- [ ] Act 1: the phones show everyone's names. Submit on one phone, tapping twice quickly. The TV shows a check for that player but not their pick.
-- [ ] Refresh the other phone mid-act. It comes back as the same player, still able to choose.
-- [ ] When everyone has chosen, the TV reveals the choices and the outcome with the right names filled in.
-- [ ] Act 2: the phones show options A, B and C. Make two players choose differently (a 1-1 tie). The TV shows **Vote again**, and **Next act** stays disabled. Click it: the phones show only the tied options. If the re-vote ties again, click the winner on the screen.
-- [ ] Finish act 4 and click **See the ending**. Check the recap counts against what everyone chose.
-- [ ] **Replay this one** starts act 1 again. **Play another universe** goes back to the picker with the same players.
-- [ ] Optional: refresh the laptop mid-game. It returns to the same room and act.
-- [ ] Optional: a 7th phone tries to join and sees "This room is full".
+- [ ] Open `/host`. A room code and a QR code appear. Click anywhere: the music starts.
+- [ ] Three or four phones join. Each picks a name and a portrait (a portrait someone else has is shown as taken) and answers three questions. They appear on the TV without a refresh. **Start the night** stays disabled until everyone has answered.
+- [ ] Start. Each phone opens its envelope: one murderer, the rest detectives. The narrator reads the prologue. The night starts once everyone taps **Got it**.
+- [ ] Each pair sees the same room and lock. Open each lock type: the fuse box (wires on one phone, manual on the other), charades and sketch (only the lead sees the word; the sketch appears on the partner's phone), two truths and a lie (a wrong pick swaps roles).
+- [ ] An opened lock shows each partner half of a torn note. The TV clicks and marks the lock opened.
+- [ ] On the murderer's phone, forge a note. In round 2, strike someone. At the meeting the TV reports the death and the victim's phone says they're a ghost (no vote).
+- [ ] Refresh a phone mid-round. It comes back as the same player on the same screen.
+- [ ] Vote. The TV counts the votes one at a time, then **Reveal the verdict**. Vote out the murderer: the detectives win and the TV shows whose every note was.
+- [ ] **Play again** starts a new night with the same players.
+- [ ] Optional: refresh the laptop mid-game. It returns to the same room and round.
+- [ ] Optional: a 7th phone tries to join and sees "This game is full".

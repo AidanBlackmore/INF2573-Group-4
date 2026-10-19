@@ -1,0 +1,347 @@
+/* The Gathering: the Figma design system (silhouette world, detective paper).
+   Pixelify Sans for display and labels, Literata for body and buttons, Kalam for handwriting.
+   Images are in /public/figma. */
+
+:root {
+  --fog-dark: #2a2a2e;
+  --room: #111113;
+  --paper: #e8d9b8;
+  --paper-shade: #c9b48a;
+  --paper-light: #f3e8cf;
+  --ink: #141414;
+  --pencil: #9a9182;
+  --on-dark: #e8d9b8;
+  --tv-muted: #bfb8a8;
+  --brown: #6b5d3e;
+  --brown-2: #5b5346;
+  --action: #b3261e;
+  --action-pressed: #8a1c16;
+  --on-action: #e8d9b8;
+  --good: #8fd19e;
+  --bad: #ff8a80;
+  --player-1: #4a7bd0;
+  --player-2: #e2b33c;
+  --player-3: #4e9f6a;
+  --player-4: #d7678f;
+  --player-5: #8c6bc8;
+  --player-6: #3fa7a3;
+  --pixel: var(--font-pixelify), "Pixelify Sans", system-ui, sans-serif;
+  --label: var(--pixel);
+  --body: var(--font-literata), "Literata", Georgia, serif;
+  --hand: var(--font-kalam), "Kalam", cursive;
+}
+
+.gathering, .gathering * { box-sizing: border-box; }
+.gathering { font: 15px/1.45 var(--body); color: var(--on-dark); background: var(--room); min-height: 100dvh; -webkit-tap-highlight-color: transparent; }
+.gathering button { font: inherit; cursor: pointer; }
+.gathering button:disabled { cursor: not-allowed; }
+.gathering :focus-visible { outline: 3px solid var(--paper); outline-offset: 2px; }
+.gathering q { quotes: none; }
+.gathering p { margin: 0; }
+
+/* ---------- Labels and type ---------- */
+.eyebrow, .p-eyebrow, .note .lbl, .tone, .tv-head, .p-head, .tool, .hint {
+  font-family: var(--label); font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; font-variant-ligatures: none;
+}
+.eyebrow { font-size: 0.8rem; color: var(--on-dark); }
+.chapter { font: 700 clamp(1.6rem, 3.4vw, 2.4rem)/1.15 var(--pixel); color: var(--on-dark); text-shadow: 3px 3px 0 var(--ink); margin: 0; font-variant-ligatures: none; }
+.big { font: 600 clamp(1.3rem, 2.6vw, 2rem)/1.25 var(--pixel); color: var(--on-dark); text-shadow: 2px 2px 0 var(--ink); margin: 0; text-wrap: pretty; font-variant-ligatures: none; }
+.big.win { color: var(--good); }
+.big.lose { color: var(--bad); }
+.narration { font: clamp(1.05rem, 1.9vw, 1.35rem)/1.5 var(--body); color: var(--on-dark); text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8); margin: 0; max-width: 62ch; text-wrap: pretty; }
+.todo { font: 0.95rem var(--body); color: var(--tv-muted); margin: 0; border-left: 3px solid var(--paper); padding-left: 12px; max-width: 62ch; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); }
+.todo b { color: var(--on-dark); }
+.muted { color: var(--tv-muted); font-family: var(--body); }
+.prompt-line { color: var(--on-dark); font-weight: 600; font-family: var(--body); }
+.report { color: var(--bad); font: 700 clamp(1.2rem, 2.4vw, 1.7rem) var(--pixel); margin: 0; }
+.joincode { font: 700 clamp(2rem, 5vw, 3.4rem) var(--pixel); letter-spacing: 0.14em; margin: 0; color: var(--on-dark); text-shadow: 3px 3px 0 var(--ink); font-variant-ligatures: none; }
+.row { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.row.end { justify-content: flex-end; margin-top: 18px; margin-left: auto; }
+.spacer { flex: 1; }
+
+/* ---------- Pixel paper: notched corners, ink outline, shade on bottom/right, hard ink shadow ---------- */
+.btn, .p-btn, .p-btn2, .seg button, .wire, .note, .learned .item, .p-task, .book, .secret, .screen, .tv > .eyebrow, .panel {
+  background:
+    linear-gradient(var(--ink), var(--ink)) 20% 0 / 6% 6px no-repeat,
+    linear-gradient(var(--ink), var(--ink)) 65% 100% / 6% 6px no-repeat,
+    linear-gradient(var(--ink), var(--ink)) 0 40% / 6px 10% no-repeat,
+    var(--paper);
+  color: var(--ink);
+  border: 0;
+  border-radius: 0;
+  box-shadow: inset -6px -6px 0 var(--paper-shade), 0 -6px 0 var(--ink), 0 6px 0 var(--ink), -6px 0 0 var(--ink), 6px 0 0 var(--ink);
+  filter: drop-shadow(4px 4px 0 var(--ink));
+  margin: 6px;
+}
+/* Buttons: Literata Bold. One red primary per screen; everything else is paper. */
+.btn, .p-btn, .p-btn2, .seg button, .wire { font-family: var(--body); font-weight: 700; }
+.btn, .p-btn {
+  background:
+    linear-gradient(var(--ink), var(--ink)) 20% 0 / 6% 6px no-repeat,
+    linear-gradient(var(--ink), var(--ink)) 65% 100% / 6% 6px no-repeat,
+    linear-gradient(var(--ink), var(--ink)) 0 40% / 6px 10% no-repeat,
+    var(--action);
+  color: var(--on-action);
+  box-shadow: inset -6px -6px 0 var(--action-pressed), 0 -6px 0 var(--ink), 0 6px 0 var(--ink), -6px 0 0 var(--ink), 6px 0 0 var(--ink);
+  padding: 14px 28px 16px;
+  font-size: 1.15rem;
+}
+.p-btn { width: calc(100% - 12px); }
+.p-btn2, .seg button { padding: 6px 12px 8px; font-size: 0.85rem; align-self: flex-start; }
+.btn:active:not(:disabled), .p-btn:active:not(:disabled), .p-btn2:active:not(:disabled), .seg button:active:not(:disabled) { filter: none; transform: translate(4px, 4px); background-color: var(--paper-shade); }
+.btn:active:not(:disabled), .p-btn:active:not(:disabled) { background-color: var(--action-pressed); }
+.seg button.on { background-color: var(--paper-shade); background-image: none; }
+.btn:disabled, .p-btn:disabled, .p-btn2:disabled, .seg button:disabled { opacity: 0.5; filter: none; box-shadow: 0 -6px 0 var(--pencil), 0 6px 0 var(--pencil), -6px 0 0 var(--pencil), 6px 0 0 var(--pencil); }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ---------- The TV ---------- */
+.tv-page { min-height: 100dvh; display: flex; flex-direction: column; }
+.tv-bar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: flex-end; padding: 8px 16px; background: var(--room); }
+.tool { background: transparent; color: var(--on-dark); border: 1px solid #3a332d; border-radius: 8px; padding: 6px 12px; font-size: 0.7rem; }
+.tool:hover:not(:disabled) { border-color: var(--tv-muted); }
+.tv-bar input[type="range"] { width: 90px; accent-color: var(--paper); }
+.tv-bar output { font: 0.8rem var(--label); color: var(--tv-muted); min-width: 3ch; }
+.tv { flex: 1; position: relative; overflow: hidden; background: var(--fog-dark) center / cover no-repeat; padding: 24px clamp(16px, 3vw, 48px) 40px; display: flex; flex-direction: column; gap: 18px; }
+.tv::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(20, 20, 20, 0.55), rgba(20, 20, 20, 0.35) 45%, rgba(20, 20, 20, 0.6)); pointer-events: none; }
+.tv > * { position: relative; }
+.tv[data-scene="lobby"] { background-image: url("/figma/bg-lobby-entrance.jpg"); }
+.tv[data-scene="roles"] { background-image: url("/figma/bg-title-hallway.jpg"); }
+.tv[data-scene="tasks"] { background-image: url("/figma/bg-map-exterior.jpg"); }
+.tv[data-scene="discuss"], .tv[data-scene="quiet"] { background-image: url("/figma/bg-evidence-wall.jpg"); }
+.tv[data-scene="blackout"] { background-image: url("/figma/bg-blackout-ink.jpg"); }
+.tv[data-scene="meeting"], .tv[data-scene="tally"], .tv[data-scene="revealed"] { background-image: url("/figma/bg-vote-dining.jpg"); }
+.tv[data-scene="ended"] { background-image: url("/figma/bg-ending-dawn.jpg"); }
+.tv-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 0.85rem; z-index: 1; }
+.tv-head .code { color: var(--tv-muted); margin-right: 130px; }
+.tv-head .code b { color: var(--on-dark); letter-spacing: 0.12em; }
+.tv p { font-family: var(--body); }
+/* Screen header: the paper banner with scroll tails. */
+.tv > .eyebrow { align-self: center; padding: 10px 36px 14px; font: 600 clamp(1rem, 1.8vw, 1.4rem) var(--pixel); letter-spacing: 0.02em; text-transform: none; color: var(--ink); margin: 8px 40px 12px; text-align: center; }
+.tv > .eyebrow::before, .tv > .eyebrow::after { content: ""; position: absolute; top: 14px; bottom: -4px; width: 34px; background: var(--paper-shade); box-shadow: inset -4px -4px 0 var(--pencil), 0 -4px 0 var(--ink), 0 4px 0 var(--ink), -4px 0 0 var(--ink), 4px 0 0 var(--ink); z-index: -1; }
+.tv > .eyebrow::before { left: -32px; }
+.tv > .eyebrow::after { right: -32px; }
+.tv-grid, .lobby-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 24px; align-items: start; }
+.lobby-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); }
+.tv-grid > *, .lobby-grid > * { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+@media (max-width: 860px) { .tv-grid, .lobby-grid { grid-template-columns: minmax(0, 1fr); } }
+.qr { background: var(--paper); padding: 10px; align-self: flex-start; box-shadow: 0 0 0 4px var(--ink), 4px 4px 0 4px var(--ink); margin: 4px; }
+.qr svg { display: block; }
+
+/* Paper panel (lobby, discussion cards). */
+.panel { padding: 24px 28px 28px; display: flex; flex-direction: column; gap: 10px; }
+.panel .tone { color: var(--action); font-size: 0.8rem; }
+.panel .tone.ink { color: var(--brown); }
+.panel .t { font: 600 clamp(1.3rem, 2.4vw, 1.9rem) var(--pixel); font-variant-ligatures: none; }
+.panel p { color: var(--ink); font-size: 1.05rem; line-height: 1.5; text-shadow: none; }
+.panel .hint { color: var(--brown); font-size: 0.75rem; }
+
+/* Pairs and their locks. */
+.learned { display: flex; flex-direction: column; gap: 8px; }
+.learned .item { padding: 10px 16px 14px; font-family: var(--body); }
+.learned .item b { font-family: var(--pixel); font-weight: 600; }
+.learned .item .who { display: inline-flex; margin-right: 6px; vertical-align: middle; }
+.learned .q { color: var(--brown-2); font-size: 0.85rem; }
+.learned .beat { display: block; font: italic 0.9rem var(--body); color: var(--brown-2); margin-top: 2px; }
+
+/* Notes. */
+.note { padding: 14px 20px 18px; display: flex; flex-direction: column; gap: 6px; font-family: var(--body); position: relative; }
+.note .lbl { font-size: 0.75rem; color: var(--brown); }
+.note .from { font: 1rem var(--hand); color: var(--brown-2); }
+.note.big-note q { font: italic clamp(1.1rem, 2vw, 1.45rem)/1.4 var(--body); }
+.proofs { display: flex; flex-direction: column; gap: 8px; }
+/* Torn note: the halves slide together. */
+.note.big-note.torn { background: none; box-shadow: none; padding: 0; display: grid; filter: drop-shadow(4px 4px 0 var(--ink)); }
+.note.big-note.torn > .half { grid-area: 1 / 1; padding: 16px 100px 20px 22px; display: flex; flex-direction: column; gap: 8px; position: relative; background: var(--paper); box-shadow: inset -6px -6px 0 var(--paper-shade); }
+.torn > .half.l { clip-path: polygon(0 0, 54% 0, 50% 14%, 55% 27%, 49% 41%, 54% 55%, 48% 69%, 53% 83%, 49% 100%, 0 100%); animation: tear-l 1.1s var(--t) both cubic-bezier(0.2, 0.8, 0.2, 1); }
+.torn > .half.r { clip-path: polygon(54% 0, 100% 0, 100% 100%, 49% 100%, 53% 83%, 48% 69%, 54% 55%, 49% 41%, 55% 27%, 50% 14%); animation: tear-r 1.1s var(--t) both cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes tear-l { 0% { transform: translateX(-44px) rotate(-4deg); opacity: 0; } 25% { opacity: 1; } 100% { transform: none; } }
+@keyframes tear-r { 0% { transform: translateX(44px) rotate(4deg); opacity: 0; } 25% { opacity: 1; } 100% { transform: none; } }
+.note.big-note::before { content: ""; position: absolute; top: -30px; left: -4px; width: 24px; height: 48px; background: url("/figma/clip.png") center / contain no-repeat; transform: rotate(-8deg); }
+
+/* Clue art, inked on paper. */
+.art { mix-blend-mode: multiply; }
+.art.corner { position: absolute; top: 10px; right: 12px; width: 46px; height: auto; transform: rotate(6deg); pointer-events: none; }
+.note:has(> .art.corner), .p-task:has(> .art.corner), .book:has(> .art.corner) { padding-right: 68px; }
+.note.big-note .art.corner, .half .art.corner { width: 74px; }
+
+/* Player avatars: ink frame, portrait, name band in the player's colour, hard ink shadow. */
+.avatars { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+.av { display: inline-flex; flex-direction: column; background: var(--ink); padding: 3px; box-shadow: 4px 4px 0 var(--ink); position: relative; flex: none; vertical-align: middle; }
+.av img { display: block; object-fit: cover; background: var(--paper); }
+.av b { display: block; background: var(--pc); color: var(--ink); font: 500 0.62rem/1.3 var(--label); letter-spacing: 0.1em; text-transform: uppercase; text-align: center; padding: 3px 4px; font-variant-ligatures: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.av.md img { width: 76px; height: 95px; }
+.av.lg img { width: 112px; height: 140px; }
+.av.lg b { font-size: 0.8rem; padding: 5px; }
+.av.lg { margin: 10px 0; align-self: flex-start; }
+.av.sm img { width: 48px; height: 60px; }
+.av.sm b { font-size: 0.55rem; padding: 2px; }
+.av.xs { padding: 2px; box-shadow: 2px 2px 0 var(--ink); border-bottom: 4px solid var(--pc); margin-right: 6px; }
+.av.xs img { width: 20px; height: 25px; }
+.av.xs b { display: none; }
+.av.waiting { opacity: 0.45; filter: grayscale(1); }
+.av.dead img { filter: grayscale(1) contrast(0.8); opacity: 0.8; }
+.av.dead::after { content: ""; position: absolute; inset: 8% 10% 30%; background: url("/figma/stamp-x.png") center / contain no-repeat; }
+.av.dead::after { animation: stamp 0.55s var(--st) both cubic-bezier(0.2, 1.6, 0.4, 1); }
+@keyframes stamp { 0% { opacity: 0; transform: scale(2.4) rotate(-14deg); } 100% { opacity: 1; transform: none; } }
+.av.caught::after { content: ""; position: absolute; inset: -14%; background: url("/figma/stamp-o.png") center / 100% 100% no-repeat; pointer-events: none; }
+
+/* The house: a paper floor plan with portraits in each pair's room. */
+.house { width: 100%; height: auto; display: block; background: var(--paper); box-shadow: 0 -6px 0 var(--ink), 0 6px 0 var(--ink), -6px 0 0 var(--ink), 6px 0 0 var(--ink); filter: drop-shadow(4px 4px 0 var(--ink)); margin: 6px; }
+.house .floor { fill: var(--paper); }
+.house .wall { fill: none; stroke: var(--ink); stroke-width: 4; stroke-linejoin: miter; }
+.house .outer { fill: none; stroke: var(--ink); stroke-width: 8; }
+.house .door { stroke: var(--paper); stroke-width: 7; }
+.house .swing { fill: none; stroke: var(--pencil); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.house .furn { fill: none; stroke: var(--pencil); stroke-width: 1.4; }
+.house .label { fill: var(--ink); font: 400 13px var(--label); letter-spacing: 0.06em; text-anchor: middle; text-transform: uppercase; }
+.house .tb { fill: var(--brown-2); font: 400 10px var(--label); letter-spacing: 0.12em; }
+.house .tokframe { fill: var(--ink); }
+.house .tok.ghost { opacity: 0.45; }
+.house .token { fill: var(--ink); font: 500 7px var(--label); letter-spacing: 0.06em; }
+
+/* Timer ring: paper rim, shade track, red arc for the time left, red pixel digits. */
+.ring { --frac: 1; position: relative; display: inline-grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; flex: none;
+  background: conic-gradient(var(--action) calc(var(--frac) * 360deg), var(--paper-shade) 0);
+  box-shadow: 0 0 0 4px var(--paper), 0 0 0 7px var(--ink), 4px 4px 0 7px var(--ink); }
+.ring::before { content: ""; position: absolute; inset: 8px; border-radius: 50%; background: var(--paper); }
+.ring span { position: relative; font: 700 0.85rem var(--pixel); color: var(--action); font-variant-ligatures: none; font-variant-numeric: tabular-nums; }
+.tv > .ring { position: absolute; top: 22px; right: 26px; width: 104px; height: 104px; z-index: 2; box-shadow: 0 0 0 7px var(--paper), 0 0 0 12px var(--ink), 6px 6px 0 12px var(--ink); }
+.tv > .ring::before { inset: 15px; }
+.tv > .ring span { font-size: 1.6rem; }
+@media (max-width: 860px) { .tv > .ring { width: 72px; height: 72px; top: 14px; right: 14px; } .tv > .ring span { font-size: 1.1rem; } .tv > .ring::before { inset: 9px; } .tv-head .code { margin-right: 86px; } }
+
+/* Vote board: each mark lands in turn, then the result and the button. */
+.tally { align-self: center; width: min(760px, 100%); gap: 0; }
+.tally .t { margin: 0 0 8px; }
+.tally-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 2px dashed var(--pencil); }
+.tally-row b { font: 600 1.15rem var(--pixel); text-transform: uppercase; letter-spacing: 0.06em; font-variant-ligatures: none; }
+.tally-row .marks { margin-left: auto; font: 400 1.6rem var(--hand); letter-spacing: 0.15em; }
+.tally-row .av.xs img { width: 30px; height: 37px; }
+.tally .marks i { display: inline-block; font-style: normal; animation: mark 0.35s both cubic-bezier(0.3, 1.6, 0.5, 1); }
+@keyframes mark { from { opacity: 0; transform: translateY(-14px) scale(1.6); } to { opacity: 1; transform: none; } }
+.tally-after { display: flex; align-items: center; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap; margin-top: 18px; }
+.tally-after > * { animation: rise 0.6s both ease-out; }
+.tally-after .big { margin: 0; }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* Weather over every scene: rain, candle flicker, lightning. Sits under the content. */
+.weather { position: absolute !important; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.weather i, .weather canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.weather .flicker { background: radial-gradient(60% 50% at 70% 80%, rgba(255, 170, 90, 0.1), transparent 70%); animation: flicker 3.2s steps(1) infinite; mix-blend-mode: screen; }
+.weather .flash.on { animation: flash 0.9s ease-out; }
+@keyframes flicker { 0%, 100% { opacity: 1; } 12% { opacity: 0.75; } 14% { opacity: 1; } 47% { opacity: 0.85; } 49% { opacity: 0.6; } 51% { opacity: 1; } 78% { opacity: 0.8; } }
+@keyframes flash { 0% { background: rgba(235, 240, 255, 0); } 6% { background: rgba(235, 240, 255, 0.55); } 12% { background: rgba(235, 240, 255, 0.05); } 18% { background: rgba(235, 240, 255, 0.4); } 100% { background: rgba(235, 240, 255, 0); } }
+
+/* ---------- Phones: notebook page with a strip of tape ---------- */
+.phone-page { min-height: 100dvh; background: var(--fog-dark); padding: 26px 10px 16px; display: flex; flex-direction: column; }
+.screen { flex: 1; width: calc(100% - 12px); max-width: 520px; align-self: center; padding: 18px 16px 22px; position: relative; display: flex; flex-direction: column; gap: 10px; font-family: var(--body); color: var(--ink); }
+.screen::before { content: ""; position: absolute; top: -18px; left: 50%; width: 110px; height: 30px; margin-left: -55px; background: url("/figma/tape.png") center / 100% 100% no-repeat; }
+.screen h2 { margin: 0; font: 600 1.35rem/1.25 var(--pixel); text-wrap: balance; font-variant-ligatures: none; }
+.p-head { display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem; color: var(--brown-2); }
+.p-head .me { display: inline-flex; align-items: center; margin-left: auto; text-transform: uppercase; }
+.p-head .me .av.xs { margin-right: 6px; }
+.p-small { font-size: 0.8rem; color: var(--brown-2); font-family: var(--body); }
+.p-eyebrow { font-size: 0.7rem; color: var(--brown); }
+.p-msg { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.err { color: var(--action); font-size: 0.85rem; font-family: var(--body); }
+.screen textarea, .screen select, .screen input { width: 100%; padding: 10px; font: inherit; font-size: 1rem; color: var(--ink); background: var(--paper-light); border: 2px solid var(--ink); border-radius: 0; box-shadow: inset 0 -4px 0 var(--paper-shade); color-scheme: light; }
+.screen textarea { resize: vertical; min-height: 84px; }
+.p-task, .book { padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 6px; position: relative; font-family: var(--body); }
+.p-task .where { font-family: var(--pixel); font-weight: 600; }
+.p-task q { font-style: italic; }
+.secret { padding: 10px 12px 14px; font: 600 1.15rem var(--pixel); text-align: center; }
+.ghost-note { display: flex; gap: 10px; align-items: center; font: 500 0.7rem var(--label); letter-spacing: 0.04em; background: var(--fog-dark); color: var(--on-dark); padding: 8px 10px; }
+.ghost-note .art { width: 30px; height: auto; mix-blend-mode: screen; filter: invert(1); }
+.host { margin-top: auto; padding-top: 10px; border-top: 2px dashed var(--pencil); display: flex; gap: 10px; align-items: flex-start; }
+.host .art { width: 40px; height: auto; flex: none; }
+.host > div { display: flex; flex-direction: column; gap: 6px; }
+/* The room's own scene at the top of the phone once its lock opens. */
+.p-task.opened { padding-top: 0; }
+.room-scene { margin: 0 -68px 6px -14px; width: calc(100% + 82px); align-self: flex-start; flex: none; height: 92px; background: center / cover no-repeat; position: relative; animation: rise 0.8s both ease-out; border-bottom: 3px solid var(--ink); }
+.room-scene span { position: absolute; left: 10px; bottom: 8px; font: 500 0.7rem var(--label); letter-spacing: 0.1em; text-transform: uppercase; color: var(--paper); text-shadow: 1px 1px 0 var(--ink); }
+.p-task.opened .art.corner { top: 104px; }
+
+/* Locks. */
+.wires { display: flex; flex-direction: column; gap: 6px; }
+.wire { display: grid; grid-template-columns: 18px 1fr 54px 22px; align-items: center; gap: 8px; padding: 6px 12px 10px; font-size: 0.8rem; text-align: left; }
+.wire i { display: block; height: 10px; border-radius: 5px; border: 1px solid #57534e; }
+.wire span:last-child { font: 500 0.65rem var(--label); }
+.rules { margin: 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; background: var(--paper-light); border: 2px dashed var(--pencil); padding: 8px 8px 8px 26px; }
+.sketch { width: 100%; aspect-ratio: 3 / 2; border: 2px solid var(--ink); background: #f7efdc; }
+.sketch.draw { touch-action: none; cursor: crosshair; }
+
+/* Onboarding. */
+.ob { display: flex; flex-direction: column; gap: 10px; flex: 1; }
+.ob-head { display: flex; justify-content: space-between; align-items: center; }
+.steps { display: flex; gap: 6px; }
+.steps i { display: block; width: 10px; height: 10px; background: var(--paper-shade); }
+.steps i.past { background: var(--ink); }
+.steps i.on { width: 28px; background: var(--ink); }
+.ob-room { font: 500 0.7rem var(--label); letter-spacing: 0.1em; text-transform: uppercase; color: var(--brown); }
+.ob h2 { font-size: 1.45rem; }
+.screen .code-boxes { height: 64px; font: 700 2rem var(--body); letter-spacing: 0.92em; text-transform: uppercase; padding: 0 0 0 0.52em;
+  background: repeating-linear-gradient(90deg, var(--paper-light) 0 calc(20% - 8px), transparent calc(20% - 8px) 20%); border: 0; box-shadow: none; }
+.hand { font: 1rem var(--hand); color: var(--brown); margin: 0; }
+.screen .name-line { background: transparent; border: 0; border-bottom: 2px solid var(--ink); box-shadow: none; font: 1.2rem var(--body); padding: 6px 0; }
+.picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.pick { background: none; border: 3px solid transparent; padding: 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.pick .av { width: 100%; }
+.pick .av.sm img { width: 100%; height: auto; aspect-ratio: 4 / 5; }
+.pick.mine { border-color: var(--action); }
+.pick.taken { opacity: 0.5; filter: grayscale(1); }
+.pick .who { font: 500 0.6rem var(--label); letter-spacing: 0.1em; text-transform: uppercase; color: var(--action); min-height: 0.8rem; }
+.pick.taken .who { color: var(--brown); }
+.picker.vote { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.picker.vote .pick .av b { font-size: 0.62rem; }
+.skipvote { margin-top: 10px; width: calc(100% - 12px) !important; align-self: stretch !important; }
+.skipvote.on { outline: 3px solid var(--action); outline-offset: 2px; }
+.answer-note { background: var(--paper-light); border: 3px solid var(--ink); box-shadow: inset -4px -4px 0 var(--paper-shade); padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.screen .answer-note textarea { background: repeating-linear-gradient(transparent 0 37px, var(--pencil) 37px 38px); border: 0; box-shadow: none; font: 1.25rem/38px var(--hand); padding: 0; min-height: 116px; }
+.ob-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ob-row .p-btn, .ob-row .p-btn2 { width: calc(100% - 12px); text-align: center; align-self: stretch; padding: 12px; font-size: 1rem; }
+
+/* Role cards: identical for the murderer and everyone else. */
+.splash { flex: 1; display: flex; flex-direction: column; gap: 8px; position: relative; }
+.splash::after { content: ""; position: absolute; top: 34px; right: -10px; width: 46px; height: 46px; background: url("/figma/seal.png") center / contain no-repeat; transform: rotate(12deg); }
+.splash ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; }
+.memory-art { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border: 2px solid var(--ink); display: block; }
+.memory-art.knife { display: grid; place-items: center; background: radial-gradient(ellipse at 50% 45%, #cdb68a, #c6ae80 55%, #b49d74); padding: 4px 0; }
+.knife-svg { height: 150px; width: auto; }
+
+/* Role envelope: the seal breaks, the flap lifts, the letter rises out and becomes the card. */
+.envelope-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; flex: 1; text-align: center; }
+.envelope { position: relative; width: 220px; height: 140px; margin-top: 40px; }
+.envelope i { position: absolute; display: block; }
+.env-back { inset: 0; background: #b89c66; border: 3px solid var(--ink); }
+.env-front { inset: 0; background: linear-gradient(to top right, #d9c393 50%, transparent 50.5%) left / 50% 100% no-repeat, linear-gradient(to top left, #d9c393 50%, transparent 50.5%) right / 50% 100% no-repeat, linear-gradient(transparent 45%, #cdb37e 45%); border: 3px solid var(--ink); }
+.env-flap { left: 0; right: 0; top: 0; height: 60%; background: #c9b07a; clip-path: polygon(0 0, 100% 0, 50% 100%); border-top: 3px solid var(--ink); z-index: 2; }
+.env-seal { position: absolute; left: 50%; top: 42%; width: 52px; margin-left: -26px; z-index: 3; }
+.role-reveal { display: flex; flex-direction: column; flex: 1; position: relative; }
+.role-reveal.anim { isolation: isolate; }
+.rv { position: absolute; left: 50%; display: block; pointer-events: none; animation-duration: 1.5s; animation-delay: var(--t); animation-fill-mode: both; animation-timing-function: cubic-bezier(0.22, 0.75, 0.25, 1); }
+.rv-back, .rv-front { top: 120px; width: 220px; height: 140px; margin-left: -110px; animation-name: rv-env; }
+.rv-back { background: #b89c66; border: 3px solid var(--ink); z-index: 1; }
+.rv-front { z-index: 3; background: linear-gradient(to top right, #d9c393 50%, transparent 50.5%) left / 50% 100% no-repeat, linear-gradient(to top left, #d9c393 50%, transparent 50.5%) right / 50% 100% no-repeat, linear-gradient(transparent 45%, #cdb37e 45%); border: 3px solid var(--ink); border-top-color: transparent; }
+.rv-flap { top: 120px; width: 220px; height: 84px; margin-left: -110px; z-index: 4; background: #c9b07a; clip-path: polygon(0 0, 100% 0, 50% 100%); transform-origin: top; animation-name: rv-flap; }
+.rv-seal { top: 164px; width: 52px; margin-left: -26px; z-index: 5; animation-name: rv-seal; }
+.rv-letter { top: 136px; width: 186px; height: 110px; margin-left: -93px; z-index: 2; background: #f6efe0; border: 2px solid var(--ink); padding: 18px 18px 0; animation-name: rv-letter; }
+.rv-letter i { display: block; height: 2px; background: var(--pencil); margin-bottom: 18px; }
+.role-reveal.anim > .splash { animation: rv-card 1.5s var(--t) both cubic-bezier(0.22, 0.75, 0.25, 1); transform-origin: 50% 30%; }
+@keyframes rv-seal { 0% { transform: none; opacity: 1; } 14% { transform: scale(1.25); opacity: 1; } 24%, 100% { transform: scale(0.5) rotate(25deg); opacity: 0; } }
+@keyframes rv-flap { 0%, 12% { transform: rotateX(0); z-index: 4; } 26% { z-index: 0; } 38% { transform: rotateX(180deg); z-index: 0; } 58% { opacity: 1; } 72%, 100% { transform: rotateX(180deg); opacity: 0; z-index: 0; } }
+@keyframes rv-letter { 0%, 32% { transform: translateY(0); opacity: 1; } 58% { transform: translateY(-104px); opacity: 1; } 70%, 100% { transform: translateY(-112px) scale(1.06); opacity: 0; } }
+@keyframes rv-env { 0%, 48% { transform: none; opacity: 1; } 66%, 100% { transform: translateY(36px); opacity: 0; } }
+@keyframes rv-card { 0%, 56% { opacity: 0; transform: translateY(20px) scale(0.72); } 100% { opacity: 1; transform: none; } }
+
+/* ---------- Home page ---------- */
+.home { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; background: var(--fog-dark) url("/figma/bg-lobby-entrance.jpg") center / cover no-repeat; position: relative; }
+.home::before { content: ""; position: absolute; inset: 0; background: rgba(20, 20, 20, 0.55); }
+.home > * { position: relative; }
+.home .screen { flex: none; width: min(440px, calc(100% - 12px)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .rv { display: none !important; }
+  .role-reveal.anim > .splash, .torn > .half, .tally .marks i, .tally-after > *, .av.dead::after, .room-scene { animation: none !important; }
+  .weather canvas { display: none; }
+  .weather .flicker { animation: none; }
+}
