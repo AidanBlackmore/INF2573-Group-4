@@ -12,21 +12,79 @@ const DEFAULTS: SoundSettings = { music: true, narrator: true, effects: true, mu
 
 type Listener = (s: SoundSettings) => void;
 
+// One story's music. Two copies of the track take turns: a few seconds before one
+// ends, the other starts and they crossfade, so the loop never stops. Each starts
+// past the track's quiet intro. A loop that isn't wanted fades out, then pauses
+// where it was, so coming back to a story picks the music up again.
+class Loop {
+  private els: HTMLAudioElement[];
+  private cur = 0;
+  private xfAt = 0;
+  level = 0;
+  target = 0;
+
+  constructor(src: string, private head: number, private xfade: number) {
+    this.els = [0, 1].map(() => Object.assign(new Audio(src), { preload: "none" }));
+    this.els.forEach((a, i) => a.addEventListener("ended", () => { if (i === this.cur && this.target > 0) this.loopNow(); }));
+  }
+
+  play() {
+    const a = this.els[this.cur];
+    if (a.currentTime < this.head) a.currentTime = this.head;
+    return a.play();
+  }
+
+  pause() {
+    this.els.forEach((a) => a.pause());
+  }
+
+  private loopNow() {
+    const next = this.els[1 - this.cur];
+    next.currentTime = this.head;
+    next.volume = 0;
+    next.play().catch(() => {});
+    this.cur = 1 - this.cur;
+    this.xfAt = performance.now();
+  }
+
+  step(allowed: boolean) {
+    this.level += (this.target - this.level) * 0.12;
+    const a = this.els[this.cur], b = this.els[1 - this.cur];
+    if (this.target === 0 && this.level < 0.002) {
+      if (!a.paused || !b.paused) this.pause();
+      return;
+    }
+    if (allowed && this.target > 0 && a.paused && b.paused) this.play().catch(() => {});
+    if (!a.paused && a.duration && a.currentTime > a.duration - this.xfade && b.paused) {
+      b.preload = "auto";
+      this.loopNow();
+      return;
+    }
+    const f = Math.min(1, (performance.now() - this.xfAt) / (this.xfade * 1000)); // equal-power crossfade
+    a.volume = Math.min(1, Math.max(0, this.level * Math.sin((f * Math.PI) / 2)));
+    if (!b.paused) {
+      if (f >= 1) b.pause();
+      else b.volume = Math.min(1, Math.max(0, this.level * Math.cos((f * Math.PI) / 2)));
+    }
+  }
+}
+
+// Each story's music: the manor's ambience and Station Zero's eerie score.
+export type Track = "marlowe" | "station";
+
 class Sound {
   settings: SoundSettings = { ...DEFAULTS };
   private listeners = new Set<Listener>();
-  private phase = "lobby";
+  private phase = "join";
   private speaking = false;
 
   // ---------- music ----------
-  // Two copies of the track take turns: 4 seconds before one ends, the other
-  // starts and they crossfade, so the loop never stops. Each starts past the
-  // near-silent first 2.6 seconds.
-  private tracks: HTMLAudioElement[] = [];
-  private cur = 0;
-  private xfAt = 0;
-  private level = 0;
-  private playing = false;
+  private loops: Record<Track, Loop>;
+  private track: Track | null = null;
+  // True once a click has let the browser play sound.
+  private unlocked = false;
+  // Lightning only where it's storming (Marlowe Manor).
+  private stormy = false;
 
   constructor() {
     try {
@@ -35,13 +93,13 @@ class Sound {
     } catch {
       // Private mode or blocked storage: use the defaults.
     }
-    this.tracks = [0, 1].map(() => Object.assign(new Audio("/audio/ambience.mp3"), { preload: "none" }));
-    this.tracks.forEach((a, i) => a.addEventListener("ended", () => { if (this.playing && i === this.cur) this.loopNow(); }));
+    this.loops = { marlowe: new Loop("/audio/ambience.mp3", 2.6, 4), station: new Loop("/audio/station.mp3", 4, 5) };
     setInterval(() => this.ramp(), 60);
     addEventListener("pointerdown", () => this.unlock(), { capture: true });
-    // Lightning every 15 to 30 seconds once the game has started.
+    addEventListener("keydown", () => this.unlock(), { capture: true });
+    // Lightning every 15 to 30 seconds while it's storming.
     const storm = () => setTimeout(() => {
-      if (this.phase !== "lobby") {
+      if (this.stormy) {
         this.flash?.();
         setTimeout(() => this.thunder(0.45), 900);
       }
@@ -63,15 +121,16 @@ class Sound {
     } catch {
       // Not saved; fine.
     }
-    if (patch.music === true) this.startMusic();
-    if (patch.music === false) this.stopMusic();
     if (patch.narrator === false) this.stopVoice();
     this.listeners.forEach((fn) => fn(this.settings));
   }
 
-  // The TV tells us which screen is showing, for the music level and the narrator.
-  setPhase(phase: string) {
+  // The TV tells us which screen is showing (for the music level and the narrator),
+  // which story's music to play, and whether it's storming.
+  setScene(phase: string, track: Track | null, stormy: boolean) {
     this.phase = phase;
+    this.track = track;
+    this.stormy = stormy;
   }
 
   // Set by the TV so lightning can flash the screen.
@@ -79,46 +138,21 @@ class Sound {
 
   private unlock() {
     this.ctx();
-    if (this.settings.music && !this.playing) this.startMusic();
-  }
-
-  private startMusic() {
-    const a = this.tracks[this.cur];
-    if (a.currentTime < 2.6) a.currentTime = 2.6;
-    a.play().then(() => (this.playing = true)).catch(() => {});
-  }
-
-  private stopMusic() {
-    this.playing = false;
-    this.tracks.forEach((a) => a.pause());
-  }
-
-  private loopNow() {
-    const next = this.tracks[1 - this.cur];
-    next.currentTime = 2.6;
-    next.volume = 0;
-    next.play().catch(() => {});
-    this.cur = 1 - this.cur;
-    this.xfAt = performance.now();
+    if (this.unlocked) return;
+    this.unlocked = true;
+    // Start a track inside the click so the browser allows the music from now on.
+    const first = this.loops[this.track ?? "marlowe"];
+    first.play().then(() => { if (!this.track) first.pause(); }).catch(() => (this.unlocked = false));
   }
 
   // The music dips under the narrator, sits lower while pairs work on locks,
   // and almost disappears while the votes are counted.
   private ramp() {
     const duck = (this.speaking ? 0.4 : 1) * ((({ tasks: 0.65, tally: 0.12 }) as Record<string, number>)[this.phase] ?? 1);
-    const target = this.settings.muted ? 0 : (this.settings.volume / 100) * duck;
-    this.level += (target - this.level) * 0.12;
-    const a = this.tracks[this.cur], b = this.tracks[1 - this.cur];
-    if (this.playing && !a.paused && a.duration && a.currentTime > a.duration - 4 && b.paused) {
-      b.preload = "auto";
-      this.loopNow();
-      return;
-    }
-    const f = Math.min(1, (performance.now() - this.xfAt) / 4000); // equal-power crossfade
-    a.volume = Math.min(1, Math.max(0, this.level * Math.sin((f * Math.PI) / 2)));
-    if (!b.paused) {
-      if (f >= 1) b.pause();
-      else b.volume = Math.min(1, Math.max(0, this.level * Math.cos((f * Math.PI) / 2)));
+    const base = this.settings.muted || !this.settings.music ? 0 : (this.settings.volume / 100) * duck;
+    for (const [key, loop] of Object.entries(this.loops) as [Track, Loop][]) {
+      loop.target = key === this.track ? base : 0;
+      loop.step(this.unlocked);
     }
   }
 
@@ -400,6 +434,25 @@ class Sound {
     this.play("heartbeat", (c, t) => {
       this.tone(c, t, "sine", 58, 0.32, 0.012, 0.16, 42);
       this.tone(c, t + 0.2, "sine", 58, 0.2, 0.012, 0.16, 42);
+    }, 0.5);
+  }
+
+  // A soft rush of air as one story slides away and the next comes in.
+  whoosh(dir = 1) {
+    this.play("whoosh", (c, t) => {
+      const src = c.createBufferSource();
+      src.buffer = this.noiseBuf(c);
+      const f = c.createBiquadFilter();
+      f.type = "bandpass";
+      f.Q.value = 1.4;
+      f.frequency.setValueAtTime(dir > 0 ? 300 : 2200, t);
+      f.frequency.exponentialRampToValueAtTime(dir > 0 ? 2200 : 300, t + 0.5);
+      const pan = c.createStereoPanner();
+      pan.pan.setValueAtTime(dir > 0 ? 0.7 : -0.7, t);
+      pan.pan.linearRampToValueAtTime(dir > 0 ? -0.7 : 0.7, t + 0.5);
+      src.connect(f).connect(pan).connect(this.env(c, t, 0.35, 0.18, 0.45));
+      src.start(t);
+      src.stop(t + 0.8);
     }, 0.5);
   }
 

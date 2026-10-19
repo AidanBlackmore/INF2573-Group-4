@@ -7,12 +7,17 @@ import { supabase } from "../supabase";
 // What get_view() returns. The database decides what each screen may see:
 // the TV gets the public picture; a phone also gets its own role, its side of
 // its lock and its half of the note; only the murderer gets `secret`.
-export type Phase = "lobby" | "roles" | "tasks" | "quiet" | "discuss" | "meeting" | "tally" | "revealed" | "ended";
+export type Phase = "join" | "browse" | "lobby" | "roles" | "tasks" | "quiet" | "discuss" | "meeting" | "tally" | "revealed" | "ended";
 
 export type Player = {
   id: string;
   name: string | null;
+  // The colour picked in the lobby (1 to 6), and whether they tapped "I'm in".
+  color: number | null;
+  joined: boolean;
   portrait: number | null;
+  // Picked their detective inside Marlowe Manor.
+  picked: boolean;
   answered: boolean;
   opened: boolean;
   ready: boolean;
@@ -57,7 +62,11 @@ export type MyLock = {
 export type VoteResult = { counts: { k: string; n: number }[]; ejected: string | null; tie: boolean; was_murderer?: boolean };
 
 export type View = {
-  room: { id: string; code: string; phase: Phase; round: number; phase_at: string; deadline: string | null; total_secs: number; version: number };
+  room: {
+    id: string; code: string; phase: Phase; round: number; phase_at: string; deadline: string | null; total_secs: number; version: number;
+    // The story browser: which story is on screen, which way the last swipe went, and when.
+    focus: number; focus_dir: 1 | -1; focus_at: string; story: string | null;
+  };
   server_now: string;
   me: string | null;
   is_tv: boolean;

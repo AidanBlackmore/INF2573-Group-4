@@ -8,7 +8,7 @@ import { JoinStep } from "./play/[code]/phone";
 export default function Home() {
   const router = useRouter();
   return (
-    <main className="gathering home">
+    <main className="gathering home" data-world="shell">
       <div className="screen">
         <JoinStep initial="" onJoined={(_, code) => router.push(`/play/${code}`)} />
         <Link href="/host" className="p-small" style={{ textAlign: "center", color: "var(--ink)" }}>
