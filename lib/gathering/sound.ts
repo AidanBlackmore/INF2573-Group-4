@@ -13,6 +13,9 @@ const DEFAULTS: SoundSettings = { music: true, narrator: true, effects: true, mu
 type Listener = (s: SoundSettings) => void;
 type LockListener = (locked: boolean) => void;
 
+// A twentieth of a second of silence, for unlocking the narrator's audio element.
+const SILENT = "data:audio/wav;base64,UklGRrQBAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YZABAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA";
+
 // One story's music. Two copies of the track take turns: a few seconds before one
 // ends, the other starts and they crossfade, so the loop never stops. Each starts
 // past the track's quiet intro. A loop that isn't wanted fades out, then pauses
@@ -37,6 +40,22 @@ class Loop {
 
   pause() {
     this.els.forEach((a) => a.pause());
+  }
+
+  // Inside a click: start and stop each copy silently, so browsers that only let
+  // media play once a click has started it (Safari) allow it later.
+  prime() {
+    for (const a of this.els) {
+      if (!a.paused) continue;
+      a.muted = true;
+      a.play().then(
+        () => {
+          a.pause();
+          a.muted = false;
+        },
+        () => (a.muted = false),
+      );
+    }
   }
 
   private loopNow() {
@@ -83,7 +102,7 @@ class Sound {
   // ---------- music ----------
   private loops: Record<Track, Loop>;
   private track: Track | null = null;
-  // True once a click has let the browser play sound.
+  // True once the browser allows sound (usually after the first click on the page).
   private unlocked = false;
   // Lightning only where it's storming (Marlowe Manor).
   private stormy = false;
@@ -97,10 +116,11 @@ class Sound {
     }
     this.loops = { marlowe: new Loop("/audio/ambience.mp3", 2.6, 4), station: new Loop("/audio/station.mp3", 4, 5) };
     setInterval(() => this.ramp(), 60);
-    addEventListener("pointerdown", () => this.unlock(), { capture: true });
-    addEventListener("keydown", () => this.unlock(), { capture: true });
-    // Some browsers allow sound straight away (e.g. a site visited often): try once.
-    setTimeout(() => this.unlock(), 0);
+    this.voice = Object.assign(new Audio(), { preload: "auto" });
+    addEventListener("pointerdown", () => this.unlock(true), { capture: true });
+    addEventListener("keydown", () => this.unlock(true), { capture: true });
+    // Some browsers allow sound straight away (e.g. a site visited often): check once.
+    setTimeout(() => this.unlock(false), 0);
     // Lightning every 15 to 30 seconds while it's storming.
     const storm = () => setTimeout(() => {
       if (this.stormy) {
@@ -147,26 +167,33 @@ class Sound {
   // Set by the TV so lightning can flash the screen.
   flash: (() => void) | null = null;
 
-  private unlock() {
-    this.ctx();
+  // Browsers only allow sound once someone has clicked the page. On every click
+  // (and once at load, in case this browser allows it anyway) wake the audio
+  // engine and start each audio element once, then report whether sound is on.
+  private unlock(click: boolean) {
+    const ctx = this.ctx();
+    if (this.unlocked) return;
+    if (click) Object.values(this.loops).forEach((loop) => loop.prime());
+    const v = this.voice;
+    if (v.paused) {
+      v.onplay = v.onended = v.onerror = null;
+      v.src = SILENT;
+      v.play().then(() => this.allowed(), () => {});
+    }
+    ctx?.resume().then(() => ctx.state === "running" && this.allowed(), () => {});
+  }
+
+  private allowed() {
     if (this.unlocked) return;
     this.unlocked = true;
-    // Start a track inside the click so the browser allows the music from now on.
-    const first = this.loops[this.track ?? "marlowe"];
-    first
-      .play()
-      .then(() => {
-        if (!this.track) first.pause();
-        this.lockListeners.forEach((fn) => fn(false));
-        // A line the browser blocked before the click: read it now.
-        const waiting = this.blocked;
-        this.blocked = null;
-        if (waiting) {
-          this.said = "";
-          this.narrate(...waiting);
-        }
-      })
-      .catch(() => (this.unlocked = false));
+    this.lockListeners.forEach((fn) => fn(false));
+    // A screen the browser blocked before the click: read it now.
+    const waiting = this.blocked;
+    this.blocked = null;
+    if (waiting) {
+      this.said = "";
+      this.narrate(...waiting);
+    }
   }
 
   // The music dips under the narrator, sits lower while pairs work on locks,
@@ -183,7 +210,9 @@ class Sound {
   // ---------- narrator ----------
   private said = "";
   private run = 0;
-  private clip: HTMLAudioElement | null = null;
+  // One element for every line: browsers that trust an element once a click has
+  // started it (Safari) then let it play each line.
+  private voice: HTMLAudioElement;
   private blocked: [string, string[]] | null = null;
 
   // Reads a screen's lines once: the recording if there is one, otherwise the browser's voice.
@@ -202,18 +231,22 @@ class Sound {
         return;
       }
       const done = () => setTimeout(() => next(i + 1), 400);
-      const clip = new Audio(`/narration/${ids[i]}.mp3`);
-      this.clip = clip;
-      clip.onplay = () => (this.speaking = true);
-      clip.onended = done;
-      clip.onerror = () => {
-        this.clip = null;
+      const v = this.voice;
+      v.onplay = () => (this.speaking = true);
+      v.onended = done;
+      v.onerror = () => {
         if (run === this.run) this.speak(NARRATION[ids[i]] ?? "", run, done);
       };
-      clip.play().catch((e: Error) => {
-        // No click on the TV yet: keep the screen's lines for when sound is allowed.
+      v.src = `/narration/${ids[i]}.mp3`;
+      v.play().catch((e: Error) => {
+        // The browser wants a click first: keep the screen's lines for then, and
+        // show the TV's "Turn on sound" button.
         if (e.name !== "NotAllowedError" || run !== this.run) return;
         this.blocked = [this.said, ids];
+        if (this.unlocked) {
+          this.unlocked = false;
+          this.lockListeners.forEach((fn) => fn(true));
+        }
       });
     };
     next(0);
@@ -221,11 +254,9 @@ class Sound {
 
   private stopVoice() {
     this.run++;
-    if (this.clip) {
-      this.clip.onerror = this.clip.onended = null;
-      this.clip.pause();
-      this.clip = null;
-    }
+    const v = this.voice;
+    v.onplay = v.onerror = v.onended = null;
+    v.pause();
     window.speechSynthesis?.cancel();
     this.speaking = false;
   }

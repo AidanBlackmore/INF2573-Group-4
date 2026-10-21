@@ -71,7 +71,10 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
 
 ### Sound
 
-- **Unlocking:** browsers block audio until someone clicks the page. The TV shows a **Turn on sound** button until the first click. Lines blocked before then are read once sound is allowed.
+- **Unlocking:** browsers block audio until someone clicks the page.
+  - The TV shows a **Turn on sound** button until the first click; it comes back if a line is ever blocked.
+  - The click wakes the audio engine and starts every audio element once, which Safari needs.
+  - Lines blocked before the click are read once sound is allowed.
 - **Narrator:** reads every `[data-line]` on the TV screen once per screen.
 - **Music:** ducks under the narrator and during lock solving.
 - **Station Zero's music** plays while it's on screen in the browser.
@@ -105,7 +108,11 @@ A local harness was used during development. It lives outside the repo, so rebui
 
 Things to know when testing:
 
-- **Sound in tests:** headless Chromium lets audio play without a click, so it won't catch autoplay problems. Simulate the block yourself.
+- **Sound in tests:** Playwright turns off the browser's sound blocking and counts page loads as a click, so tests never see real autoplay rules. Imitate them with an init script that rejects `play()` with `NotAllowedError`:
+  - **Chrome rule:** no sound until the page's first click.
+  - **Safari rule:** an element plays only once a click has started it. This applies to Safari and to every iPhone/iPad browser.
+
+  The narrator reuses one audio element, which a click starts once, for exactly this reason.
 - **PostHog in tests:** PostHog drops headless browsers as bots. To capture events in tests, override `navigator.webdriver` and `userAgentData`.
 - **Stopping processes:** don't use `pkill -f` or `pgrep -f`; they match their own shell. Kill by PID instead.
 
