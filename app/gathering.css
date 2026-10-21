@@ -99,6 +99,9 @@
 .tv-bar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: flex-end; padding: 8px 16px; background: var(--room); }
 .tool { background: transparent; color: var(--on-dark); border: 1px solid #3a332d; border-radius: 8px; padding: 6px 12px; font-size: 0.7rem; }
 .tool:hover:not(:disabled) { border-color: var(--tv-muted); }
+.tool.sound-gate { margin-right: auto; background: var(--action); border-color: var(--action); color: #fff; font-weight: 600; animation: gate 1.6s ease-in-out infinite; }
+@keyframes gate { 50% { opacity: 0.7; } }
+@media (prefers-reduced-motion: reduce) { .tool.sound-gate { animation: none; } }
 .tv-bar input[type="range"] { width: 90px; accent-color: var(--paper); }
 .tv-bar output { font: 0.8rem var(--label); color: var(--tv-muted); min-width: 3ch; }
 .tv { flex: 1; position: relative; overflow: hidden; background: var(--fog-dark) center / cover no-repeat; padding: 24px clamp(16px, 3vw, 48px) 40px; display: flex; flex-direction: column; gap: 18px; }

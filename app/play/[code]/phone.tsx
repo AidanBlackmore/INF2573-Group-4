@@ -17,8 +17,10 @@ export default function PhoneScreen() {
   const urlCode = decodeURIComponent(params.code ?? "").toUpperCase();
   const [roomId, setRoomId] = useState<string | null>(null);
   const [checked, setChecked] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
 
   // Already in this room (a refreshed or relocked phone)? Then skip the code step.
+  // Otherwise the QR code brought them here: join straight away, no confirm step.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -34,8 +36,20 @@ export default function PhoneScreen() {
               window.history.replaceState(null, "", `/play/${urlCode}`);
             } else track("phone_rejoined", { room_id: room.id });
             setRoomId(room.id);
+            return;
           }
         }
+        if (urlCode.length !== 5 || cancelled) return;
+        const { data, error } = await supabase.rpc("join_room", { p_code: urlCode });
+        if (cancelled) return;
+        if (error) {
+          // Wrong, full or already started: show the code step with the reason.
+          setJoinError(errorMessage(error));
+          track("join_failed", { error: errorMessage(error), via: "qr" });
+          return;
+        }
+        rememberJoin("qr");
+        setRoomId(data.room_id);
       } finally {
         if (!cancelled) setChecked(true);
       }
@@ -54,7 +68,7 @@ export default function PhoneScreen() {
       if (code !== urlCode) window.history.replaceState(null, "", `/play/${code}`);
       setRoomId(id);
     };
-    return <Page><JoinStep initial={urlCode} onJoined={joined} /></Page>;
+    return <Page><JoinStep initial={urlCode} initialError={joinError} onJoined={joined} /></Page>;
   }
   return <Joined roomId={roomId} />;
 }
@@ -91,9 +105,9 @@ function Steps({ step, code }: { step: number; code?: string }) {
 }
 
 // Step 1: the room code from the TV.
-export function JoinStep({ initial, onJoined }: { initial: string; onJoined: (roomId: string, code: string) => void }) {
+export function JoinStep({ initial, initialError = null, onJoined }: { initial: string; initialError?: string | null; onJoined: (roomId: string, code: string) => void }) {
   const [code, setCode] = useState(initial);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError);
   const [busy, setBusy] = useState(false);
   const join = async () => {
     setBusy(true);

@@ -11,6 +11,7 @@ const KEY = "gathering:sound";
 const DEFAULTS: SoundSettings = { music: true, narrator: true, effects: true, muted: false, volume: 20 };
 
 type Listener = (s: SoundSettings) => void;
+type LockListener = (locked: boolean) => void;
 
 // One story's music. Two copies of the track take turns: a few seconds before one
 // ends, the other starts and they crossfade, so the loop never stops. Each starts
@@ -75,6 +76,7 @@ export type Track = "marlowe" | "station";
 class Sound {
   settings: SoundSettings = { ...DEFAULTS };
   private listeners = new Set<Listener>();
+  private lockListeners = new Set<LockListener>();
   private phase = "join";
   private speaking = false;
 
@@ -97,6 +99,8 @@ class Sound {
     setInterval(() => this.ramp(), 60);
     addEventListener("pointerdown", () => this.unlock(), { capture: true });
     addEventListener("keydown", () => this.unlock(), { capture: true });
+    // Some browsers allow sound straight away (e.g. a site visited often): try once.
+    setTimeout(() => this.unlock(), 0);
     // Lightning every 15 to 30 seconds while it's storming.
     const storm = () => setTimeout(() => {
       if (this.stormy) {
@@ -106,6 +110,13 @@ class Sound {
       storm();
     }, 15000 + Math.random() * 15000);
     storm();
+  }
+
+  // Whether the browser is still waiting for a click before it allows sound.
+  onLock(fn: LockListener) {
+    this.lockListeners.add(fn);
+    fn(!this.unlocked);
+    return () => void this.lockListeners.delete(fn);
   }
 
   subscribe(fn: Listener) {
@@ -142,7 +153,20 @@ class Sound {
     this.unlocked = true;
     // Start a track inside the click so the browser allows the music from now on.
     const first = this.loops[this.track ?? "marlowe"];
-    first.play().then(() => { if (!this.track) first.pause(); }).catch(() => (this.unlocked = false));
+    first
+      .play()
+      .then(() => {
+        if (!this.track) first.pause();
+        this.lockListeners.forEach((fn) => fn(false));
+        // A line the browser blocked before the click: read it now.
+        const waiting = this.blocked;
+        this.blocked = null;
+        if (waiting) {
+          this.said = "";
+          this.narrate(...waiting);
+        }
+      })
+      .catch(() => (this.unlocked = false));
   }
 
   // The music dips under the narrator, sits lower while pairs work on locks,
@@ -160,13 +184,16 @@ class Sound {
   private said = "";
   private run = 0;
   private clip: HTMLAudioElement | null = null;
+  private blocked: [string, string[]] | null = null;
 
   // Reads a screen's lines once: the recording if there is one, otherwise the browser's voice.
   narrate(key: string, ids: string[]) {
     if (key === this.said) return;
     this.said = key;
-    const run = ++this.run;
+    this.blocked = null;
+    // stopVoice() starts a new run, so take the run number after it.
     this.stopVoice();
+    const run = this.run;
     if (!this.settings.narrator || !ids.length) return;
     const next = (i: number) => {
       if (run !== this.run) return;
@@ -183,7 +210,11 @@ class Sound {
         this.clip = null;
         if (run === this.run) this.speak(NARRATION[ids[i]] ?? "", run, done);
       };
-      clip.play().catch(() => {});
+      clip.play().catch((e: Error) => {
+        // No click on the TV yet: keep the screen's lines for when sound is allowed.
+        if (e.name !== "NotAllowedError" || run !== this.run) return;
+        this.blocked = [this.said, ids];
+      });
     };
     next(0);
   }

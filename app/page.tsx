@@ -1,20 +1,8 @@
-"use client";
+import TvScreen from "./host/tv";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { JoinStep } from "./play/[code]/phone";
-
-// Phones join here with the code on the TV (or scan the QR code, which skips this page).
+// The site opens on The Gathering's main screen: the TV, with its QR code.
+// Phones join by scanning it, or by typing the code at /join.
 export default function Home() {
-  const router = useRouter();
-  return (
-    <main className="gathering home" data-world="shell">
-      <div className="screen">
-        <JoinStep initial="" onJoined={(_, code) => router.push(`/play/${code}?via=code`)} />
-        <Link href="/host" className="p-small" style={{ textAlign: "center", color: "var(--ink)" }}>
-          Hosting? Open the TV screen on this device
-        </Link>
-      </div>
-    </main>
-  );
+  // Read on the server so it does not need a NEXT_PUBLIC_ prefix.
+  return <TvScreen feedbackUrl={process.env.FEEDBACK_URL || null} />;
 }

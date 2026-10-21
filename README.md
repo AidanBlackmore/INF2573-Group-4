@@ -2,10 +2,11 @@
 
 "How well do you know your friends?" A party game for 3 to 6 players. One shared screen on a TV, phones as controllers. Everyone joins The Gathering, then the group picks a story to play together. The first story is **Murder at Marlowe Manor**: one of you is secretly the murderer, and everyone else has to work out who before it's too late. **Sabotage on Station Zero** is next (it can be browsed and has its own music, but can't be played yet).
 
-Live: **https://inf-2573-group-4.vercel.app** (the TV is `/host`).
+Live: **https://inf-2573-group-4.vercel.app** (it opens on the TV screen).
 
-- `/host`: the shared screen (the TV). Open it on a laptop connected to the TV. It also plays the music, the narrator and the sound effects.
-- `/play/CODE`: the phone. Players get there by scanning the QR code on the TV, or by typing the room code on the home page.
+- `/` (also `/host`): the shared screen (the TV). Open it on a laptop connected to the TV. It also plays the music, the narrator and the sound effects. Browsers only play sound after a click, so until someone clicks the TV once it shows a **Turn on sound** button.
+- `/play/CODE`: the phone. Scanning the QR code on the TV opens it and joins straight away.
+- `/join`: for phones that can't scan: type the room code.
 
 Phones and the laptop never talk to each other directly. Every action goes to Supabase, and Supabase Realtime tells each screen when something changed. Each screen then reloads what it is allowed to see. That is also how a phone recovers after a refresh or after the screen locks.
 
@@ -17,7 +18,7 @@ Phones and the laptop never talk to each other directly. Every action goes to Su
 
 ## How a game works
 
-1. **Join The Gathering.** Open `/host` on the laptop. It shows the title, a QR code, the address (`inf-2573-group-4.vercel.app`) and a room code (like `OAK47`). Every time the page loads it opens a new room with a new code. Each phone scans the QR code (or types the code into the five boxes on the home page), then picks a **name and one of six colours** (a colour someone has is faded) and taps **I'm in**. Their name tag appears on the TV. With 3 or more in, the host taps **We're in** (on the TV, or on the host's phone: the first player in is the host). Anyone who joined the room but didn't finish is left out of this gathering.
+1. **Join The Gathering.** Open the site on the laptop. It shows the title, a QR code, the address (`inf-2573-group-4.vercel.app/join`) and a room code (like `OAK47`). Every time the page loads it opens a new room with a new code. Each phone scans the QR code, which takes it straight in (or goes to `/join` and types the code into the five boxes), then picks a **name and one of six colours** (a colour someone has is faded) and taps **I'm in**. Their name tag appears on the TV. With 3 or more in, the host taps **We're in** (on the TV, or on the host's phone: the first player in is the host). Anyone who joined the room but didn't finish is left out of this gathering.
 2. **Pick a story.** The TV becomes a full-screen story browser. Anyone can swipe on their phone (or use the arrows and thumbnails on the TV) and every screen follows, with the new story wiping in over the old one. Marlowe Manor brings rain, lightning and its music; Station Zero has drifting dust and its own looping track. The host taps **Enter this story** to step in.
 3. **Inside Marlowe Manor**, each player picks one of six detective portraits and answers **three questions** ("What's your most irrational fear?"). Players can shuffle to a different question but must answer to continue. Answers are private and final.
 4. **Start the night** (on the TV, or on the host's phone: the first player to join gets host controls). Each phone opens a sealed envelope with its secret role: one **murderer**, everyone else **detectives**. The night starts once everyone has tapped **Got it**.
@@ -142,24 +143,24 @@ ipconfig getifaddr en0
 ```
 
 1. In `.env.local`, set `NEXT_PUBLIC_SITE_URL=http://<your IP>:3000` (for example `http://192.168.1.23:3000`) and restart `npm run dev`. Otherwise the QR code sends phones to the live Vercel site. Don't use `localhost`: on a phone that means the phone itself.
-   Then open `/host` on the laptop.
+   Then open `http://localhost:3000` on the laptop.
 2. Scan the QR code with each phone's camera.
 
 University and guest Wi-Fi networks often block devices from talking to each other. In that case, test the deployed Vercel version instead.
 
 ## Deploy to Vercel
 
-Vercel redeploys automatically every time the `nextjs-poc` branch is pushed to GitHub.
+Vercel redeploys automatically every time the `claude/lucid-heisenberg-cgg0ll` branch is pushed to GitHub.
 
 First-time setup:
 
 1. On [vercel.com](https://vercel.com), sign in with GitHub, click **Add New > Project**, and import the repository.
 2. Before clicking Deploy, open **Environment Variables** and add the variables from the table above.
-3. Click **Deploy**. Open `https://inf-2573-group-4.vercel.app/host` on the laptop. The QR code points to that address, so phones can join from any network. If the project lives at a different address, set `NEXT_PUBLIC_SITE_URL` to it.
+3. Click **Deploy**. Open `https://inf-2573-group-4.vercel.app` on the laptop. The QR code points to that address, so phones can join from any network. If the project lives at a different address, set `NEXT_PUBLIC_SITE_URL` to it.
 
 ## Test checklist
 
-- [ ] Open `/host`. The title, a room code and a QR code appear. Scanning the QR code opens `inf-2573-group-4.vercel.app/play/CODE`.
+- [ ] Open the site. The title, a room code and a QR code appear. Scanning the QR code opens `inf-2573-group-4.vercel.app/play/CODE` and goes straight to the name step. Click **Turn on sound** once.
 - [ ] Three or four phones join, each with a name and a colour (a colour someone has is faded). Their tags appear on the TV without a refresh. **We're in** stays disabled until 3 are in. A phone that joined but didn't finish sees "Already started" after **We're in**.
 - [ ] Swipe on a phone: the TV and every phone move to the next story with the wipe. On Marlowe Manor: rain, lightning and the manor's music. On Station Zero: dust and its own music, which keeps looping; **Enter** is disabled. Only the host's phone (or the TV) can enter.
 - [ ] Enter Marlowe Manor. Each phone picks a portrait (a portrait someone else has is shown as taken) and answers three questions. **Start the night** stays disabled until everyone has answered.

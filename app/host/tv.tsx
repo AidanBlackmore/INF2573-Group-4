@@ -178,11 +178,17 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
 
 function SoundBar({ onNewRoom }: { onNewRoom: () => void }) {
   const [s, setS] = useState<SoundSettings | null>(null);
+  // Browsers only play sound after a click on the page; until then, say so.
+  const [locked, setLocked] = useState(false);
   useEffect(() => sound().subscribe(setS), []);
+  useEffect(() => sound().onLock(setLocked), []);
   if (!s) return <div className="tv-bar" />;
   const set = (patch: Partial<SoundSettings>) => sound().set(patch);
   return (
     <div className="tv-bar" role="group" aria-label="Sound">
+      {locked && !s.muted && (
+        <button className="tool sound-gate">Turn on sound</button>
+      )}
       <button className="tool" aria-pressed={s.narrator} onClick={() => set({ narrator: !s.narrator })}>
         {s.narrator ? "Narrator on" : "Narrator off"}
       </button>
@@ -434,7 +440,7 @@ function Join({ view, busy, onGo }: { view: View; busy: boolean; onGo: () => voi
         <div className="join-card pp">
           <span className="lbl">Scan to join</span>
           <QRCodeSVG className="qr-svg" value={url} size={240} marginSize={2} bgColor="#ffffff" fgColor="#111113" title={`Scan to join: ${url}`} />
-          <span className="url">or go to {SITE_URL.replace(/^https?:\/\//, "")}</span>
+          <span className="url">or go to {SITE_URL.replace(/^https?:\/\//, "")}/join</span>
           <p className="bigcode">{view.room.code}</p>
         </div>
       </div>
