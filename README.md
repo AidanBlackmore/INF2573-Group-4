@@ -4,7 +4,7 @@
 
 Live: **https://inf-2573-group-4.vercel.app** (it opens on the TV screen).
 
-- `/` (also `/host`): the shared screen (the TV). Open it on a laptop connected to the TV. It also plays the music, the narrator and the sound effects. Browsers only play sound after a click, so until someone clicks the TV once it shows a **Turn on sound** button.
+- `/` (also `/host`): the shared screen (the TV). Open it on a laptop connected to the TV. It also plays the music, the narrator and the sound effects. Sound is on by default; see [Sound on the TV](#sound-on-the-tv) for the one-time browser setting that lets it start without a click.
 - `/play/CODE`: the phone. Scanning the QR code on the TV opens it and joins straight away.
 - `/join`: for phones that can't scan: type the room code.
 
@@ -148,6 +148,16 @@ ipconfig getifaddr en0
 
 University and guest Wi-Fi networks often block devices from talking to each other. In that case, test the deployed Vercel version instead.
 
+## Sound on the TV
+
+The music and narrator are on by default, but browsers don't let a website play sound until someone has clicked or pressed a key on the page, or the browser has been told to allow sound for that site. Do this once on the laptop that runs the TV, and sound then starts by itself every time:
+
+- **Chrome or Edge:** open the site, click the icon left of the address, then **Site settings**, and set **Sound** to **Allow**.
+- **Safari:** open the site, choose **Safari > Settings for inf-2573-group-4.vercel.app…**, and set **Auto-Play** to **Allow All Auto-Play**.
+- **Firefox:** click the icon left of the address and set **Autoplay** to **Allow Audio and Video**.
+
+Without it, sound starts on the first click or key press anywhere on the TV page (for example **We're in**), and any narration that was due is read then.
+
 ## Deploy to Vercel
 
 Vercel redeploys automatically every time the `claude/lucid-heisenberg-cgg0ll` branch is pushed to GitHub.
@@ -160,7 +170,7 @@ First-time setup:
 
 ## Test checklist
 
-- [ ] Open the site. The title, a room code and a QR code appear. Scanning the QR code opens `inf-2573-group-4.vercel.app/play/CODE` and goes straight to the name step. Click **Turn on sound** once.
+- [ ] Open the site. The title, a room code and a QR code appear. Scanning the QR code opens `inf-2573-group-4.vercel.app/play/CODE` and goes straight to the name step.
 - [ ] Three or four phones join, each with a name and a colour (a colour someone has is faded). Their tags appear on the TV without a refresh. **We're in** stays disabled until 3 are in. A phone that joined but didn't finish sees "Already started" after **We're in**.
 - [ ] Swipe on a phone: the TV and every phone move to the next story with the wipe. On Marlowe Manor: rain, lightning and the manor's music. On Station Zero: dust and its own music, which keeps looping; **Enter** is disabled. Only the host's phone (or the TV) can enter.
 - [ ] Enter Marlowe Manor. Each phone picks a portrait (a portrait someone else has is shown as taken) and answers three questions. **Start the night** stays disabled until everyone has answered.

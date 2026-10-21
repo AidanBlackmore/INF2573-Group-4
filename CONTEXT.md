@@ -71,10 +71,9 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
 
 ### Sound
 
-- **Unlocking:** browsers block audio until someone clicks the page.
-  - The TV shows a **Turn on sound** button until the first click; it comes back if a line is ever blocked.
-  - The click wakes the audio engine and starts every audio element once, which Safari needs.
-  - Lines blocked before the click are read once sound is allowed.
+- **On by default:** no "turn on sound" button (the user asked for none). Browsers still block sound until the page gets a click or key press, unless the site is allowed to autoplay.
+  - **Zero clicks:** set the TV laptop's browser to allow sound for the site once. The README's "Sound on the TV" section has the steps.
+  - **Otherwise:** the first click or key press anywhere on the TV wakes the audio engine and starts every audio element once (Safari needs that). Lines blocked before then are read at that moment.
 - **Narrator:** reads every `[data-line]` on the TV screen once per screen.
 - **Music:** ducks under the narrator and during lock solving.
 - **Station Zero's music** plays while it's on screen in the browser.

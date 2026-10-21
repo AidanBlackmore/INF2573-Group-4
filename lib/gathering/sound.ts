@@ -1,8 +1,9 @@
 "use client";
 
 // Sound for the TV: background music, the narrator and sound effects.
-// Phones stay silent. Browsers only allow sound after a click, so everything
-// starts on the first click on the TV page.
+// Phones stay silent. Sound is on from the start: everything plays as soon as the
+// browser allows it, which is straight away where the site may autoplay (see the
+// README) and otherwise on the first click or key press on the TV page.
 
 import { NARRATION } from "./content";
 
@@ -11,7 +12,6 @@ const KEY = "gathering:sound";
 const DEFAULTS: SoundSettings = { music: true, narrator: true, effects: true, muted: false, volume: 20 };
 
 type Listener = (s: SoundSettings) => void;
-type LockListener = (locked: boolean) => void;
 
 // A twentieth of a second of silence, for unlocking the narrator's audio element.
 const SILENT = "data:audio/wav;base64,UklGRrQBAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YZABAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA";
@@ -95,7 +95,6 @@ export type Track = "marlowe" | "station";
 class Sound {
   settings: SoundSettings = { ...DEFAULTS };
   private listeners = new Set<Listener>();
-  private lockListeners = new Set<LockListener>();
   private phase = "join";
   private speaking = false;
 
@@ -119,7 +118,7 @@ class Sound {
     this.voice = Object.assign(new Audio(), { preload: "auto" });
     addEventListener("pointerdown", () => this.unlock(true), { capture: true });
     addEventListener("keydown", () => this.unlock(true), { capture: true });
-    // Some browsers allow sound straight away (e.g. a site visited often): check once.
+    // Where the browser allows autoplay, start straight away.
     setTimeout(() => this.unlock(false), 0);
     // Lightning every 15 to 30 seconds while it's storming.
     const storm = () => setTimeout(() => {
@@ -130,13 +129,6 @@ class Sound {
       storm();
     }, 15000 + Math.random() * 15000);
     storm();
-  }
-
-  // Whether the browser is still waiting for a click before it allows sound.
-  onLock(fn: LockListener) {
-    this.lockListeners.add(fn);
-    fn(!this.unlocked);
-    return () => void this.lockListeners.delete(fn);
   }
 
   subscribe(fn: Listener) {
@@ -186,7 +178,6 @@ class Sound {
   private allowed() {
     if (this.unlocked) return;
     this.unlocked = true;
-    this.lockListeners.forEach((fn) => fn(false));
     // A screen the browser blocked before the click: read it now.
     const waiting = this.blocked;
     this.blocked = null;
@@ -239,14 +230,10 @@ class Sound {
       };
       v.src = `/narration/${ids[i]}.mp3`;
       v.play().catch((e: Error) => {
-        // The browser wants a click first: keep the screen's lines for then, and
-        // show the TV's "Turn on sound" button.
+        // The browser wants a click first: keep the screen's lines for then.
         if (e.name !== "NotAllowedError" || run !== this.run) return;
         this.blocked = [this.said, ids];
-        if (this.unlocked) {
-          this.unlocked = false;
-          this.lockListeners.forEach((fn) => fn(true));
-        }
+        this.unlocked = false;
       });
     };
     next(0);
