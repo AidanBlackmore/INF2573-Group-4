@@ -369,6 +369,7 @@
 .join-card .lbl { font: 500 .8rem var(--label); letter-spacing: .12em; text-transform: uppercase; color: #4a4a50; }
 .join-card .qr-svg { width: 100%; max-width: 240px; border: 3px solid var(--ink); display: block; background: #fff; }
 .join-card .url { font: 1rem var(--body); color: #4a4a50; text-align: center; }
+.join-card .url b { display: block; font-weight: 400; white-space: nowrap; font-size: 0.9rem; }
 .bigcode { font: 700 clamp(2.4rem, 4.6vw, 4.2rem)/1 var(--pixel); letter-spacing: .14em; color: var(--ink); margin: 0; font-variant-ligatures: none; }
 /* Story browser: the focused story fills the screen; the others wait in a strip. */
 .tv[data-world="browse"] { background: #050506; padding: 0; min-height: min(58vw, 860px); }

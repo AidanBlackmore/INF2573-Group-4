@@ -440,7 +440,9 @@ function Join({ view, busy, onGo }: { view: View; busy: boolean; onGo: () => voi
         <div className="join-card pp">
           <span className="lbl">Scan to join</span>
           <QRCodeSVG className="qr-svg" value={url} size={240} marginSize={2} bgColor="#ffffff" fgColor="#111113" title={`Scan to join: ${url}`} />
-          <span className="url">or go to {SITE_URL.replace(/^https?:\/\//, "")}/join</span>
+          <span className="url">
+            or go to <b>{SITE_URL.replace(/^https?:\/\//, "")}/join</b>
+          </span>
           <p className="bigcode">{view.room.code}</p>
         </div>
       </div>
