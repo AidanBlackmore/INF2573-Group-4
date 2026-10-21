@@ -66,13 +66,25 @@ Human playtesting is still needed to validate session length, discussion quality
 
 - `server/story.js`: connected six-round prose, six fictional identities, decision prompts, and explicit dice reward previews.
 - `server/last-light.js`: deterministic narrative templates, secure random selection, state transitions, evidence, scoring, recap, and separate public/private views.
-- `server/index.js`: HTTP/Socket.IO transport, recovery authentication, public spectators, rate limits, timed turns, and host handover after 30 seconds disconnected.
+- `server.js`: Vercel-compatible HTTP server export and HTTP/Socket.IO transport, recovery authentication, public spectators, rate limits, timed turns, and host handover after 30 seconds disconnected.
 - `public/app.js`: phone and shared-screen interfaces, private local notebook, and recap controls.
 - `public/style.css`: existing visual tokens plus responsive game layouts.
 - `test/last-light.test.js`: rules and privacy tests.
 - `scripts/simulate.js`: real multiplayer smoke test.
 
 The earlier AI prototype’s modules in `server/gm`, `server/rooms.js`, `server/results.js`, `server/recap.js`, `server/prompts`, and `config` are retained for project history but are not imported by the new application. No API key is used, even if an old `.env` sets `GM_MODE=live`.
+
+## Vercel preview deployment
+
+This is an **Express + Socket.IO** application, not Next.js. The repository's `vercel.json` overrides a previously selected Next.js preset and build command. Do not add `next` to work around “No Next.js version detected.”
+
+Deploy the commit containing this configuration, with the Vercel project's **Root Directory set to the repository root** (leave it blank). `server.js` is the recognized Express entrypoint and exports the HTTP server with its Socket.IO upgrade handler; the existing `npm start` still works through `server/index.js`. Vercel serves `public/` assets automatically. Fluid compute is enabled, and the browser uses WebSocket transport directly instead of a polling handshake.
+
+After pushing the fix, check the **new** preview deployment, rather than redeploying either old failed commit. If the error still mentions Next.js, confirm the deployed commit contains `vercel.json` and the Root Directory is not a subdirectory. This repository cannot override a dashboard Root Directory setting.
+
+**Runtime limit:** this fixes framework detection and the server entrypoint; it does not make the in-memory game store distributed. Separate players, the shared screen, or reconnecting clients can land on different Vercel instances, and WebSockets close at the function duration limit. For reliable full-length multiplayer sessions with the current storage model, run one continuously running Node process behind HTTPS. Supporting Vercel across instances requires shared room storage and cross-instance broadcast/presence coordination; a successful preview build alone does not verify that behavior.
+
+References: [Express on Vercel](https://vercel.com/docs/frameworks/backend/express), [WebSocket transport and persistent state](https://vercel.com/docs/functions/websockets), [configuration overrides](https://vercel.com/docs/project-configuration/vercel-json).
 
 ## Hosting and storage limits
 

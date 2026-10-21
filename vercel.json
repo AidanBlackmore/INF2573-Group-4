@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "express",
+  "installCommand": "npm ci",
+  "buildCommand": "node --check server.js && node --check server/last-light.js && node --check public/app.js",
+  "outputDirectory": null,
+  "fluid": true
+}

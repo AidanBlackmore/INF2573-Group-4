@@ -1,5 +1,6 @@
 'use strict';
-const socket = io();
+// A single WebSocket avoids polling requests reaching different cloud instances.
+const socket = io({ transports: ['websocket'] });
 const app = document.querySelector('#app');
 const params = new URLSearchParams(location.search);
 let entrance = params.has('room') ? 'join' : 'title', publicTab = 'Story';
