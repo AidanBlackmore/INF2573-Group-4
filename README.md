@@ -183,3 +183,5 @@ First-time setup:
 - [ ] **Play again** starts a new night with the same players. **Choose another story** goes back to the story browser with the same group.
 - [ ] Refresh the laptop. It opens a new room with a different code; phones join again. (A game already under way carries on for the phones, but the TV leaves it, so only refresh between games.)
 - [ ] Optional: a 7th phone tries to join and sees "This game is full".
+
+<!-- Connection test from AngellChen, 2026-11-12. Safe to delete this branch. -->
