@@ -18,7 +18,7 @@ Phones and the laptop never talk to each other directly. Every action goes to Su
 
 ## How a game works
 
-1. **Join The Gathering.** Open the site on the laptop. It shows the title, a QR code, the address (`inf-2573-group-4.vercel.app/join`) and a room code (like `OAK47`). Every time the page loads it opens a new room with a new code. Each phone scans the QR code, which takes it straight in (or goes to `/join` and types the code into the five boxes), then picks a **name and one of six colours** (a colour someone has is faded) and taps **I'm in**. Their name tag appears on the TV. With 3 or more in, the host taps **We're in** (on the TV, or on the host's phone: the first player in is the host). Anyone who joined the room but didn't finish is left out of this gathering.
+1. **Join The Gathering.** Open the site on the laptop. It shows the title, a QR code, the address (`inf-2573-group-4.vercel.app/join`) and a room code (like `OAK47`). Every time the page loads it opens a new room with a new code. Each phone scans the QR code, which takes it straight in (or goes to `/join` and types the code into the five boxes), then types a **name** and **what they look like** ("curly hair, round glasses, a big scarf") and taps **Draw me**. A pen-and-ink portrait is drawn from it (up to 3 tries), and once they tap **I'm in** it appears on the TV. Each player also gets a colour automatically for their name tag. With 3 or more in, the host taps **We're in** (on the TV, or on the host's phone: the first player in is the host). Anyone who joined the room but didn't finish is left out of this gathering.
 2. **Pick a story.** The TV becomes a full-screen story browser. Anyone can swipe on their phone (or use the arrows and thumbnails on the TV) and every screen follows, with the new story wiping in over the old one. Marlowe Manor brings rain, lightning and its music; Trapped Below has rising bubbles and its deep-water ambience. The host taps **Enter this story** to step in.
 3. **Inside Marlowe Manor**, each player picks one of six detective portraits and answers **three questions** ("What's your most irrational fear?"). Players can shuffle to a different question but must answer to continue. Answers are private and final.
 4. **Start the night** (on the TV, or on the host's phone: the first player to join gets host controls). Each phone opens a sealed envelope with its secret role: one **murderer**, everyone else **detectives**. The night starts once everyone has tapped **Got it**.
@@ -56,7 +56,7 @@ Sound: the deep-water ambience loops all game. Each room of the sub has its own 
 
 ## Where things live
 
-- **Database and rules:** [`supabase/migrations/0001_the_gathering.sql`](supabase/migrations/0001_the_gathering.sql). Every rule runs here: joining with a name and colour, the story browser, pairing, locks, notes, the murderer's moves, votes and the ending. It also holds the charades and sketch words. To change the timers, change the `task_secs`, `talk_secs` and `vote_secs` defaults on `rooms`. Trapped Below has its own section near the end (`tb_*` tables and functions): the onboarding, crew files, repairs, emergencies, the air clock and the logs. Its timers are in `tb_start_watch` (150 s a watch), `tb_end_watch` (120 s an emergency), `tb_after_hands` (90 s to talk) and `tb_next` (60 s to vote); the starting air is `air_left` on `tb_games`.
+- **Database and rules:** [`supabase/migrations/0001_the_gathering.sql`](supabase/migrations/0001_the_gathering.sql). Every rule runs here: joining with a name and portrait, the story browser, pairing, locks, notes, the murderer's moves, votes and the ending. It also holds the charades and sketch words. To change the timers, change the `task_secs`, `talk_secs` and `vote_secs` defaults on `rooms`. Trapped Below has its own section near the end (`tb_*` tables and functions): the onboarding, crew files, repairs, emergencies, the air clock and the logs. Its timers are in `tb_start_watch` (150 s a watch), `tb_end_watch` (120 s an emergency), `tb_after_hands` (90 s to talk) and `tb_next` (60 s to vote); the starting air is `air_left` on `tb_games`.
 - **Story and text:** [`lib/gathering/content.ts`](lib/gathering/content.ts). The list of stories (`STORIES`: title, art, colours, sky and music for each), the questions, the story for each hour, every narrated line, room names and the floor plan.
 - **Trapped Below's text:** [`lib/gathering/trapped.ts`](lib/gathering/trapped.ts). The crew-file questions, the wire colours, the briefing's timing, the blueprint's rooms, Morse code, the pipes and every line the captain says.
 - **Screens:** [`app/host/tv.tsx`](app/host/tv.tsx) (the TV) and [`app/play/[code]/phone.tsx`](app/play/[code]/phone.tsx) (the phone). Trapped Below's screens are in [`app/host/trapped.tsx`](app/host/trapped.tsx) and [`app/play/[code]/trapped.tsx`](app/play/[code]/trapped.tsx). Shared pieces (avatars, timer ring, floor plan, rain, bubbles) are in [`app/_ui/`](app/_ui). The design system is [`app/gathering.css`](app/gathering.css); Trapped Below's look (brass and steel, the rooms, the blueprint) is [`app/trapped.css`](app/trapped.css).
@@ -75,6 +75,27 @@ Sound: the deep-water ambience loops all game. Each room of the sub has its own 
 - **Only the server writes.** Devices can only read rooms and the players in their own room. Every action (join, pick a portrait, answer, open a lock, forge, strike, vote, next) is a database function that checks the request first. Examples: only the TV or the host's phone can move the game on, only the lead in a pair can see what to act or draw, only the murderer can forge or strike, and ghosts can't vote.
 - **Secrets stay on the server.** Who the murderer is, the notes, the lock answers and the votes are in tables no device can read. Each screen reads its own slice through `get_view()`: the TV gets the public picture, each phone also gets its own role, its side of its lock and its half of the note. Whose note was whose only comes out at the end.
 
+- **Portraits are checked twice.** The description is checked against a word list on the phone and again on the server before anything is drawn, so nothing rude reaches the shared TV. A player can only save a pre-drawn portrait or one they uploaded themselves.
+- **What is sent where.** The description goes to Cloudflare to be drawn (the name never does). The drawing is stored in a public Supabase Storage bucket so the TV can show it. Analytics only records how the drawing went, never the description.
+
+## Character portraits
+
+On the join screen each player describes what they look like and gets a portrait in the house style (pen and ink on old paper). It's free:
+
+1. **Drawing:** [`app/api/portrait/route.ts`](app/api/portrait/route.ts) sends the description, wrapped in a fixed style prompt (`portraitPrompt` in [`lib/gathering/look.ts`](lib/gathering/look.ts)), to FLUX.1 schnell on **Cloudflare Workers AI's free plan**: 10,000 neurons a day, about 58 per portrait, so roughly 170 portraits a day. Past that Cloudflare refuses until midnight UTC; it never charges.
+2. **Keeping the style:** the phone turns whatever comes back into ink on old paper with a hand-drawn border ([`lib/gathering/portrait.ts`](lib/gathering/portrait.ts)), then uploads it to the `portraits` bucket in Supabase Storage (about 70 KB each; the free plan has 1 GB).
+3. **Limits:** 3 drawings per player, only while the room is joining (`use_draw` in the database).
+4. **Backup:** if Cloudflare isn't set up, is out of today's allowance or takes too long, the phone picks the closest pre-drawn portrait from [`public/portraits/`](public/portraits) by matching words (`LIBRARY` in `look.ts`). Add more drawings there, with their words in `LIBRARY`, to make the backup better.
+
+### Set up Cloudflare (once)
+
+1. Make a free account at [dash.cloudflare.com](https://dash.cloudflare.com). No card is needed for the free plan.
+2. Copy your **Account ID** (on the account home page, or under **Workers & Pages** on the right).
+3. Go to **My Profile > API Tokens > Create Token**, use the **Workers AI** template, and create it. Copy the token.
+4. In Vercel, add `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` (below), then redeploy.
+
+Without them the game still works: every player gets a pre-drawn portrait.
+
 ## Environment variables
 
 | Name | Required | What it is |
@@ -85,6 +106,8 @@ Sound: the deep-water ambience loops all game. Each room of the sub has its own 
 | `NEXT_PUBLIC_POSTHOG_HOST` | no | `https://us.i.posthog.com` (default) or `https://eu.i.posthog.com` |
 | `FEEDBACK_URL` | no | "Give feedback" link on the TV's ending screen. Hidden if empty. |
 | `NEXT_PUBLIC_SITE_URL` | no | Where the TV's QR code and "or go to" line send phones. Defaults to `https://inf-2573-group-4.vercel.app`. |
+| `CLOUDFLARE_ACCOUNT_ID` | no | Cloudflare account for drawing portraits (see Character portraits). Server only. |
+| `CLOUDFLARE_API_TOKEN` | no | Cloudflare API token with Workers AI permission. Server only: never prefix it with `NEXT_PUBLIC_`. |
 
 ### Analytics (PostHog)
 
@@ -96,7 +119,8 @@ PostHog records pageviews plus the events below. Every event has `screen` (`tv` 
 |---|---|---|---|
 | `room_created` | TV | The TV opens a new lobby (every page load) | |
 | `join_failed` | phone | A typed code is wrong, the room is full or already started | `error` |
-| `player_joined` | phone | A player sets their name and colour | `join_method` (`qr` or `code`), `seconds_to_join`, `color` |
+| `portrait_drawn` | phone | A player taps **Draw me** | `engine` (`ai`, `library` when Cloudflare failed, or `blocked`), `ms`, `reason`, `look_length` (never the words) |
+| `player_joined` | phone | A player sets their name and portrait | `join_method` (`qr` or `code`), `seconds_to_join`, `portrait` (`ai` or `library`) |
 | `lobby_completed` | TV | The host taps **We're in** | `players`, `lobby_seconds` |
 | `phone_rejoined` | phone | A refreshed or relocked phone comes back into its room | |
 
@@ -129,12 +153,13 @@ PostHog records pageviews plus the events below. Every event has `screen` (`tv` 
 | `replay_chosen` | TV | From the ending, the host picks what's next | `choice` (`same_story` or `another_story`), `players` |
 | `feedback_clicked` | TV | **Give feedback** on the ending screen | `outcome` |
 | `game_abandoned` | TV | The TV is closed, reloaded or starts a new room while a group is still in it | `phase`, `round`, `players`, `in_game`, `minutes`, `how` (`closed` or `new_room`) |
-| `action_failed` | phone | Anything a player tries is refused (name taken, colour gone, etc.) | `action`, `phase`, `error` |
+| `action_failed` | phone | Anything a player tries is refused (name taken, no portrait yet, etc.) | `action`, `phase`, `error` |
 
 Insights worth building in PostHog:
 
 - **Group funnel:** `room_created → lobby_completed → story_entered → game_started → game_ended`. Where groups stop is the biggest thing to fix.
 - **Joining:** median `seconds_to_join`, QR vs typed (`join_method`), and `join_failed` by `error`.
+- **Portraits:** `portrait_drawn` by `engine`. Lots of `library` means Cloudflare's free allowance is running out or it's too slow (`ms`).
 - **Story demand:** `story_viewed` by `story`. Views of the Coming soon cards show demand for more stories; `story_entered` by `story` compares Marlowe Manor and Trapped Below.
 - **Trapped Below:** `onboarding_completed` (how often groups skip, how many slips), `repair_done` by `kind` (tries and seconds), `emergency_done` by `kind`, and `game_ended` with `story = station` by `outcome`, `air_left` and `fixes` to tune the air clock.
 - **Balance:** `game_ended` by `outcome` (aim for close to 50/50), and `rounds` and `minutes` (aim for about 25 minutes). `vote_revealed` with `was_murderer` shows how often the group guesses right.
@@ -197,7 +222,7 @@ First-time setup:
 ## Test checklist
 
 - [ ] Open the site. The title, a room code and a QR code appear. Scanning the QR code opens `inf-2573-group-4.vercel.app/play/CODE` and goes straight to the name step.
-- [ ] Three or four phones join, each with a name and a colour (a colour someone has is faded). Their tags appear on the TV without a refresh. **We're in** stays disabled until 3 are in. A phone that joined but didn't finish sees "Already started" after **We're in**.
+- [ ] Three or four phones join, each with a name and a description. **Draw me** shows a pen-and-ink portrait within a few seconds (or a pre-drawn one with a note if Cloudflare is busy), and a rude description is refused. After **I'm in** the portraits appear on the TV without a refresh. **We're in** stays disabled until 3 are in. A phone that joined but didn't finish sees "Already started" after **We're in**.
 - [ ] Swipe on a phone: the TV and every phone move to the next story with the wipe. On Marlowe Manor: rain, lightning and the manor's music. On Trapped Below: bubbles and the deep-water ambience, which keeps looping. Only the host's phone (or the TV) can enter.
 - [ ] Enter Marlowe Manor. Each phone picks a portrait (a portrait someone else has is shown as taken) and answers three questions. **Start the night** stays disabled until everyone has answered.
 - [ ] Start. Each phone opens its envelope: one murderer, the rest detectives. The narrator reads the prologue. The night starts once everyone taps **Got it**.

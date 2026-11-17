@@ -6,8 +6,10 @@
 --
 -- How the game works
 -- - The TV (host laptop) creates a room. Up to 6 phones scan the QR code (or
---   type the code) and pick a name and a colour. Once everyone's in, the group
---   browses the stories together and the host enters one.
+--   type the code), type a name and describe what they look like; a portrait
+--   is drawn from that (app/api/portrait). Each player gets a colour
+--   automatically. Once everyone's in, the group browses the stories together
+--   and the host enters one.
 -- - In Murder at Marlowe Manor, everyone picks a detective portrait and answers
 --   three questions.
 -- - One player is secretly the murderer. Every answer becomes a note hidden in
@@ -62,7 +64,7 @@ begin
         'set_identity', 'pick_portrait', 'submit_answers', 'start_game', 'open_envelope', 'got_it',
         'cut_wire', 'guess_word', 'new_word', 'add_stroke', 'clear_sketch', 'choose_lie', 'spot_lie',
         'forge_note', 'strike', 'cast_vote', 'host_next', 'add_time', 'advance_if_due', 'get_view',
-        'pick_color', 'set_name_color', 'we_are_in', 'browse_story', 'enter_story', 'another_story',
+        'pick_color', 'set_name_color', 'use_draw', 'set_name_look', 'we_are_in', 'browse_story', 'enter_story', 'another_story',
         'tb_skip', 'tb_hold', 'tb_dive', 'tb_portrait', 'tb_crew_file', 'tb_start', 'tb_orders', 'tb_restart',
         'tb_pick', 'tb_bolt', 'tb_sonar', 'tb_rotate', 'tb_leak', 'tb_vote', 'tb_next', 'tb_tick'
       )
@@ -117,10 +119,15 @@ create table public.players (
   user_id uuid not null references auth.users (id) on delete cascade,
   -- Set on the "Who are you tonight?" step.
   name text check (char_length(name) between 1 and 12),
-  -- Which of the six detective portraits (1 to 6).
-  -- The player's colour (1 to 6), picked in the lobby and used everywhere.
+  -- The player's colour (1 to 6), given on joining and used for name tags everywhere.
   color int check (color between 1 and 6),
-  -- Set when the player taps "I'm in" (name and colour chosen).
+  -- What they look like, in their own words, and the portrait drawn from it:
+  -- a link to the public "portraits" bucket, or a pre-drawn one in /portraits.
+  look text check (char_length(look) <= 120),
+  portrait_url text,
+  -- Portraits drawn so far (see use_draw).
+  draws int not null default 0,
+  -- Set when the player taps "I'm in" (name and portrait done).
   joined_at timestamptz,
   -- Which of the six detective portraits (1 to 6), picked inside Marlowe Manor.
   portrait int check (portrait between 1 and 6),
@@ -838,15 +845,23 @@ begin
     raise exception 'This game is full (6 players)';
   end if;
 
-  insert into public.players (room_id, user_id) values (v_room.id, v_uid) returning * into v_player;
+  -- The first free colour: players no longer pick one, their portrait tells them apart.
+  insert into public.players (room_id, user_id, color)
+  values (v_room.id, v_uid, (
+    select min(c) from generate_series(1, 6) c
+    where not exists (select 1 from public.players p where p.room_id = v_room.id and p.color = c)
+  ))
+  returning * into v_player;
   perform private.touch(v_room.id);
   return v_player;
 end;
 $$;
 
--- The Gathering: picking a colour before "I'm in", so everyone else sees it as taken.
-create function public.pick_color(p_room_id uuid, p_color int)
-returns void
+-- The Gathering: counts a portrait drawing. Called by /api/portrait with the player's
+-- session before it asks Cloudflare, so nobody can draw more than 3 or outside a
+-- room that's still joining (which also protects the free daily allowance).
+create function public.use_draw(p_room_id uuid)
+returns int
 language plpgsql
 security definer
 set search_path = ''
@@ -855,19 +870,22 @@ declare
   v_room public.rooms := private.lock_room(p_room_id);
   v_player public.players := private.me(p_room_id);
 begin
-  if v_player.id is null or v_room.phase <> 'join' or p_color is null or p_color not between 1 and 6 then
-    return;
+  if v_player.id is null then
+    raise exception 'You are not in this room';
   end if;
-  if exists (select 1 from public.players where room_id = p_room_id and id <> v_player.id and color = p_color) then
-    raise exception 'That colour is taken';
+  if v_room.phase <> 'join' then
+    raise exception 'This game has already started';
   end if;
-  update public.players set color = p_color where id = v_player.id;
-  perform private.touch(p_room_id);
+  if v_player.draws >= 3 then
+    raise exception 'That was your last drawing, so this portrait is yours.';
+  end if;
+  update public.players set draws = draws + 1 where id = v_player.id;
+  return 3 - v_player.draws - 1;
 end;
 $$;
 
--- The Gathering: "What should we call you?" A name and a colour, then "I'm in".
-create function public.set_name_color(p_room_id uuid, p_name text, p_color int)
+-- The Gathering: "Who's arriving?" A name, what you look like and your portrait, then "I'm in".
+create function public.set_name_look(p_room_id uuid, p_name text, p_look text, p_portrait_url text)
 returns public.players
 language plpgsql
 security definer
@@ -877,6 +895,8 @@ declare
   v_room public.rooms := private.lock_room(p_room_id);
   v_player public.players := private.me(p_room_id);
   v_name text := btrim(coalesce(p_name, ''));
+  v_look text := btrim(coalesce(p_look, ''));
+  v_url text := btrim(coalesce(p_portrait_url, ''));
 begin
   if v_player.id is null then
     raise exception 'You are not in this room';
@@ -887,16 +907,19 @@ begin
   if char_length(v_name) not between 1 and 12 then
     raise exception 'Type your name to continue.';
   end if;
-  if p_color is null or p_color not between 1 and 6 then
-    raise exception 'Pick a color.';
+  if char_length(v_look) > 120 then
+    raise exception 'Keep your description under 120 characters.';
   end if;
-  if exists (select 1 from public.players where room_id = p_room_id and id <> v_player.id and color = p_color) then
-    raise exception 'That colour is taken';
+  -- Only a pre-drawn portrait, or one this player uploaded to the portraits bucket.
+  if not (v_url ~ '^/portraits/[a-z]+\.jpg$'
+          or v_url like '%/storage/v1/object/public/portraits/' || auth.uid()::text || '/%') then
+    raise exception 'Draw your portrait first.';
   end if;
   if exists (select 1 from public.players where room_id = p_room_id and id <> v_player.id and lower(name) = lower(v_name)) then
     raise exception 'Someone here already has that name.';
   end if;
-  update public.players set name = v_name, color = p_color, joined_at = coalesce(joined_at, clock_timestamp())
+  update public.players
+  set name = v_name, look = v_look, portrait_url = v_url, joined_at = coalesce(joined_at, clock_timestamp())
   where id = v_player.id returning * into v_player;
   perform private.touch(p_room_id);
   return v_player;
@@ -2995,7 +3018,7 @@ begin
     'host_player', private.host_player(p_room_id),
     'players', coalesce((
       select jsonb_agg(jsonb_build_object(
-        'id', p.id, 'name', p.name, 'color', p.color, 'joined', p.joined_at is not null,
+        'id', p.id, 'name', p.name, 'color', p.color, 'joined', p.joined_at is not null, 'portrait_url', p.portrait_url,
         'portrait', p.portrait, 'picked', p.picked, 'answered', p.answered,
         'opened', p.opened, 'ready', p.ready, 'dead', p.dead, 'dead_at', p.dead_at,
         'voted', v_room.phase = 'meeting' and exists (
@@ -3122,3 +3145,27 @@ $$;
 
 -- Functions in the private schema are internal only.
 revoke all on all functions in schema private from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Portraits: the public "portraits" bucket in Supabase Storage
+-- ---------------------------------------------------------------------------
+-- Phones upload the portrait drawn for them (a ~50 KB JPEG) into a folder named
+-- after their own user id; anyone can view them, so the TV can show them.
+-- Skipped where there is no Storage (a plain Postgres used for testing).
+do $$
+begin
+  if to_regclass('storage.buckets') is null then
+    return;
+  end if;
+  insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+  values ('portraits', 'portraits', true, 300000, array['image/jpeg'])
+  on conflict (id) do update
+    set public = true, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
+  execute 'drop policy if exists "portraits: upload your own" on storage.objects';
+  execute $p$
+    create policy "portraits: upload your own" on storage.objects
+    for insert to authenticated
+    with check (bucket_id = 'portraits' and (storage.foldername(name))[1] = (select auth.uid())::text)
+  $p$;
+end;
+$$;

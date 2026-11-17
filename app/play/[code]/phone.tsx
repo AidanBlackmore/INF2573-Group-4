@@ -13,6 +13,8 @@ import { ensureSignedIn, errorMessage, supabase } from "@/lib/supabase";
 import { Art, Avatar, KnifeSvg, Ring, Tag, colorOf, since } from "../../_ui/bits";
 import { crewPic } from "@/lib/gathering/trapped";
 import { TrappedPhone } from "./trapped";
+import { DRAWS, LOOK_MAX } from "@/lib/gathering/look";
+import { LookError, drawPortrait, type Drawn } from "@/lib/gathering/portrait";
 
 export default function PhoneScreen() {
   const params = useParams<{ code: string }>();
@@ -228,7 +230,7 @@ function Phone({ view, reload, left, now }: { view: View; reload: () => Promise<
       setFailure(null);
       try {
         await act(reload, fn, { p_room_id: view.room.id, ...args });
-        if (fn === "set_name_color") {
+        if (fn === "set_name_look") {
           let via = null;
           try {
             via = sessionStorage.getItem(JOIN_KEY);
@@ -236,7 +238,7 @@ function Phone({ view, reload, left, now }: { view: View; reload: () => Promise<
           } catch {
             // Analytics only.
           }
-          track("player_joined", { room_id: view.room.id, join_method: via ?? "unknown", seconds_to_join: Math.round(performance.now() / 1000), color: args.p_color });
+          track("player_joined", { room_id: view.room.id, join_method: via ?? "unknown", seconds_to_join: Math.round(performance.now() / 1000), portrait: String(args.p_portrait_url).startsWith("/portraits/") ? "library" : "ai" });
         }
         return true;
       } catch (e) {
@@ -256,7 +258,7 @@ function Phone({ view, reload, left, now }: { view: View; reload: () => Promise<
   const deepSea = phase.startsWith("tb_");
   let body: ReactNode;
   if (deepSea) body = <TrappedPhone ctx={ctx} now={now} />;
-  else if (phase === "join") body = me?.joined ? <YoureIn ctx={ctx} /> : <NameAndColor ctx={ctx} />;
+  else if (phase === "join") body = me?.joined ? <YoureIn ctx={ctx} /> : <NameAndLook ctx={ctx} />;
   else if (phase === "browse") body = <BrowsePhone ctx={ctx} />;
   else if (phase === "lobby") body = <Onboarding ctx={ctx} />;
   else if (phase === "roles") body = <Envelope ctx={ctx} />;
@@ -332,42 +334,72 @@ function RoundHead({ ctx, label }: { ctx: Ctx; label: string }) {
   );
 }
 
-// ---------- The Gathering: name and colour, then the stories ----------
+// ---------- The Gathering: name and portrait, then the stories ----------
 
-// "What should we call you?" A name and one of six colours (faded = taken).
-function NameAndColor({ ctx }: { ctx: Ctx }) {
+// "Who's arriving?" A name and a few words about what you look like, drawn as a
+// pen-and-ink portrait (lib/gathering/portrait.ts). Colours are given automatically.
+function NameAndLook({ ctx }: { ctx: Ctx }) {
   const { view, run, busy, error } = ctx;
-  const me = playerOf(view, view.me)!;
   const [name, setName] = useState("");
-  const owner = (k: number) => view.players.find((o) => o.id !== me.id && o.color === k);
+  const [look, setLook] = useState("");
+  const [drawn, setDrawn] = useState<Drawn | null>(null);
+  const [drawing, setDrawing] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [left, setLeft] = useState(DRAWS);
+  const draw = async () => {
+    setDrawing(true);
+    setProblem(null);
+    try {
+      const d = await drawPortrait(view.room.id, look);
+      setDrawn(d);
+      if (typeof d.left === "number") setLeft(d.left);
+      track("portrait_drawn", { room_id: view.room.id, engine: d.engine, ms: d.ms, reason: d.reason ?? null, look_length: look.trim().length });
+    } catch (e) {
+      const msg = e instanceof LookError ? e.message : "Something went wrong. Try again.";
+      setProblem(msg);
+      track("portrait_drawn", { room_id: view.room.id, engine: "blocked", ms: 0, reason: msg, look_length: look.trim().length });
+    } finally {
+      setDrawing(false);
+    }
+  };
+  const canDraw = !drawing && look.trim().length >= 3 && left > 0;
   return (
-    <form className="ob" onSubmit={(e) => { e.preventDefault(); void run("set_name_color", { p_name: name, p_color: me.color }); }}>
-      <h2>What should we call you?</h2>
+    <form
+      className="ob look"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (drawn) void run("set_name_look", { p_name: name, p_look: look.trim(), p_portrait_url: drawn.url });
+      }}
+    >
+      <h2>Who&apos;s arriving?</h2>
+      <div className={`look-card${drawing ? " drawing" : ""}${drawn ? " done" : ""}`} aria-live="polite">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {drawn && <img key={drawn.url} src={drawn.url} alt="Your portrait" />}
+        {drawing ? <span className="look-pen">Sketching…</span> : !drawn && <span className="look-empty">Describe yourself below, then tap Draw me</span>}
+      </div>
+      {drawn?.engine === "library" && !drawing && <p className="hand">The artist is busy, so here&apos;s the closest one from the sketchbook.</p>}
       <span className="p-eyebrow">Your name</span>
       <input className="name-line" maxLength={12} aria-label="Your name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="given-name" />
-      <span className="p-eyebrow">Pick a color</span>
-      <div className="colors">
-        {[1, 2, 3, 4, 5, 6].map((k) => {
-          const mine = me.color === k, o = owner(k);
-          return (
-            <button
-              key={k}
-              type="button"
-              className={`cpick pp${mine ? " mine" : ""}${o ? " taken" : ""}`}
-              disabled={Boolean(o) || busy}
-              aria-pressed={mine}
-              aria-label={`Colour ${k}${o ? ", taken" : ""}`}
-              onClick={() => void run("pick_color", { p_color: k })}
-            >
-              <i style={{ "--pc": `var(--player-${k})` } as CSSProperties} />
-            </button>
-          );
-        })}
+      <span className="p-eyebrow">What do you look like?</span>
+      <textarea
+        className="look-text"
+        maxLength={LOOK_MAX}
+        rows={3}
+        aria-label="What do you look like?"
+        placeholder="curly hair, round glasses, a big scarf"
+        value={look}
+        onChange={(e) => setLook(e.target.value)}
+      />
+      <div className="row" style={{ justifyContent: "space-between" }}>
+        <span className="hand">Hair, face, clothes, a hat, something you carry.</span>
+        <button type="button" className="p-btn2" disabled={!canDraw} onClick={() => void draw()}>
+          {drawing ? "Drawing…" : drawn ? "Draw again" : "Draw me"}
+        </button>
       </div>
-      <p className="hand">Faded = taken</p>
-      {error && <div className="err">{error}</div>}
+      {drawn && left < DRAWS && <p className="p-small">{left === 0 ? "That was your last drawing." : `${left} more ${left === 1 ? "drawing" : "drawings"} left.`}</p>}
+      {(problem || error) && <div className="err">{problem ?? error}</div>}
       <div className="spacer" />
-      <button className="p-btn" type="submit" disabled={busy || !name.trim() || !me.color}>
+      <button className="p-btn" type="submit" disabled={busy || drawing || !name.trim() || !drawn}>
         I&apos;m in
       </button>
     </form>
@@ -381,9 +413,14 @@ function YoureIn({ ctx }: { ctx: Ctx }) {
   const host = view.me === view.host_player;
   return (
     <div className="p-msg">
-      <div className="you-tag">
-        <Tag view={view} player={me} />
-      </div>
+      {me.portrait_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className="look-mine" src={me.portrait_url} alt="Your portrait" />
+      ) : (
+        <div className="you-tag">
+          <Tag view={view} player={me} />
+        </div>
+      )}
       <h2>You&apos;re in</h2>
       <p className="p-small">
         {n < 3

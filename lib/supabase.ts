@@ -22,7 +22,7 @@ export function errorMessage(error: unknown): string {
   if (error && typeof error === "object" && "message" in error) {
     const msg = String(error.message);
     // Only the old database says this about a story the app has opened: the SQL in Supabase needs re-running.
-    if (msg === "This story is coming soon") {
+    if (msg === "This story is coming soon" || /function public\.(set_name_look|use_draw)/.test(msg)) {
       return "The game's database is out of date. Re-run supabase/migrations/0001_the_gathering.sql in Supabase, then try again.";
     }
     return msg;

@@ -11,7 +11,7 @@ import {
 } from "@/lib/gathering/game";
 import { sound, type SoundSettings, type Track } from "@/lib/gathering/sound";
 import { ensureSignedIn, errorMessage, supabase } from "@/lib/supabase";
-import { Art, Avatar, Line, Ring, Tag, ageOf, since } from "../_ui/bits";
+import { Art, Avatar, Line, Ring, Tag, ageOf, colorOf, since } from "../_ui/bits";
 import { HousePlan } from "../_ui/house";
 import { Weather, type WeatherHandle } from "../_ui/weather";
 import { TbBackdrop, TrappedTv, useTrappedTv } from "./trapped";
@@ -407,7 +407,7 @@ type ScreenProps = { view: View; busy: boolean; onNext: () => void };
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://inf-2573-group-4.vercel.app").replace(/\/$/, "");
 
 // The Gathering's lobby: scan the QR code (or go to the address) and type the code.
-// Names and colours only: characters come with the story.
+// Each guest arrives as the portrait drawn on their phone.
 function Join({ view, busy, onGo }: { view: View; busy: boolean; onGo: () => void }) {
   const url = `${SITE_URL}/play/${view.room.code}`;
   const joined = view.players.filter((p) => p.joined);
@@ -422,12 +422,20 @@ function Join({ view, busy, onGo }: { view: View; busy: boolean; onGo: () => voi
         <div className="lobby2-left">
           <h2 className="shell-h">Grab your phone. Everyone in?</h2>
           <p className="shell-p">Join with the code, then we&apos;ll vote on which world to visit tonight.</p>
-          <div className="seats">
-            {joined.map((p, i) => (
-              <Tag key={p.id} view={view} player={p} style={{ animationDelay: `${i * 0.05}s` }} />
-            ))}
+          <div className="guests">
+            {joined.map((p, i) =>
+              p.portrait_url ? (
+                <figure key={p.id} className="guest" style={{ "--pc": colorOf(view, p.id), animationDelay: `${i * 0.05}s` } as CSSProperties}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={p.portrait_url} alt="" />
+                  <figcaption>{p.name}</figcaption>
+                </figure>
+              ) : (
+                <Tag key={p.id} view={view} player={p} style={{ animationDelay: `${i * 0.05}s` }} />
+              ),
+            )}
             {Array.from({ length: Math.max(0, 6 - n) }, (_, i) => (
-              <span key={i} className="seat-open">
+              <span key={i} className="guest-open">
                 Open seat
               </span>
             ))}

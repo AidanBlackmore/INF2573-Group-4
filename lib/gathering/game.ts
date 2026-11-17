@@ -14,9 +14,11 @@ export type Phase = "join" | "browse" | "lobby" | "roles" | "tasks" | "quiet" | 
 export type Player = {
   id: string;
   name: string | null;
-  // The colour picked in the lobby (1 to 6), and whether they tapped "I'm in".
+  // The colour given on joining (1 to 6), and whether they tapped "I'm in".
   color: number | null;
   joined: boolean;
+  // Their portrait: an uploaded drawing or a pre-drawn one in /portraits.
+  portrait_url: string | null;
   portrait: number | null;
   // Picked their detective inside Marlowe Manor.
   picked: boolean;

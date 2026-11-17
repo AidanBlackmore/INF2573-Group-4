@@ -32,7 +32,7 @@ The story list lives in `STORIES` in `lib/gathering/content.ts`. Its order match
 
 TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight away) or `/join` (type the code).
 
-1. **Join** (`join` phase): every TV page load creates a new room with a random code (e.g. `OAK47`). Phones join, set a name and one of six colours. With 3+ in, the host taps **We're in**. The first player in is the host, and the TV can also press every host button. Unfinished joiners are dropped.
+1. **Join** (`join` phase): every TV page load creates a new room with a random code (e.g. `OAK47`). Phones join with a name and a few words about what they look like, and get a pen-and-ink portrait drawn by Cloudflare Workers AI (free plan; a pre-drawn one if that fails). Colours are given automatically. With 3+ in, the host taps **We're in**. The first player in is the host, and the TV can also press every host button. Unfinished joiners are dropped.
 2. **Browse** (`browse`): a full-screen story browser. Anyone can swipe and every screen follows. Only the host or the TV can **Enter this story**.
 3. **Marlowe Manor:**
    - **`lobby`:** each player picks a detective portrait and answers 3 questions. They can shuffle a question, but must answer. Answers are final.
@@ -74,6 +74,8 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
 | `lib/gathering/trapped.ts` | Trapped Below's text: questions, briefing timing, captain's lines, rooms, Morse, pipes |
 | `lib/gathering/deep.ts` | Trapped Below's synthesised sounds (rooms, creaks, heartbeat, chime, Morse), `shake()` and `buzz()` |
 | `lib/analytics.ts` | `track()`; adds `screen: tv/phone` |
+| `app/api/portrait/route.ts` | Draws a portrait with Cloudflare Workers AI (needs `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`) |
+| `lib/gathering/look.ts`, `portrait.ts` | Portrait prompt, word list, pre-drawn library matching; the phone's ink-on-paper clean-up and upload |
 | `supabase/migrations/0001_the_gathering.sql` | The whole database: tables, RLS, RPCs, game rules |
 
 ### Sound
