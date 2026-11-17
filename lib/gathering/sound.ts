@@ -1,11 +1,15 @@
 "use client";
 
 // Sound for the TV: background music, the narrator and sound effects.
+// In Trapped Below the narrator is the captain, heard through a radio filter (setRadio).
 // Phones stay silent. Sound is on from the start: everything plays as soon as the
 // browser allows it, which is straight away where the site may autoplay (see the
 // README) and otherwise on the first click or key press on the TV page.
 
 import { NARRATION } from "./content";
+import { TB_NARRATION } from "./trapped";
+
+const LINES: Record<string, string> = { ...NARRATION, ...TB_NARRATION };
 
 export type SoundSettings = { music: boolean; narrator: boolean; effects: boolean; muted: boolean; volume: number };
 const KEY = "gathering:sound";
@@ -89,8 +93,8 @@ class Loop {
   }
 }
 
-// Each story's music: the manor's ambience and Station Zero's eerie score.
-export type Track = "marlowe" | "station";
+// Each story's music: the manor's ambience and Trapped Below's deep-water ambience.
+export type Track = "marlowe" | "deep";
 
 class Sound {
   settings: SoundSettings = { ...DEFAULTS };
@@ -113,7 +117,7 @@ class Sound {
     } catch {
       // Private mode or blocked storage: use the defaults.
     }
-    this.loops = { marlowe: new Loop("/audio/ambience.mp3", 2.6, 4), station: new Loop("/audio/station.mp3", 4, 5) };
+    this.loops = { marlowe: new Loop("/audio/ambience.mp3", 2.6, 4), deep: new Loop("/audio/deep.mp3", 0.05, 3) };
     setInterval(() => this.ramp(), 60);
     this.voice = Object.assign(new Audio(), { preload: "auto" });
     addEventListener("pointerdown", () => this.unlock(true), { capture: true });
@@ -190,7 +194,8 @@ class Sound {
   // The music dips under the narrator, sits lower while pairs work on locks,
   // and almost disappears while the votes are counted.
   private ramp() {
-    const duck = (this.speaking ? 0.4 : 1) * ((({ tasks: 0.65, tally: 0.12 }) as Record<string, number>)[this.phase] ?? 1);
+    // The deep-water ambience stays under the captain, just a little quieter.
+    const duck = (this.speaking ? (this.track === "deep" ? 0.7 : 0.4) : 1) * ((({ tasks: 0.65, tally: 0.12 }) as Record<string, number>)[this.phase] ?? 1);
     const base = this.settings.muted || !this.settings.music ? 0 : (this.settings.volume / 100) * duck;
     for (const [key, loop] of Object.entries(this.loops) as [Track, Loop][]) {
       loop.target = key === this.track ? base : 0;
@@ -221,12 +226,18 @@ class Sound {
         this.speaking = false;
         return;
       }
-      const done = () => setTimeout(() => next(i + 1), 400);
+      const done = () => {
+        this.radioOff();
+        setTimeout(() => next(i + 1), 400);
+      };
       const v = this.voice;
-      v.onplay = () => (this.speaking = true);
+      v.onplay = () => {
+        this.speaking = true;
+        this.radioOn();
+      };
       v.onended = done;
       v.onerror = () => {
-        if (run === this.run) this.speak(NARRATION[ids[i]] ?? "", run, done);
+        if (run === this.run) this.speak(LINES[ids[i]] ?? "", run, done);
       };
       v.src = `/narration/${ids[i]}.mp3`;
       v.play().catch((e: Error) => {
@@ -239,7 +250,95 @@ class Sound {
     next(0);
   }
 
+  // One line on its own, for things that happen rather than screens (a repair fixed, the air running low).
+  cue(id: string) {
+    this.narrate(`cue:${id}:${performance.now()}`, [id]);
+  }
+
+  // ---------- the captain's radio ----------
+  // The narrator's audio goes through Web Audio once a story wants the radio: the lows and highs cut,
+  // the middle pushed, a little distortion, with static underneath and a click at each end.
+  private radio = false;
+  private radioWet: GainNode | null = null;
+  private radioDry: GainNode | null = null;
+  private hiss: { src: AudioBufferSourceNode; gain: GainNode; iv: ReturnType<typeof setInterval> } | null = null;
+  setRadio(on: boolean) {
+    if (on === this.radio) return;
+    this.radio = on;
+    if (on) this.radioChain();
+    const c = this.audio;
+    if (c && this.radioWet && this.radioDry) {
+      this.radioWet.gain.setValueAtTime(on ? 1 : 0, c.currentTime);
+      this.radioDry.gain.setValueAtTime(on ? 0 : 1, c.currentTime);
+    }
+  }
+  private radioChain() {
+    const c = this.ctx();
+    if (!c || this.radioWet) return;
+    try {
+      const src = c.createMediaElementSource(this.voice);
+      const hp = Object.assign(c.createBiquadFilter(), { type: "highpass" as BiquadFilterType });
+      hp.frequency.value = 380;
+      const lp = Object.assign(c.createBiquadFilter(), { type: "lowpass" as BiquadFilterType });
+      lp.frequency.value = 3300;
+      const mid = Object.assign(c.createBiquadFilter(), { type: "peaking" as BiquadFilterType });
+      mid.frequency.value = 1700;
+      mid.gain.value = 6;
+      const drive = c.createWaveShaper();
+      const curve = new Float32Array(1024);
+      for (let i = 0; i < curve.length; i++) {
+        const x = (i / (curve.length - 1)) * 2 - 1;
+        curve[i] = (7 * x) / (1 + 6 * Math.abs(x));
+      }
+      drive.curve = curve;
+      this.radioWet = c.createGain();
+      this.radioDry = c.createGain();
+      this.radioWet.gain.value = this.radio ? 0.9 : 0;
+      this.radioDry.gain.value = this.radio ? 0 : 1;
+      src.connect(hp).connect(lp).connect(mid).connect(drive).connect(this.radioWet).connect(c.destination);
+      src.connect(this.radioDry).connect(c.destination);
+    } catch {
+      // No Web Audio routing here: the captain just sounds clean.
+    }
+  }
+  private squelch() {
+    const c = this.ctx();
+    if (!c || !this.ok()) return;
+    this.noiseHit(c, c.currentTime, "highpass", 2400, 2000, 0.22, 0.002, 0.06);
+  }
+  private radioOn() {
+    if (!this.radio) return;
+    const c = this.ctx();
+    if (!c) return;
+    this.squelch();
+    if (this.hiss || this.settings.muted) return;
+    const src = c.createBufferSource();
+    src.buffer = this.noiseBuf(c);
+    src.loop = true;
+    const f = Object.assign(c.createBiquadFilter(), { type: "bandpass" as BiquadFilterType });
+    f.frequency.value = 1800;
+    f.Q.value = 1.2;
+    const gain = c.createGain();
+    gain.gain.value = 0.025;
+    src.connect(f).connect(gain).connect(c.destination);
+    src.start();
+    const iv = setInterval(() => gain.gain.setTargetAtTime(0.012 + Math.random() * 0.035, c.currentTime, 0.02), 60);
+    this.hiss = { src, gain, iv };
+  }
+  private radioOff() {
+    if (!this.hiss) return;
+    clearInterval(this.hiss.iv);
+    try {
+      this.hiss.src.stop();
+    } catch {
+      // Already stopped.
+    }
+    this.hiss = null;
+    this.squelch();
+  }
+
   private stopVoice() {
+    this.radioOff();
     this.run++;
     const v = this.voice;
     v.onplay = v.onerror = v.onended = null;

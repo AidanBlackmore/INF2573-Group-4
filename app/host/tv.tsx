@@ -7,13 +7,14 @@ import {
   BEATS, LOCK_NAME, MEET_PROMPTS, NARRATION, PROLOGUE, STORIES, TITLE, chapterOf, names, noteText, roomName, type Sky,
 } from "@/lib/gathering/content";
 import {
-  TIMED, act, alive, clues, nameOf, playerOf, useAdvanceWhenDue, useGame, useSecondsLeft, type View,
+  TIMED, act, alive, clues, nameOf, playerOf, useAdvanceWhenDue, useGame, useSecondsLeft, useTbTick, type View,
 } from "@/lib/gathering/game";
 import { sound, type SoundSettings, type Track } from "@/lib/gathering/sound";
 import { ensureSignedIn, errorMessage, supabase } from "@/lib/supabase";
 import { Art, Avatar, Line, Ring, Tag, ageOf, since } from "../_ui/bits";
 import { HousePlan } from "../_ui/house";
 import { Weather, type WeatherHandle } from "../_ui/weather";
+import { TbBackdrop, TrappedTv, useTrappedTv } from "./trapped";
 
 export default function TvScreen({ feedbackUrl }: { feedbackUrl: string | null }) {
   const [roomId, setRoomId] = useState<string | null>(null);
@@ -75,6 +76,7 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
   const { phase, round } = view.room;
   const left = useSecondsLeft(view, now);
   useAdvanceWhenDue(view, left, reload);
+  useTbTick(view, now, reload);
   const tv = useRef<HTMLElement>(null);
   const weather = useRef<WeatherHandle>(null);
   const [busy, setBusy] = useState(false);
@@ -98,9 +100,11 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
 
   // Where we are: The Gathering's lobby, its story browser, or inside a story.
   const story = STORIES[view.room.focus] ?? STORIES[0];
-  const world = phase === "join" ? "shell" : phase === "browse" ? "browse" : "marlowe";
-  const sky: Sky = phase === "join" ? "stars" : phase === "browse" ? story.sky : "rain";
-  const music: Track | null = world === "marlowe" ? "marlowe" : phase === "browse" ? story.music : null;
+  const deepSea = phase.startsWith("tb_");
+  const world = phase === "join" ? "shell" : phase === "browse" ? "browse" : deepSea ? "deep" : "marlowe";
+  const sky: Sky = phase === "join" ? "stars" : phase === "browse" ? story.sky : deepSea ? "bubbles" : "rain";
+  const music: Track | null = world === "marlowe" ? "marlowe" : deepSea ? "deep" : phase === "browse" ? story.music : null;
+  const trapped = useTrappedTv(view, now, tv);
   useSoundCues(view, left, weather, music, sky === "rain");
   const abandon = useAnalytics(view);
   const go = (to: number, dir: number) => void run("browse_story", { p_to: (to + STORIES.length) % STORIES.length, p_dir: dir });
@@ -134,7 +138,10 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
   });
 
   const scene = phase === "discuss" && view.report ? "blackout" : phase;
+  const deepScreen = () => <TrappedTv view={view} now={now} busy={busy} run={(fn, args) => void run(fn, args)} onAnother={() => run("another_story")} feedbackUrl={feedbackUrl} />;
   const screens: Record<string, () => React.ReactNode> = {
+    tb_brief: deepScreen, tb_dive: deepScreen, tb_crew: deepScreen, tb_orders: deepScreen, tb_watch: deepScreen,
+    tb_hands: deepScreen, tb_talk: deepScreen, tb_vote: deepScreen, tb_verdict: deepScreen, tb_end: deepScreen,
     join: () => <Join view={view} busy={busy} onGo={() => run("we_are_in")} />,
     browse: () => <Browse view={view} busy={busy} onGo={go} onEnter={() => run("enter_story")} />,
     lobby: () => <Lobby view={view} busy={busy} onStart={() => run("start_game")} />,
@@ -152,6 +159,7 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
     <div className="gathering tv-page">
       <SoundBar onNewRoom={() => { abandon("new_room"); onNewRoom(); }} />
       <section className={`tv${entered >= 1800 && entered < 3300 ? " arrive" : ""}`} data-scene={scene} data-world={world} ref={tv} aria-label="Shared TV screen">
+        {deepSea && trapped.place && <TbBackdrop place={trapped.place} low={trapped.low} />}
         <Weather ref={weather} sky={sky} />
         {world === "marlowe" && (
           <div className="tv-head">
@@ -326,11 +334,11 @@ function useAnalytics(view: View) {
     t.phase = Date.now();
 
     if (prev.phase === "join" && phase === "browse") track("lobby_completed", { ...base, lobby_seconds: secondsSince(t.room) });
-    if (prev.phase === "ended") {
+    if (prev.phase === "ended" || prev.phase === "tb_end") {
       track("replay_chosen", { ...base, choice: phase === "browse" ? "another_story" : "same_story" });
       if (phase === "browse") t.viewed = new Set([STORIES[focus]?.key ?? ""]);
     }
-    if (phase === "lobby") {
+    if (phase === "lobby" || phase === "tb_brief") {
       track("story_entered", { ...base, story, browse_seconds: prev.phase === "browse" ? stageSecs : 0, stories_viewed: t.viewed.size });
       t.viewed = new Set();
     }
@@ -379,7 +387,7 @@ function useAnalytics(view: View) {
   // The TV is closed or reloaded with a group still in the room.
   const abandon = useCallback((how: "closed" | "new_room") => {
     const { phase: at, round: r, players: n, id: roomId } = live.current;
-    if (at === "ended" || n === 0) return;
+    if (at === "ended" || at === "tb_end" || n === 0) return;
     const t = since.current;
     track("game_abandoned", { room_id: roomId, round: r, players: n, phase: at, how, in_game: t.game > 0, minutes: Math.round(secondsSince(t.game || t.room) / 6) / 10 }, true);
   }, []);

@@ -13,10 +13,12 @@ const MAKE: Record<Sky, (w: number, h: number, top: boolean) => Speck> = {
   rain: (w, h, top) => ({ x: R() * (w + 60), y: top ? -20 - R() * 60 : R() * h, len: 6 + R() * 9, v: 260 + R() * 220, a: 0.08 + R() * 0.2, wd: R() < 0.25 ? 1.4 : 1, ph: 0 }),
   // Station Zero: dust drifting up through the dark.
   dust: (w, h, top) => ({ x: R() * w, y: top ? h + 10 : R() * h, len: 0, v: 8 + R() * 22, a: 0.12 + R() * 0.4, wd: 0.6 + R() * 1.8, ph: R() * 6.3 }),
+  // Trapped Below: bubbles rising through the water.
+  bubbles: (w, h, top) => ({ x: R() * w, y: top ? h + 20 : R() * h, len: 0, v: 30 + R() * 55, a: 0.25 + R() * 0.35, wd: 2 + R() * 6, ph: R() * 6.3 }),
   // The lobby: a still, twinkling night sky.
   stars: (w, h) => ({ x: R() * w, y: R() * h, len: 0, v: 0.4 + R() * 1.4, a: 0.15 + R() * 0.35, wd: R() < 0.15 ? 1.6 : 0.9, ph: R() * 6.3 }),
 };
-const DENSITY: Record<Sky, number> = { rain: 14000, dust: 9000, stars: 5200 };
+const DENSITY: Record<Sky, number> = { rain: 14000, dust: 9000, stars: 5200, bubbles: 38000 };
 
 // Weather over every TV scene: the sky, candle flicker (rain only) and lightning flashes.
 export function Weather({ ref, sky = "rain" }: { ref?: Ref<WeatherHandle>; sky?: Sky }) {
@@ -85,6 +87,15 @@ export function Weather({ ref, sky = "rain" }: { ref?: Ref<WeatherHandle>; sky?:
             g.beginPath();
             g.arc(d.x, d.y, d.wd, 0, 6.29);
             g.fill();
+          } else if (mode === "bubbles") {
+            d.y -= d.v * dt;
+            d.x += Math.sin(ts * 1.6 + d.ph) * 10 * dt;
+            if (d.y < -20) Object.assign(d, MAKE.bubbles(w, h, true));
+            g.strokeStyle = `rgba(216,236,233,${d.a})`;
+            g.lineWidth = 1.5;
+            g.beginPath();
+            g.arc(d.x, d.y, d.wd, 0, 6.29);
+            g.stroke();
           } else {
             g.fillStyle = `rgba(237,237,239,${d.a * (0.65 + 0.35 * Math.sin(ts * d.v + d.ph))})`;
             g.beginPath();

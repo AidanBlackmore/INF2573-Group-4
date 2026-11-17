@@ -7,7 +7,9 @@ import { supabase } from "../supabase";
 // What get_view() returns. The database decides what each screen may see:
 // the TV gets the public picture; a phone also gets its own role, its side of
 // its lock and its half of the note; only the murderer gets `secret`.
-export type Phase = "join" | "browse" | "lobby" | "roles" | "tasks" | "quiet" | "discuss" | "meeting" | "tally" | "revealed" | "ended";
+export type Phase = "join" | "browse" | "lobby" | "roles" | "tasks" | "quiet" | "discuss" | "meeting" | "tally" | "revealed" | "ended"
+  // Trapped Below.
+  | "tb_brief" | "tb_dive" | "tb_crew" | "tb_orders" | "tb_watch" | "tb_hands" | "tb_talk" | "tb_vote" | "tb_verdict" | "tb_end";
 
 export type Player = {
   id: string;
@@ -59,6 +61,39 @@ export type MyLock = {
   note?: { q: string; murderer: boolean; half: number; words: string } | null;
 };
 
+// Trapped Below's slice of the view (see tb_view() in the database).
+export type TbRepair = {
+  idx: number; kind: "wires" | "guide"; members: string[]; lead: string; place: string; solved: boolean; result: "ok" | "half" | null;
+  tries: number; solved_at: string | null;
+  // "Who said it?", once done: the answers shown and whose they were.
+  options?: { a: string; owner: string }[]; pick?: number;
+};
+export type TbView = {
+  stage: "talk" | "hatch" | "sealed"; brief_secs: number; skip: string[]; holds: string[];
+  seal_at: string | null; sealed_at: string | null; slips: number; slip_at: string | null; dive_at: string | null;
+  air: number; air_running: boolean; air_at: string | null; depth: number; saboteur_mode: boolean;
+  bolt_report: string | null; fixes: number; logs: { watch: number; text: string }[]; due_at: string | null;
+  crew_done: string[]; voted: string[] | null; result: (VoteResult & { was_saboteur?: boolean }) | null;
+  repairs: TbRepair[];
+  hands?: {
+    kind: "sonar" | "pipes" | "leak"; done: boolean; ok: boolean | null; tries: number; listener: string; letters: number;
+    rot: number[]; water: number; leak_at: string; floods: number; hatch_held: boolean; rate: number; word: string | null;
+    roles: Record<string, { leak: string; rows: [number, number] }>;
+  };
+  outcome?: "crew" | "saboteur"; reason?: string; saboteur?: string | null;
+  files?: { player: string; colour: string; num: number; bring: string; q: string; a: string }[];
+  mine?: {
+    role: "crew" | "saboteur" | null;
+    crew: { colour: string; num: number; bring: string; q: string; a: string } | null;
+    bolt?: string | null; can_bolt?: boolean;
+    repair?: {
+      kind: "wires" | "guide"; place: string; members: string[]; lead: string; lead_name: string; solved: boolean; result: string | null;
+      tries: number; msg: string; is_lead: boolean; riddles: ("wire" | "code")[] | null; lead_q: string | null; options: string[] | null;
+    };
+    listener?: boolean; signal?: string | null; see?: number; turn?: number; leak?: string;
+  };
+};
+
 export type VoteResult = { counts: { k: string; n: number }[]; ejected: string | null; tie: boolean; was_murderer?: boolean };
 
 export type View = {
@@ -84,6 +119,7 @@ export type View = {
   reason?: string;
   lost_forgery?: string | null;
   lock?: MyLock;
+  tb?: TbView | null;
   secret?: {
     questions: string[];
     forged: { a: string; found: boolean } | null;
@@ -202,4 +238,24 @@ export function clues(view: View): Found[] {
   const mine = (view.found ?? []).filter((f) => f.murderer);
   const now = mine.filter((f) => f.round === view.room.round);
   return now.length ? now : mine;
+}
+
+// Trapped Below: when something is due (the briefing ends, the hatch seals, a watch runs out,
+// the water rises...), any screen asks the database to move on. It only acts once.
+export function useTbTick(view: View | null, now: () => number, reload: () => Promise<void>) {
+  const due = view?.tb?.due_at ? new Date(view.tb.due_at).getTime() : null;
+  const roomId = view?.room.id;
+  const version = view?.room.version;
+  useEffect(() => {
+    if (!roomId || due === null) return;
+    let t: ReturnType<typeof setTimeout>;
+    let tries = 0;
+    const fire = () => {
+      void act(reload, "tb_tick", { p_room_id: roomId }).catch(() => {});
+      // Still due a moment later (the call lost a race, or the network dropped it): try again.
+      if (++tries < 20) t = setTimeout(fire, 2000 + Math.random() * 500);
+    };
+    t = setTimeout(fire, Math.max(0, due - now()) + 150 + Math.random() * 350);
+    return () => clearTimeout(t);
+  }, [roomId, due, version, now, reload]);
 }

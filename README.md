@@ -1,6 +1,6 @@
 # The Gathering
 
-"How well do you know your friends?" A party game for 3 to 6 players. One shared screen on a TV, phones as controllers. Everyone joins The Gathering, then the group picks a story to play together. The first story is **Murder at Marlowe Manor**: one of you is secretly the murderer, and everyone else has to work out who before it's too late. **Sabotage on Station Zero** is next (it can be browsed and has its own music, but can't be played yet).
+"How well do you know your friends?" A party game for 3 to 6 players. One shared screen on a TV, phones as controllers. Everyone joins The Gathering, then the group picks a story to play together. Two stories are playable: **Murder at Marlowe Manor** (one of you is secretly the murderer, and everyone else has to work out who before it's too late) and **Trapped Below** (a submarine 400 m down, a saboteur aboard, and an air clock running out).
 
 Live: **https://inf-2573-group-4.vercel.app** (it opens on the TV screen).
 
@@ -19,7 +19,7 @@ Phones and the laptop never talk to each other directly. Every action goes to Su
 ## How a game works
 
 1. **Join The Gathering.** Open the site on the laptop. It shows the title, a QR code, the address (`inf-2573-group-4.vercel.app/join`) and a room code (like `OAK47`). Every time the page loads it opens a new room with a new code. Each phone scans the QR code, which takes it straight in (or goes to `/join` and types the code into the five boxes), then picks a **name and one of six colours** (a colour someone has is faded) and taps **I'm in**. Their name tag appears on the TV. With 3 or more in, the host taps **We're in** (on the TV, or on the host's phone: the first player in is the host). Anyone who joined the room but didn't finish is left out of this gathering.
-2. **Pick a story.** The TV becomes a full-screen story browser. Anyone can swipe on their phone (or use the arrows and thumbnails on the TV) and every screen follows, with the new story wiping in over the old one. Marlowe Manor brings rain, lightning and its music; Station Zero has drifting dust and its own looping track. The host taps **Enter this story** to step in.
+2. **Pick a story.** The TV becomes a full-screen story browser. Anyone can swipe on their phone (or use the arrows and thumbnails on the TV) and every screen follows, with the new story wiping in over the old one. Marlowe Manor brings rain, lightning and its music; Trapped Below has rising bubbles and its deep-water ambience. The host taps **Enter this story** to step in.
 3. **Inside Marlowe Manor**, each player picks one of six detective portraits and answers **three questions** ("What's your most irrational fear?"). Players can shuffle to a different question but must answer to continue. Answers are private and final.
 4. **Start the night** (on the TV, or on the host's phone: the first player to join gets host controls). Each phone opens a sealed envelope with its secret role: one **murderer**, everyone else **detectives**. The night starts once everyone has tapped **Got it**.
 5. **Each round is an hour of the night** (nine o'clock to dawn). Everyone is split into pairs (a trio if odd), with new partners each round. Each pair goes to a room of the house and opens a **lock** together. Each lock needs both phones:
@@ -34,18 +34,40 @@ Phones and the laptop never talk to each other directly. Every action goes to Su
 
 Every timer is 2 minutes (locks, discussion and vote). The host's phone can add a minute.
 
+### Trapped Below
+
+At any moment each player has one place to look. When the TV matters, phones go dark and show an arrow pointing up ("Eyes on the TV"). When a phone needs its player, it chimes, glows and shows **Your move**, and the TV's green tag says who should check their phone.
+
+1. **How to play.** The captain explains the game over the intercom while a board on the TV fills in, one part per line: things break, air runs out, fix it in pairs, someone's lying. Phones stay dark. If **all** players tap **We know how to play**, it skips ahead.
+2. **Seal the hatch.** Everyone presses and holds their bolt on their phone at the same time for 3 seconds. If anyone lets go early, the bolt clunks loose and they try again: nothing is lost. After two slips the captain counts them in.
+3. **Dim the lights.** The TV asks the room to turn the lights down; the host taps **Lights are down. Dive.** The sub sinks to 412 m.
+4. **Crew file.** Each phone picks a crew portrait, then answers four questions: a favourite colour (one of six wire colours), a number from 1 to 9, what they'd bring if trapped underwater for a week, and one deeper question from a bank (shuffle for another). The host taps **Hand out the orders**.
+5. **Sealed orders.** Each phone unscrews a porthole to read its orders. With 4 or more players, one is the **saboteur**. With 3 it's co-op: survive four watches to reach the surface.
+6. **Four watches.** The air clock (8:00 to start, the tank holds 10:00) runs during watches. Pairs (a trio if odd) each get a repair:
+   - **Wires:** one phone has the panel (six wires and a code lock); the other has riddles about the panel holder ("Cut the wire in Maya's favourite colour", "The code is Maya's lucky number, then the number of letters in the first word of her answer to..."). A wrong restart costs 10 seconds.
+   - **Who said it?:** the guide sees a question about the operator ("What would Theo bring?") and says a guess out loud. The operator sees everyone's answers, shuffled, but not the question, and presses the closest. Right: a full air bonus. Wrong: a little. The TV then shows whose answer it was.
+   - A fix adds air (3 minutes a watch, shared across the pairs) and climbs toward the surface.
+7. **All hands** after watches 1 to 3: **Sonar Morse** (one phone plays the signal as beeps, a flash and vibration; everyone else decodes it), **Ballast pipes** (each phone sees one row of a pipe map but turns the valves of another row), then a **Hull breach** (each phone has a job: shake to pump, blow into the microphone, hold the phone flat, or hold the hatch; the screen works too). Each adds a minute of air.
+8. **The saboteur** can lie, slip on purpose, and once a watch **loosen a bolt** (a system fails at the start of the next watch: −0:30).
+9. **Crew meeting** (with a saboteur): the air clock stops. The first fix of each watch recovers a log about the saboteur, built from their own crew file ("The saboteur's lucky number is 9."). The group talks, then votes on their phones. The wrong person in the airlock costs a minute of air; they keep repairing but can't vote.
+10. **The end.** The crew wins by voting out the saboteur (or, in co-op, by surviving four watches). The saboteur wins if the air runs out, only one crew member is left, or they reach the surface undiscovered. The TV shows everyone's crew file. **Play again** deals new orders with the same crew files; **Choose another story** goes back to the browser.
+
+Sound: the deep-water ambience loops all game. Each room of the sub has its own sound (made in the browser), on the TV and quietly on each phone. Hull creaks nudge the screen, breakdowns shake it, and a heartbeat starts when the air drops under 1:30. Phones vibrate rarely (Android only): a breakdown in your room, the air dropping low, and the sonar signal.
+
 ## Where things live
 
-- **Database and rules:** [`supabase/migrations/0001_the_gathering.sql`](supabase/migrations/0001_the_gathering.sql). Every rule runs here: joining with a name and colour, the story browser, pairing, locks, notes, the murderer's moves, votes and the ending. It also holds the charades and sketch words. To change the timers, change the `task_secs`, `talk_secs` and `vote_secs` defaults on `rooms`.
+- **Database and rules:** [`supabase/migrations/0001_the_gathering.sql`](supabase/migrations/0001_the_gathering.sql). Every rule runs here: joining with a name and colour, the story browser, pairing, locks, notes, the murderer's moves, votes and the ending. It also holds the charades and sketch words. To change the timers, change the `task_secs`, `talk_secs` and `vote_secs` defaults on `rooms`. Trapped Below has its own section near the end (`tb_*` tables and functions): the onboarding, crew files, repairs, emergencies, the air clock and the logs. Its timers are in `tb_start_watch` (150 s a watch), `tb_end_watch` (120 s an emergency), `tb_after_hands` (90 s to talk) and `tb_next` (60 s to vote); the starting air is `air_left` on `tb_games`.
 - **Story and text:** [`lib/gathering/content.ts`](lib/gathering/content.ts). The list of stories (`STORIES`: title, art, colours, sky and music for each), the questions, the story for each hour, every narrated line, room names and the floor plan.
-- **Screens:** [`app/host/tv.tsx`](app/host/tv.tsx) (the TV) and [`app/play/[code]/phone.tsx`](app/play/[code]/phone.tsx) (the phone). Shared pieces (avatars, timer ring, floor plan, rain) are in [`app/_ui/`](app/_ui). The design system is [`app/gathering.css`](app/gathering.css).
-- **Sound:** [`lib/gathering/sound.ts`](lib/gathering/sound.ts). Music, narrator and sound effects, TV only.
+- **Trapped Below's text:** [`lib/gathering/trapped.ts`](lib/gathering/trapped.ts). The crew-file questions, the wire colours, the briefing's timing, the blueprint's rooms, Morse code, the pipes and every line the captain says.
+- **Screens:** [`app/host/tv.tsx`](app/host/tv.tsx) (the TV) and [`app/play/[code]/phone.tsx`](app/play/[code]/phone.tsx) (the phone). Trapped Below's screens are in [`app/host/trapped.tsx`](app/host/trapped.tsx) and [`app/play/[code]/trapped.tsx`](app/play/[code]/trapped.tsx). Shared pieces (avatars, timer ring, floor plan, rain, bubbles) are in [`app/_ui/`](app/_ui). The design system is [`app/gathering.css`](app/gathering.css); Trapped Below's look (brass and steel, the rooms, the blueprint) is [`app/trapped.css`](app/trapped.css).
+- **Sound:** [`lib/gathering/sound.ts`](lib/gathering/sound.ts). Music, narrator and sound effects, TV only. In Trapped Below the narrator is the captain, heard through a radio filter. [`lib/gathering/deep.ts`](lib/gathering/deep.ts): Trapped Below's room sounds, creaks, heartbeat and the phones' chime, made in the browser.
 - **Images, music and narration:** [`public/`](public).
   - `public/figma/`: backgrounds, portraits, clue art and paper ephemera from the Figma design system.
   - `public/audio/ambience.mp3`: Marlowe Manor's music. It plays on the manor's page in the story browser and all night inside the story.
-  - `public/audio/station.mp3`: Station Zero's music, while it's on screen in the story browser.
+  - `public/audio/deep.mp3`: Trapped Below's deep-water ambience. It plays on its page in the story browser and all game inside the story, under the captain.
+  - `public/trapped/`: Trapped Below's art: `bg/` (the rooms of the sub), `crew/` (the six crew portraits), `kit/` (brass and steel buttons, panels, the air tank, the porthole) and `sub.webp` (the blueprint).
   - Both loop by crossfading the end of the track into the start. Switching stories fades one out and the other in.
-  - `public/narration/<line>.mp3`: the narrator (ElevenLabs, "Harry"). One file per line in `NARRATION` in `content.ts`. If a file is missing, the browser's own voice reads that line.
+  - `public/narration/<line>.mp3`: the narrator (ElevenLabs, "Harry"). One file per line in `NARRATION` in `content.ts`. If a file is missing, the browser's own voice reads that line. Trapped Below's captain (ElevenLabs, "Oswald") is `tb-*.mp3`, one file per line in `TB_NARRATION` in `trapped.ts`.
   - `public/sfx/<name>.mp3` (optional): recorded sound effects (`thunder`, `lock`, `chime`, `scream`, `sting`, `gavel`, `bark`, `heartbeat`, `tick`). Without them, the sounds are synthesised in the browser.
 
 ## Privacy and server rules
@@ -82,7 +104,7 @@ PostHog records pageviews plus the events below. Every event has `screen` (`tv` 
 
 | Event | Sent by | When | Properties |
 |---|---|---|---|
-| `story_viewed` | TV | A story comes on screen in the browser | `story`, `playable` (false for Station Zero and Coming soon), `position`, `players` |
+| `story_viewed` | TV | A story comes on screen in the browser | `story` (`marlowe`, `station` for Trapped Below, or a Coming soon card), `playable` (false for Coming soon), `position`, `players` |
 | `story_entered` | TV | The group steps into a story | `story`, `players`, `browse_seconds`, `stories_viewed` |
 
 **Playing** (is the game fun, fair and the right length?)
@@ -95,6 +117,9 @@ PostHog records pageviews plus the events below. Every event has `screen` (`tv` 
 | `lock_opened` | TV | A pair opens their lock | `lock_type` (`fuse`, `charade`, `sketch` or `lie`), `tries` (failed tries first), `seconds`, `players` |
 | `round_ended` | TV | The search ends | `locks_opened`, `locks_total`, `timed_out`, `seconds`, `murderer_notes`, `death`, `meeting` (false = a quiet round, no vote) |
 | `vote_revealed` | TV | The verdict is shown | `ejected`, `was_murderer`, `tie`, `votes_cast` |
+| `onboarding_completed` | TV | Trapped Below: the hatch is sealed | `skipped` (everyone tapped "We know how to play"), `slips`, `seconds` |
+| `repair_done` | TV | Trapped Below: a pair finishes a repair | `kind` (`wires` or `guide`), `result` (`ok`, or `half` for a wrong pick), `tries`, `seconds`, `round` |
+| `emergency_done` | TV | Trapped Below: an all-hands emergency ends | `kind` (`sonar`, `pipes` or `leak`), `ok`, `tries`, `floods`, `seconds`, `round` |
 | `game_ended` | TV | The ending | `story`, `outcome` (`detectives` or `murderer`), `rounds`, `minutes`, `locks_opened`, `survivors` |
 
 **Coming back** (do groups want more?)
@@ -110,7 +135,8 @@ Insights worth building in PostHog:
 
 - **Group funnel:** `room_created → lobby_completed → story_entered → game_started → game_ended`. Where groups stop is the biggest thing to fix.
 - **Joining:** median `seconds_to_join`, QR vs typed (`join_method`), and `join_failed` by `error`.
-- **Story demand:** `story_viewed` by `story`. Views of Station Zero and the Coming soon cards show which story to build next.
+- **Story demand:** `story_viewed` by `story`. Views of the Coming soon cards show demand for more stories; `story_entered` by `story` compares Marlowe Manor and Trapped Below.
+- **Trapped Below:** `onboarding_completed` (how often groups skip, how many slips), `repair_done` by `kind` (tries and seconds), `emergency_done` by `kind`, and `game_ended` with `story = station` by `outcome`, `air_left` and `fixes` to tune the air clock.
 - **Balance:** `game_ended` by `outcome` (aim for close to 50/50), and `rounds` and `minutes` (aim for about 25 minutes). `vote_revealed` with `was_murderer` shows how often the group guesses right.
 - **Lock difficulty:** `lock_opened` by `lock_type` with average `tries` and `seconds`, and `round_ended` with `locks_opened / locks_total` and `timed_out`.
 - **Retention:** `replay_chosen` per `game_ended`, and `game_abandoned` by `phase` (where groups give up).
@@ -172,7 +198,7 @@ First-time setup:
 
 - [ ] Open the site. The title, a room code and a QR code appear. Scanning the QR code opens `inf-2573-group-4.vercel.app/play/CODE` and goes straight to the name step.
 - [ ] Three or four phones join, each with a name and a colour (a colour someone has is faded). Their tags appear on the TV without a refresh. **We're in** stays disabled until 3 are in. A phone that joined but didn't finish sees "Already started" after **We're in**.
-- [ ] Swipe on a phone: the TV and every phone move to the next story with the wipe. On Marlowe Manor: rain, lightning and the manor's music. On Station Zero: dust and its own music, which keeps looping; **Enter** is disabled. Only the host's phone (or the TV) can enter.
+- [ ] Swipe on a phone: the TV and every phone move to the next story with the wipe. On Marlowe Manor: rain, lightning and the manor's music. On Trapped Below: bubbles and the deep-water ambience, which keeps looping. Only the host's phone (or the TV) can enter.
 - [ ] Enter Marlowe Manor. Each phone picks a portrait (a portrait someone else has is shown as taken) and answers three questions. **Start the night** stays disabled until everyone has answered.
 - [ ] Start. Each phone opens its envelope: one murderer, the rest detectives. The narrator reads the prologue. The night starts once everyone taps **Got it**.
 - [ ] Each pair sees the same room and lock. Open each lock type: the fuse box (wires on one phone, manual on the other), charades and sketch (only the lead sees the word; the sketch appears on the partner's phone), two truths and a lie (a wrong pick swaps roles).
@@ -183,3 +209,9 @@ First-time setup:
 - [ ] **Play again** starts a new night with the same players. **Choose another story** goes back to the story browser with the same group.
 - [ ] Refresh the laptop. It opens a new room with a different code; phones join again. (A game already under way carries on for the phones, but the TV leaves it, so only refresh between games.)
 - [ ] Optional: a 7th phone tries to join and sees "This game is full".
+- [ ] Enter Trapped Below. The captain explains while the board fills in; phones show "Eyes on the TV". Three phones tap **We know how to play**: nothing happens; the fourth: it jumps to the hatch.
+- [ ] Hold all bolts together for 3 seconds: sealed. Let one go early: it slips, nothing is lost.
+- [ ] Dim the lights, dive (host's phone), fill in four crew files, hand out the orders, unscrew the portholes. With 4 players one phone says Saboteur.
+- [ ] Watch 1: the air clock runs. Fix the wires (ask your partner) and a "Who said it?". The air goes up; a wrong restart costs 10 seconds.
+- [ ] Sonar: the listener's phone beeps (and vibrates on Android); another phone types the word. Pipes: turn the valves of your row. Hull breach: shake, blow, level and hold until the water is gone.
+- [ ] Meeting: a log about the saboteur, the air paused, then a vote. Vote out the saboteur: the crew wins and the TV shows every crew file. **Play again** and **Choose another story** both work.

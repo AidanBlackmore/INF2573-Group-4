@@ -5,9 +5,9 @@
 export const TITLE = "Murder at Marlowe Manor";
 
 // ---------- The Gathering: the stories ----------
-// The group browses these together after joining. Only Marlowe Manor is playable so far;
-// the order matches rooms.focus in the database (0 = Marlowe Manor).
-export type Sky = "rain" | "dust" | "stars";
+// The group browses these together after joining. Marlowe Manor and Trapped Below are playable;
+// the order matches rooms.focus in the database (0 = Marlowe Manor, 1 = Trapped Below).
+export type Sky = "rain" | "dust" | "stars" | "bubbles";
 export type Story = {
   key: string;
   short: string;
@@ -23,7 +23,7 @@ export type Story = {
   ink: string;
   tile: string;
   sky: Sky;
-  music: "marlowe" | "station" | null;
+  music: "marlowe" | "deep" | null;
   open: boolean;
   coming?: boolean;
 };
@@ -39,10 +39,11 @@ export const STORIES: Story[] = [
     hue: "#c42b22", ink: "#e8d9b8", tile: "#e8d9b8", sky: "rain", music: "marlowe", open: true,
   },
   {
-    key: "station", short: "Station Zero", title: "Sabotage on Station Zero", tag: "Timeline 02 · 2187", line: "One of you is a spy.",
-    desc: "A research station drifts at the edge of the system. Someone aboard is cutting the lines, one by one.",
-    chips: ["3–6 players", "25 min", "1 spy"], bg: "/figma/bg-station.jpg", thumb: "/figma/thumb-station.jpg",
-    hue: "#e8833a", ink: "#d8ece9", tile: "#d5e0e0", sky: "dust", music: "station", open: false,
+    // The key is from when it was called Station Zero; analytics keep counting it as the same story.
+    key: "station", short: "Trapped Below", title: "Trapped Below", tag: "Timeline 02 · 2187 · 412 m down", line: "One of you is the saboteur.",
+    desc: "A research submarine creeps along the trench floor. Systems keep failing, the air is running out, and someone aboard wants it that way.",
+    chips: ["3–6 players", "25 min", "1 saboteur at 4+"], bg: "/trapped/bg/exterior.webp", thumb: "/trapped/bg/exterior.webp",
+    hue: "#e8833a", ink: "#d8ece9", tile: "#d5e0e0", sky: "bubbles", music: "deep", open: true,
   },
   { key: "soon-1", ...COMING },
   { key: "soon-2", ...COMING },

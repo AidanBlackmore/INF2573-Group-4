@@ -14,7 +14,7 @@ A short brief for anyone (or any AI session) picking up this project, so the bac
 ### Stories
 
 1. **Murder at Marlowe Manor** (playable). 1891, a storm, Lord Fenwick face-down in the trifle. One player is secretly the murderer. Rain, lightning, the manor music and a recorded narrator. 3–6 players, about 25 minutes.
-2. **Sabotage on Station Zero** (browsable, "Coming soon"). 2187 research station with a spy aboard. It has its own art, drifting-dust sky and looping music (`public/audio/station.mp3`), but it can't be entered yet.
+2. **Trapped Below** (playable; was "Sabotage on Station Zero", and its story key is still `station`). A research submarine 412 m down, a saboteur aboard, an air clock running out. 3 players play co-op; 4 to 6 have a saboteur. Prototyped first as a Claude artifact (https://claude.ai/artifact/Ljifein59CEf6rEGJMrbGC).
 3. Two "Coming soon" placeholder cards.
 
 The story list lives in `STORIES` in `lib/gathering/content.ts`. Its order matches `rooms.focus` in the database.
@@ -24,7 +24,8 @@ The story list lives in `STORIES` in `lib/gathering/content.ts`. Its order match
 - The game should be **quick to start**: open the site on the TV, scan, play. No accounts, no app.
 - **The TV is the stage, phones are private.** Secrets (roles, notes, lock answers) only ever appear on the phone they belong to.
 - **Atmosphere matters:** music per story, narration, weather, animated transitions between stories, following the Figma design closely.
-- **More stories over time.** Marlowe Manor is the first. Station Zero is next in line, and story-viewing analytics are there to show which story to build next.
+- **More stories over time.** Marlowe Manor and Trapped Below are playable, and story-viewing analytics are there to show which story to build next.
+- **One place to look.** At any moment each player looks at either the TV or their phone, never both. Idle phones go dark and point up; phones that need you chime and glow ("Your move").
 - **Measure what matters** with PostHog (below): can groups get in, which stories they want, whether the game is balanced and the right length, where groups give up, and whether they play again.
 
 ## How a game flows
@@ -41,7 +42,8 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
    - **`discuss` / `meeting` / `tally` / `revealed`:** discussion and a vote when a clue or a body turned up; otherwise a `quiet` round.
    - **Ghosts** (killed or voted out) still open locks but can't vote.
    - **`ended`:** detectives win by voting out the murderer; the murderer wins when one detective is left.
-4. **Ending:** **Play again** keeps the same story; **Choose another story** goes back to the browser with the same group.
+4. **Trapped Below** (phases `tb_*`): how to play (the captain explains, all can skip), seal the hatch together (hold on every phone for 3 s, safe to fail), dim the lights and dive, crew file (portrait plus four questions from its own bank), sealed orders, four watches of repairs (wires, "who said it?") with an air clock, all-hands emergencies (sonar Morse, ballast pipes, hull breach with phone sensors), meetings with logs about the saboteur and a vote, then the ending with everyone's crew file.
+5. **Ending:** **Play again** keeps the same story; **Choose another story** goes back to the browser with the same group.
 
 ## Tech
 
@@ -61,11 +63,16 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
 | `app/page.tsx` | Front page: renders the TV |
 | `app/join/page.tsx` | Type-a-code page |
 | `app/play/[code]/phone.tsx` | Phone screens, QR auto-join, code boxes, phone analytics |
-| `app/_ui/` | Shared pieces: `bits.tsx` (avatars, tags, timer ring, `Line`), `house.tsx` (floor plan), `weather.tsx` (rain/dust/stars canvas) |
+| `app/_ui/` | Shared pieces: `bits.tsx` (avatars, tags, timer ring, `Line`), `house.tsx` (floor plan), `weather.tsx` (rain/dust/stars/bubbles canvas) |
 | `app/gathering.css` | The design system |
 | `lib/gathering/content.ts` | All story text: stories, questions, chapters, narration lines, rooms, locks |
 | `lib/gathering/game.ts` | `View` types, `useGame` (live view), `act()` RPC helper, timers |
 | `lib/gathering/sound.ts` | Music loops with crossfade, narrator (recordings in `public/narration/`, browser voice fallback), synthesised sound effects |
+| `app/host/trapped.tsx` | Trapped Below on the TV: every `tb_*` screen, the blueprint, room backdrop, its sound and analytics hook (`useTrappedTv`) |
+| `app/play/[code]/trapped.tsx` | Trapped Below on the phone: look-up screens, hatch, crew file, orders, repairs, emergencies (shake/mic/tilt sensors), vote |
+| `app/trapped.css` | Trapped Below's look, scoped to `[data-world="deep"]` |
+| `lib/gathering/trapped.ts` | Trapped Below's text: questions, briefing timing, captain's lines, rooms, Morse, pipes |
+| `lib/gathering/deep.ts` | Trapped Below's synthesised sounds (rooms, creaks, heartbeat, chime, Morse), `shake()` and `buzz()` |
 | `lib/analytics.ts` | `track()`; adds `screen: tv/phone` |
 | `supabase/migrations/0001_the_gathering.sql` | The whole database: tables, RLS, RPCs, game rules |
 
@@ -76,7 +83,7 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
   - **Otherwise:** the first click or key press anywhere on the TV wakes the audio engine and starts every audio element once (Safari needs that). Lines blocked before then are read at that moment.
 - **Narrator:** reads every `[data-line]` on the TV screen once per screen.
 - **Music:** ducks under the narrator and during lock solving.
-- **Station Zero's music** plays while it's on screen in the browser.
+- **Trapped Below:** its deep-water ambience (`public/audio/deep.mp3`) plays in the browser and all game. The narrator is the captain (`tb-*.mp3`) through a radio filter. Room sounds, creaks, the heartbeat and the phones' chime are made in the browser (`lib/gathering/deep.ts`).
 
 ## Analytics (PostHog)
 
@@ -117,6 +124,6 @@ Things to know when testing:
 
 ## Open items
 
-- **Station Zero:** its gameplay isn't built yet.
+- **Trapped Below:** the backgrounds are small crops from the Figma overview; full-size exports would look sharper. The air numbers (8:00 start, bonuses) need tuning from real games (see `game_ended` with `story = station`).
 - **Old PostHog events:** hide them (see Analytics).
 - **The dashboard:** fills in once games are played on the live site.

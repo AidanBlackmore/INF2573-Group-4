@@ -6,11 +6,13 @@ import {
   FUSE_RULES, QUESTIONS, ROOM_SCENE, STORIES, WIRE_HEX, chapterOf, halfText, names, noteText, roomName,
 } from "@/lib/gathering/content";
 import {
-  TIMED, act, alive, clues, nameOf, playerOf, useAdvanceWhenDue, useGame, useSecondsLeft, type MyLock, type View,
+  TIMED, act, alive, clues, nameOf, playerOf, useAdvanceWhenDue, useGame, useSecondsLeft, useTbTick, type MyLock, type View,
 } from "@/lib/gathering/game";
 import { track } from "@/lib/analytics";
 import { ensureSignedIn, errorMessage, supabase } from "@/lib/supabase";
 import { Art, Avatar, KnifeSvg, Ring, Tag, colorOf, since } from "../../_ui/bits";
+import { crewPic } from "@/lib/gathering/trapped";
+import { TrappedPhone } from "./trapped";
 
 export default function PhoneScreen() {
   const params = useParams<{ code: string }>();
@@ -202,17 +204,18 @@ function Joined({ roomId }: { roomId: string }) {
   const { view, error, reload, now } = useGame(roomId);
   const left = useSecondsLeft(view, now);
   useAdvanceWhenDue(view, left, reload);
+  useTbTick(view, now, reload);
   // Removed from the room: they joined but didn't finish before "We're in".
   if (error?.includes("not in this room")) return <Page><Msg title="Already started" text="This gathering started without you. Join the next one." /></Page>;
   if (!view) {
     return <Page><div className="p-msg"><p className="p-small">{error ?? "Opening…"}</p></div></Page>;
   }
-  return <Phone view={view} reload={reload} left={left} />;
+  return <Phone view={view} reload={reload} left={left} now={now} />;
 }
 
 type Ctx = { view: View; left: number; run: (fn: string, args?: Record<string, unknown>) => Promise<boolean>; busy: boolean; error: string | null };
 
-function Phone({ view, reload, left }: { view: View; reload: () => Promise<void>; left: number }) {
+function Phone({ view, reload, left, now }: { view: View; reload: () => Promise<void>; left: number; now: () => number }) {
   const [busy, setBusy] = useState(false);
   const phase = view.room.phase;
   // Errors belong to the screen they happened on.
@@ -250,8 +253,10 @@ function Phone({ view, reload, left }: { view: View; reload: () => Promise<void>
   const me = playerOf(view, view.me);
   const host = view.me !== null && view.me === view.host_player;
 
+  const deepSea = phase.startsWith("tb_");
   let body: ReactNode;
-  if (phase === "join") body = me?.joined ? <YoureIn ctx={ctx} /> : <NameAndColor ctx={ctx} />;
+  if (deepSea) body = <TrappedPhone ctx={ctx} now={now} />;
+  else if (phase === "join") body = me?.joined ? <YoureIn ctx={ctx} /> : <NameAndColor ctx={ctx} />;
   else if (phase === "browse") body = <BrowsePhone ctx={ctx} />;
   else if (phase === "lobby") body = <Onboarding ctx={ctx} />;
   else if (phase === "roles") body = <Envelope ctx={ctx} />;
@@ -272,7 +277,7 @@ function Phone({ view, reload, left }: { view: View; reload: () => Promise<void>
   }
 
   return (
-    <main className="gathering phone-page" data-world={phase === "join" || phase === "browse" ? "shell" : "marlowe"}>
+    <main className="gathering phone-page" data-world={phase === "join" || phase === "browse" ? "shell" : deepSea ? "deep" : "marlowe"}>
       <div className="screen">
         {(phase === "join" || phase === "browse") && (
           <div className="p-head">
@@ -288,7 +293,12 @@ function Phone({ view, reload, left }: { view: View; reload: () => Promise<void>
         {me?.name && phase !== "join" && phase !== "browse" && (
           <div className="p-head">
             <span className="me">
-              <Avatar view={view} player={me} size="xs" />
+              {deepSea ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="tb-mini" src={crewPic(me.portrait)} alt="" style={{ "--pc": colorOf(view, me.id) } as CSSProperties} />
+              ) : (
+                <Avatar view={view} player={me} size="xs" />
+              )}
               {me.name}
               {host ? " · host" : ""}
             </span>
@@ -1145,6 +1155,34 @@ function HostPanel({ ctx }: { ctx: Ctx }) {
       </>
     ),
   };
+  // Trapped Below.
+  const tbNext = (label: string) => (
+    <button disabled={busy} onClick={() => void run("tb_next", { p_phase: phase })}>
+      {label}
+    </button>
+  );
+  const tbAllIn = view.players.every((p) => p.picked && p.answered);
+  Object.assign(buttons, {
+    tb_crew: (
+      <button disabled={busy || !tbAllIn} onClick={() => void run("tb_start")}>
+        Hand out the orders
+      </button>
+    ),
+    tb_watch: tbNext("End the watch"),
+    tb_talk: tbNext("Start the vote"),
+    tb_vote: tbNext("Reveal the vote"),
+    tb_verdict: tbNext(view.tb?.result?.was_saboteur || view.room.round >= 4 ? "See the ending" : "Next watch"),
+    tb_end: (
+      <>
+        <button disabled={busy} onClick={() => void run("tb_start")}>
+          Play again
+        </button>
+        <button disabled={busy} onClick={() => void run("another_story")}>
+          Another story
+        </button>
+      </>
+    ),
+  });
   const timed = TIMED.includes(phase);
   if (!timed && !buttons[phase]) return null;
   return (

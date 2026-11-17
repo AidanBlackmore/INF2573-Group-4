@@ -1,4 +1,4 @@
--- The Gathering, and its first story: Murder at Marlowe Manor.
+-- The Gathering, and its stories: Murder at Marlowe Manor and Trapped Below.
 --
 -- One database file for the whole game. Run it once in the Supabase SQL Editor.
 -- It is safe to run again, and on a project that still has the old Alternate
@@ -21,6 +21,8 @@
 --   still open locks, but can't vote.
 -- - Detectives win by voting out the murderer. The murderer wins when only one
 --   detective is left.
+-- - Trapped Below (a submarine with a saboteur aboard) has its own section
+--   near the end of this file.
 --
 -- Security model
 -- - Every device signs in with Supabase Anonymous Auth.
@@ -37,6 +39,7 @@
 -- ---------------------------------------------------------------------------
 
 drop table if exists
+  public.tb_repairs, public.tb_crew, public.tb_games,
   public.mystery_events, public.mysteries, public.icebreaker_answers,
   public.choices, public.votes, public.pairs, public.notes, public.answers,
   public.games, public.players, public.rooms
@@ -59,7 +62,9 @@ begin
         'set_identity', 'pick_portrait', 'submit_answers', 'start_game', 'open_envelope', 'got_it',
         'cut_wire', 'guess_word', 'new_word', 'add_stroke', 'clear_sketch', 'choose_lie', 'spot_lie',
         'forge_note', 'strike', 'cast_vote', 'host_next', 'add_time', 'advance_if_due', 'get_view',
-        'pick_color', 'set_name_color', 'we_are_in', 'browse_story', 'enter_story', 'another_story'
+        'pick_color', 'set_name_color', 'we_are_in', 'browse_story', 'enter_story', 'another_story',
+        'tb_skip', 'tb_hold', 'tb_dive', 'tb_portrait', 'tb_crew_file', 'tb_start', 'tb_orders', 'tb_restart',
+        'tb_pick', 'tb_bolt', 'tb_sonar', 'tb_rotate', 'tb_leak', 'tb_vote', 'tb_next', 'tb_tick'
       )
   loop
     execute 'drop function ' || r.sig || ' cascade';
@@ -81,12 +86,14 @@ create table public.rooms (
   host_id uuid not null references auth.users (id) on delete cascade,
   -- 'join' and 'browse' are The Gathering's lobby and story browser; the rest are the story.
   phase text not null default 'join'
-    check (phase in ('join', 'browse', 'lobby', 'roles', 'tasks', 'quiet', 'discuss', 'meeting', 'tally', 'revealed', 'ended')),
-  -- The story on screen in the browser (0 = Marlowe Manor), which way the last swipe went, and when.
+    check (phase in ('join', 'browse', 'lobby', 'roles', 'tasks', 'quiet', 'discuss', 'meeting', 'tally', 'revealed', 'ended',
+                     -- Trapped Below.
+                     'tb_brief', 'tb_dive', 'tb_crew', 'tb_orders', 'tb_watch', 'tb_hands', 'tb_talk', 'tb_vote', 'tb_verdict', 'tb_end')),
+  -- The story on screen in the browser (0 = Marlowe Manor, 1 = Trapped Below), which way the last swipe went, and when.
   focus int not null default 0 check (focus between 0 and 3),
   focus_dir int not null default 1 check (focus_dir in (-1, 1)),
   focus_at timestamptz not null default now(),
-  -- The story being played.
+  -- The story being played: 'marlowe' or 'station' (Trapped Below; its key from when it was called Station Zero).
   story text,
   round int not null default 0,
   -- When the current phase started (animations on every screen start from here).
@@ -939,7 +946,7 @@ begin
 end;
 $$;
 
--- "Enter this story". Only Murder at Marlowe Manor (story 0) is open so far.
+-- "Enter this story": Murder at Marlowe Manor (story 0) or Trapped Below (story 1).
 create function public.enter_story(p_room_id uuid)
 returns void
 language plpgsql
@@ -953,16 +960,30 @@ begin
   if v_room.phase <> 'browse' then
     return;
   end if;
-  if v_room.focus <> 0 then
+  if v_room.focus not in (0, 1) then
     raise exception 'This story is coming soon';
   end if;
-  -- Everyone starts with a different detective portrait, and can pick another.
+  -- Everyone starts with a different portrait, and can pick another.
+  -- (Cleared first: the portraits are unique, and coming back from another story they're all taken.)
+  update public.players set portrait = null where room_id = p_room_id;
   update public.players p set portrait = pick.k, picked = false
   from (
     select id, row_number() over (order by random()) as k
     from public.players where room_id = p_room_id
   ) pick
   where p.id = pick.id;
+  if v_room.focus = 1 then
+    -- Trapped Below: the captain's briefing first. Each story has its own questions.
+    delete from public.tb_repairs where room_id = p_room_id;
+    delete from public.tb_crew where room_id = p_room_id;
+    delete from public.tb_games where room_id = p_room_id;
+    insert into public.tb_games (room_id) values (p_room_id);
+    update public.players set answered = false, opened = false, ready = false, dead = null, dead_at = null where room_id = p_room_id;
+    update public.rooms set story = 'station', round = 0 where id = p_room_id;
+    perform private.set_phase(p_room_id, 'tb_brief');
+    return;
+  end if;
+  update public.players p set answered = exists (select 1 from public.answers a where a.player_id = p.id) where p.room_id = p_room_id;
   update public.rooms set story = 'marlowe' where id = p_room_id;
   perform private.set_phase(p_room_id, 'lobby');
 end;
@@ -979,10 +1000,12 @@ declare
   v_room public.rooms := private.lock_room(p_room_id);
 begin
   perform private.require_controller(v_room);
-  if v_room.phase <> 'ended' then
+  if v_room.phase not in ('ended', 'tb_end') then
     return;
   end if;
   delete from public.votes where room_id = p_room_id;
+  delete from public.tb_repairs where room_id = p_room_id;
+  delete from public.tb_games where room_id = p_room_id;
   delete from public.pairs where room_id = p_room_id;
   delete from public.notes where room_id = p_room_id;
   delete from public.games where room_id = p_room_id;
@@ -1615,6 +1638,1311 @@ begin
 end;
 $$;
 
+-- ===========================================================================
+-- Trapped Below (story 1): a submarine, a crew, and a saboteur.
+-- ===========================================================================
+--
+-- How it works
+-- - Onboarding (tb_brief): the captain explains the game on the TV while the
+--   board fills in. Everyone tapping "We know how to play" skips to the hatch.
+--   Then everyone holds their bolt on their phone at the same time for three
+--   seconds to seal the hatch. A bolt that slips costs nothing.
+-- - Dim the lights (tb_dive): the host starts the dive; eight seconds later
+--   everyone fills in their crew file (tb_crew): a portrait, a favourite wire
+--   colour, a number from 1 to 9, what they'd bring if trapped underwater, and
+--   one deeper question.
+-- - Sealed orders (tb_orders): with 4 or more players, one is the saboteur.
+--   With 3 it's co-op: reach the surface before the air runs out.
+-- - Four watches (tb_watch). Each pair (a trio if odd) gets one repair:
+--   wires (one phone has the panel, the other the riddles about the panel
+--   holder) or "who said it?" (the guide has a question about the operator,
+--   the operator has everyone's answers). Repairs add air; mistakes cost some.
+-- - After watches 1 to 3, an all-hands emergency (tb_hands): sonar Morse,
+--   ballast pipes, then a hull breach.
+-- - With a saboteur, the crew meets (tb_talk), reads the logs (every fix
+--   recovers a line about the saboteur, from their own answers) and votes
+--   (tb_vote, tb_verdict). A wrong vote costs a minute of air.
+-- - The air clock runs from the first watch, and stops for meetings.
+--   The crew wins by voting out the saboteur (or, in co-op, by surviving four
+--   watches). The saboteur wins if the air runs out, if they reach the
+--   surface undiscovered, or if only one crew member is left.
+
+-- Secret: one row per Trapped Below game.
+create table public.tb_games (
+  room_id uuid primary key references public.rooms (id) on delete cascade,
+  saboteur_id uuid references public.players (id) on delete set null,
+  -- Onboarding: 'talk' (the captain explains), 'hatch' (hold the bolts), 'sealed'.
+  stage text not null default 'talk' check (stage in ('talk', 'hatch', 'sealed')),
+  skip uuid[] not null default '{}',
+  holds uuid[] not null default '{}',
+  seal_at timestamptz,
+  sealed_at timestamptz,
+  slips int not null default 0,
+  slip_at timestamptz,
+  dive_at timestamptz,
+  -- The air clock: while it runs, air_at is when it reaches zero; while paused, air_left holds what's left.
+  air_running boolean not null default false,
+  air_at timestamptz,
+  air_left int not null default 480,
+  depth int not null default 412,
+  -- The all-hands emergency after this watch.
+  hands_kind text check (hands_kind in ('sonar', 'pipes', 'leak')),
+  hands_done boolean not null default false,
+  hands_ok boolean,
+  hands_tries int not null default 0,
+  sonar_word text,
+  sonar_listener uuid,
+  pipe_rot int[],
+  leak_water real not null default 60,
+  leak_at timestamptz,
+  leak_holding uuid[] not null default '{}',
+  leak_floods int not null default 0,
+  -- The saboteur's loosened bolt: chosen during a watch, felt at the start of the next.
+  bolt text,
+  bolt_watch int,
+  bolt_report text,
+  -- Every fix recovers a log about the saboteur, in this order.
+  logs_found int not null default 0,
+  log_rounds int[] not null default '{}',
+  fixes int not null default 0,
+  result jsonb,
+  outcome text check (outcome in ('crew', 'saboteur')),
+  reason text,
+  started_at timestamptz
+);
+
+-- Secret: each player's crew file.
+create table public.tb_crew (
+  player_id uuid primary key references public.players (id) on delete cascade,
+  room_id uuid not null references public.rooms (id) on delete cascade,
+  colour text not null check (colour in ('red', 'blue', 'yellow', 'green', 'white', 'black')),
+  num int not null check (num between 1 and 9),
+  bring text not null check (char_length(bring) between 1 and 80),
+  deep_q text not null check (char_length(deep_q) between 1 and 200),
+  deep_a text not null check (char_length(deep_a) between 1 and 120)
+);
+create index tb_crew_room_id_idx on public.tb_crew (room_id);
+
+-- Secret: this watch's repairs.
+create table public.tb_repairs (
+  room_id uuid not null references public.rooms (id) on delete cascade,
+  watch int not null,
+  idx int not null,
+  kind text not null check (kind in ('wires', 'guide')),
+  members uuid[] not null,
+  -- Wires: the panel holder (the riddles are about them). Guide: the operator (the question is about them).
+  lead uuid not null,
+  place text not null,
+  solved boolean not null default false,
+  -- 'ok' (fixed) or 'half' (a guide pick that was wrong).
+  result text,
+  tries int not null default 0,
+  msg text not null default '',
+  -- Guide: the shown answers [{a, owner}] and which one was picked.
+  options jsonb,
+  pick int,
+  solved_at timestamptz,
+  primary key (room_id, watch, idx)
+);
+
+alter table public.tb_games enable row level security;
+alter table public.tb_crew enable row level security;
+alter table public.tb_repairs enable row level security;
+revoke all on public.tb_games, public.tb_crew, public.tb_repairs from anon, authenticated;
+
+-- How long the captain's briefing lasts on the TV (the recorded lines plus pauses), in seconds.
+create function private.tb_brief_secs()
+returns int
+language sql
+immutable
+set search_path = ''
+as $$ select 38 $$;
+
+-- Air left right now, in seconds.
+create function private.tb_air(p_game public.tb_games)
+returns int
+language sql
+stable
+set search_path = ''
+as $$
+  select case when p_game.air_running and p_game.air_at is not null
+              then greatest(0, ceil(extract(epoch from p_game.air_at - now())))::int
+              else p_game.air_left end;
+$$;
+
+-- Add (or take) air. The tank holds ten minutes.
+create function private.tb_add_air(p_room_id uuid, p_secs int)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_game public.tb_games;
+  v_left int;
+begin
+  select * into v_game from public.tb_games where room_id = p_room_id for update;
+  v_left := least(600, greatest(0, private.tb_air(v_game) + p_secs));
+  if v_game.air_running then
+    update public.tb_games set air_at = now() + make_interval(secs => v_left), air_left = v_left where room_id = p_room_id;
+  else
+    update public.tb_games set air_left = v_left where room_id = p_room_id;
+  end if;
+end;
+$$;
+
+create function private.tb_air_run(p_room_id uuid, p_on boolean)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_game public.tb_games;
+  v_left int;
+begin
+  select * into v_game from public.tb_games where room_id = p_room_id for update;
+  v_left := private.tb_air(v_game);
+  update public.tb_games set air_running = p_on, air_left = v_left,
+    air_at = case when p_on then now() + make_interval(secs => v_left) end
+  where room_id = p_room_id;
+end;
+$$;
+
+-- A fix adds air and climbs toward the surface. The first fix of each watch also recovers
+-- the next log about the saboteur (with a saboteur aboard), so there's one new clue per meeting.
+create function private.tb_fixed(p_room_id uuid, p_air int)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_room public.rooms;
+begin
+  select * into v_room from public.rooms where id = p_room_id;
+  perform private.tb_add_air(p_room_id, p_air);
+  update public.tb_games set fixes = fixes + 1, depth = greatest(0, depth - 40),
+    logs_found = case when saboteur_id is not null and logs_found < 4 and not v_room.round = any (log_rounds) then logs_found + 1 else logs_found end,
+    log_rounds = case when saboteur_id is not null and logs_found < 4 and not v_room.round = any (log_rounds) then log_rounds || v_room.round else log_rounds end
+  where room_id = p_room_id;
+end;
+$$;
+
+-- The logs found so far: lines about the saboteur, from their own crew file.
+create function private.tb_logs(p_room_id uuid)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('watch', g.log_rounds[l.i], 'text', l.t) order by l.i), '[]')
+  from public.tb_games g
+  join public.tb_crew c on c.player_id = g.saboteur_id
+  cross join lateral (
+    select * from (values
+      (1, 'The saboteur''s favourite colour is ' || c.colour || '.'),
+      (2, 'The saboteur''s lucky number is ' || c.num || '.'),
+      (3, 'Trapped underwater, the saboteur would bring: ' || c.bring || '.'),
+      (4, 'Asked “' || c.deep_q || '”, the saboteur answered: ' || c.deep_a || '.')
+    ) v(i, t)
+  ) l
+  where g.room_id = p_room_id and l.i <= g.logs_found;
+$$;
+
+-- The game ends. Outcome 'crew' or 'saboteur'.
+create function private.tb_finish(p_room_id uuid, p_outcome text, p_reason text)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+begin
+  perform private.tb_air_run(p_room_id, false);
+  update public.tb_games set outcome = p_outcome, reason = p_reason where room_id = p_room_id;
+  perform private.set_phase(p_room_id, 'tb_end');
+end;
+$$;
+
+-- Out of air?
+create function private.tb_out_of_air(p_room_id uuid)
+returns boolean
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_game public.tb_games;
+begin
+  select * into v_game from public.tb_games where room_id = p_room_id;
+  if not v_game.air_running or private.tb_air(v_game) > 0 then
+    return false;
+  end if;
+  perform private.tb_finish(p_room_id, 'saboteur', case when v_game.saboteur_id is null
+    then 'The air ran out before you reached the surface.'
+    else 'The air ran out. The saboteur wins.' end);
+  return true;
+end;
+$$;
+
+-- A watch: fresh pairs (a trio if odd), each with a repair in a room of the sub.
+create function private.tb_start_watch(p_room_id uuid)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_room public.rooms;
+  v_game public.tb_games;
+  v_order uuid[];
+  v_n int;
+  v_groups int;
+  v_i int;
+  v_members uuid[];
+  v_kind text;
+  v_lead uuid;
+  v_wires int := 0;
+  v_guides int := 0;
+  v_opts jsonb;
+  v_watch int;
+  v_bonus int;
+begin
+  select * into v_room from public.rooms where id = p_room_id;
+  select * into v_game from public.tb_games where room_id = p_room_id;
+  v_watch := v_room.round + 1;
+
+  -- Everyone repairs, ghosts too.
+  select array_agg(id order by random()) into v_order from public.players where room_id = p_room_id;
+  v_n := array_length(v_order, 1);
+  v_groups := greatest(1, v_n / 2);
+  delete from public.tb_repairs where room_id = p_room_id;
+  for v_i in 0..v_groups - 1 loop
+    v_members := v_order[v_i * 2 + 1 : v_i * 2 + 2];
+    if v_i = v_groups - 1 and v_n % 2 = 1 then
+      v_members := v_members || v_order[v_n];
+    end if;
+    v_kind := case when (v_i + v_watch) % 2 = 0 then 'wires' else 'guide' end;
+    v_lead := v_members[1];
+    v_opts := null;
+    if v_kind = 'guide' then
+      -- The operator's answer and up to three others, shuffled.
+      select jsonb_agg(jsonb_build_object('a', bring, 'owner', player_id) order by random()) into v_opts
+      from (
+        select c.bring, c.player_id from public.tb_crew c where c.player_id = v_lead
+        union all
+        (select c.bring, c.player_id from public.tb_crew c
+         where c.room_id = p_room_id and c.player_id <> v_lead order by random() limit 3)
+      ) o;
+    end if;
+    insert into public.tb_repairs (room_id, watch, idx, kind, members, lead, place, options)
+    values (p_room_id, v_watch, v_i, v_kind, v_members, v_lead,
+            case when v_kind = 'wires' then (array['engine', 'control', 'sonar'])[1 + v_wires % 3]
+                 else (array['oxygen', 'galley', 'quarters'])[1 + v_guides % 3] end,
+            v_opts);
+    if v_kind = 'wires' then v_wires := v_wires + 1; else v_guides := v_guides + 1; end if;
+  end loop;
+
+  update public.tb_games set bolt_report = null, result = null, hands_kind = null, hands_done = false, hands_ok = null,
+    hands_tries = 0 where room_id = p_room_id;
+  -- The bolt the saboteur loosened last watch gives way now.
+  if v_game.bolt is not null and v_game.bolt_watch = v_room.round then
+    perform private.tb_add_air(p_room_id, -30);
+    update public.tb_games set bolt_report = bolt, bolt = null where room_id = p_room_id;
+  end if;
+
+  update public.rooms set round = v_watch where id = p_room_id;
+  perform private.set_phase(p_room_id, 'tb_watch', 150);
+  perform private.tb_air_run(p_room_id, true);
+end;
+$$;
+
+-- The air bonus for one repair: three minutes a watch, shared across the pairs.
+create function private.tb_bonus(p_room_id uuid)
+returns int
+language sql
+stable
+set search_path = ''
+as $$
+  select least(90, 180 / greatest(1, (select count(*) from public.tb_repairs where room_id = p_room_id)::int));
+$$;
+
+-- The watch is over (all fixed, or time's up): an emergency, a meeting, or the end.
+create function private.tb_end_watch(p_room_id uuid)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_room public.rooms;
+  v_game public.tb_games;
+  v_kind text;
+  v_words text[] := array['EEL', 'RAY', 'COD', 'SUB', 'OAR', 'ICE', 'KELP', 'REEF'];
+  v_listener uuid;
+begin
+  select * into v_room from public.rooms where id = p_room_id;
+  select * into v_game from public.tb_games where room_id = p_room_id;
+  if v_room.round >= 4 then
+    perform private.tb_after_hands(p_room_id);
+    return;
+  end if;
+  v_kind := (array['sonar', 'pipes', 'leak'])[v_room.round];
+  select id into v_listener from public.players where room_id = p_room_id order by random() limit 1;
+  update public.tb_games set
+    hands_kind = v_kind, hands_done = false, hands_ok = null, hands_tries = 0,
+    sonar_word = v_words[1 + floor(random() * array_length(v_words, 1))::int],
+    sonar_listener = v_listener,
+    pipe_rot = array[1, 0, 0, 3, 2, 1, 1, 1, 3],
+    leak_water = 60, leak_at = now() + interval '4 seconds', leak_holding = '{}', leak_floods = 0
+  where room_id = p_room_id;
+  perform private.set_phase(p_room_id, 'tb_hands', 120);
+end;
+$$;
+
+-- After the emergency (or the last watch): the meeting, or straight on.
+create function private.tb_after_hands(p_room_id uuid)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_room public.rooms;
+  v_game public.tb_games;
+begin
+  select * into v_room from public.rooms where id = p_room_id;
+  select * into v_game from public.tb_games where room_id = p_room_id;
+  if private.tb_out_of_air(p_room_id) then
+    return;
+  end if;
+  if v_game.saboteur_id is null then
+    if v_room.round >= 4 then
+      perform private.tb_finish(p_room_id, 'crew', 'Four watches, and you reached the surface together.');
+    else
+      perform private.tb_start_watch(p_room_id);
+    end if;
+    return;
+  end if;
+  perform private.tb_air_run(p_room_id, false);
+  perform private.set_phase(p_room_id, 'tb_talk', 90);
+end;
+$$;
+
+-- Count the votes. Anyone who hasn't voted skips.
+create function private.tb_reveal_votes(p_room_id uuid)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_room public.rooms;
+  v_game public.tb_games;
+  v_counts jsonb;
+  v_top int;
+  v_leaders text[];
+  v_out text;
+begin
+  select * into v_room from public.rooms where id = p_room_id;
+  select * into v_game from public.tb_games where room_id = p_room_id;
+  insert into public.votes (room_id, round, voter_id, target, auto)
+  select p_room_id, v_room.round, p.id, 'skip', true
+  from public.players p where p.room_id = p_room_id and p.dead is null
+  on conflict do nothing;
+  select coalesce(jsonb_agg(jsonb_build_object('k', target, 'n', n) order by n desc, target), '[]'), max(n)
+  into v_counts, v_top
+  from (
+    select v.target, count(*)::int as n
+    from public.votes v join public.players p on p.id = v.voter_id and p.dead is null
+    where v.room_id = p_room_id and v.round = v_room.round
+    group by v.target
+  ) c;
+  select array_agg(c ->> 'k') into v_leaders from jsonb_array_elements(v_counts) c where (c ->> 'n')::int = v_top;
+  v_out := case when array_length(v_leaders, 1) = 1 and v_leaders[1] <> 'skip' then v_leaders[1] end;
+  if v_out is not null then
+    update public.players set dead = 'ejected', dead_at = now() where id = v_out::uuid;
+    if v_out::uuid is distinct from v_game.saboteur_id then
+      perform private.tb_add_air(p_room_id, -60);
+    end if;
+  end if;
+  update public.tb_games set result = jsonb_build_object(
+    'counts', v_counts, 'ejected', v_out, 'tie', coalesce(array_length(v_leaders, 1), 0) > 1,
+    'was_saboteur', v_out is not null and v_out::uuid = v_game.saboteur_id
+  ) where room_id = p_room_id;
+  perform private.set_phase(p_room_id, 'tb_verdict');
+end;
+$$;
+
+-- After the verdict: the end, or the next watch.
+create function private.tb_after_verdict(p_room_id uuid)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_room public.rooms;
+  v_game public.tb_games;
+  v_crew int;
+begin
+  select * into v_room from public.rooms where id = p_room_id;
+  select * into v_game from public.tb_games where room_id = p_room_id;
+  select count(*) into v_crew from public.players where room_id = p_room_id and dead is null and id <> v_game.saboteur_id;
+  if (v_game.result ->> 'was_saboteur')::boolean then
+    perform private.tb_finish(p_room_id, 'crew', 'The crew voted out the saboteur.');
+  elsif private.tb_air(v_game) <= 0 then
+    perform private.tb_finish(p_room_id, 'saboteur', 'The air ran out. The saboteur wins.');
+  elsif v_crew <= 1 then
+    perform private.tb_finish(p_room_id, 'saboteur', 'Only one crew member is left. The saboteur wins.');
+  elsif v_room.round >= 4 then
+    perform private.tb_finish(p_room_id, 'saboteur', 'You reached the surface with the saboteur still aboard.');
+  else
+    perform private.tb_start_watch(p_room_id);
+  end if;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Trapped Below: onboarding
+-- ---------------------------------------------------------------------------
+
+-- "We know how to play": when everyone taps it, the briefing skips to the hatch. Tap again to take it back.
+create function public.tb_skip(p_room_id uuid, p_on boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+  v_me public.players := private.me(p_room_id);
+  v_game public.tb_games;
+begin
+  select * into v_game from public.tb_games where room_id = p_room_id for update;
+  if v_me.id is null or v_room.phase <> 'tb_brief' or v_game.stage <> 'talk' then
+    return;
+  end if;
+  update public.tb_games set skip = case when p_on then array_append(array_remove(skip, v_me.id), v_me.id) else array_remove(skip, v_me.id) end
+  where room_id = p_room_id returning * into v_game;
+  if not exists (select 1 from public.players p where p.room_id = p_room_id and not p.id = any (v_game.skip)) then
+    update public.tb_games set stage = 'hatch' where room_id = p_room_id;
+  end if;
+  perform private.touch(p_room_id);
+end;
+$$;
+
+-- Holding (or letting go of) your bolt on the hatch. All of them at once for three seconds seals it.
+create function public.tb_hold(p_room_id uuid, p_on boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+  v_me public.players := private.me(p_room_id);
+  v_game public.tb_games;
+  v_all boolean;
+begin
+  select * into v_game from public.tb_games where room_id = p_room_id for update;
+  if v_me.id is null or v_room.phase <> 'tb_brief' or v_game.stage <> 'hatch' then
+    return;
+  end if;
+  if p_on then
+    update public.tb_games set holds = array_append(array_remove(holds, v_me.id), v_me.id) where room_id = p_room_id returning * into v_game;
+  else
+    -- Letting go before it's sealed: the bolt slips. No harm done.
+    if v_game.seal_at is not null and v_game.seal_at > now() then
+      update public.tb_games set slips = slips + 1, slip_at = now() where room_id = p_room_id;
+    end if;
+    update public.tb_games set holds = array_remove(holds, v_me.id), seal_at = null where room_id = p_room_id returning * into v_game;
+  end if;
+  v_all := not exists (select 1 from public.players p where p.room_id = p_room_id and not p.id = any (v_game.holds));
+  if v_all and v_game.seal_at is null then
+    update public.tb_games set seal_at = now() + interval '3 seconds' where room_id = p_room_id;
+  end if;
+  perform private.touch(p_room_id);
+end;
+$$;
+
+-- Dim the lights, then dive: the host starts it.
+create function public.tb_dive(p_room_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+begin
+  perform private.require_controller(v_room);
+  if v_room.phase <> 'tb_dive' then
+    return;
+  end if;
+  update public.tb_games set dive_at = coalesce(dive_at, now()) where room_id = p_room_id;
+  perform private.touch(p_room_id);
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Trapped Below: crew file and sealed orders
+-- ---------------------------------------------------------------------------
+
+create function public.tb_portrait(p_room_id uuid, p_portrait int)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+  v_me public.players := private.me(p_room_id);
+  v_other uuid;
+begin
+  if v_me.id is null or v_room.phase <> 'tb_crew' then
+    raise exception 'The crew file is closed';
+  end if;
+  if p_portrait is null or p_portrait not between 1 and 6 then
+    raise exception 'Pick a portrait';
+  end if;
+  if exists (select 1 from public.players where room_id = p_room_id and id <> v_me.id and portrait = p_portrait and picked) then
+    raise exception 'Someone already picked that one';
+  end if;
+  -- Whoever had it (not yet confirmed) swaps to this player's old portrait.
+  select id into v_other from public.players where room_id = p_room_id and id <> v_me.id and portrait = p_portrait;
+  update public.players set portrait = null where id = v_other;
+  update public.players set portrait = p_portrait, picked = true where id = v_me.id;
+  update public.players set portrait = v_me.portrait where id = v_other;
+  perform private.touch(p_room_id);
+end;
+$$;
+
+create function public.tb_crew_file(p_room_id uuid, p_colour text, p_num int, p_bring text, p_deep_q text, p_deep_a text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+  v_me public.players := private.me(p_room_id);
+begin
+  if v_me.id is null or v_room.phase <> 'tb_crew' then
+    raise exception 'The crew file is closed';
+  end if;
+  if v_me.answered then
+    raise exception 'Your crew file is already in';
+  end if;
+  if p_colour not in ('red', 'blue', 'yellow', 'green', 'white', 'black') then
+    raise exception 'Pick a colour';
+  end if;
+  if p_num is null or p_num not between 1 and 9 then
+    raise exception 'Pick a number from 1 to 9';
+  end if;
+  if char_length(btrim(coalesce(p_bring, ''))) not between 1 and 80 or char_length(btrim(coalesce(p_deep_a, ''))) not between 1 and 120 then
+    raise exception 'Answer to continue.';
+  end if;
+  if char_length(btrim(coalesce(p_deep_q, ''))) not between 1 and 200 then
+    raise exception 'Missing question';
+  end if;
+  insert into public.tb_crew (player_id, room_id, colour, num, bring, deep_q, deep_a)
+  values (v_me.id, p_room_id, p_colour, p_num, btrim(p_bring), btrim(p_deep_q), btrim(p_deep_a));
+  update public.players set answered = true where id = v_me.id;
+  perform private.touch(p_room_id);
+end;
+$$;
+
+-- "Seal the orders": deal roles (and "Play again" from the end: same crew files, new roles).
+create function public.tb_start(p_room_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+  v_n int;
+  v_saboteur uuid;
+begin
+  perform private.require_controller(v_room);
+  if v_room.phase not in ('tb_crew', 'tb_end') then
+    return;
+  end if;
+  select count(*) into v_n from public.players where room_id = p_room_id;
+  if exists (select 1 from public.players where room_id = p_room_id and (not picked or not answered)) then
+    raise exception 'Waiting for everyone''s crew file';
+  end if;
+  if v_n >= 4 then
+    select id into v_saboteur from public.players where room_id = p_room_id order by random() limit 1;
+  end if;
+  delete from public.votes where room_id = p_room_id;
+  delete from public.tb_repairs where room_id = p_room_id;
+  update public.tb_games set saboteur_id = v_saboteur, air_running = false, air_at = null, air_left = 480, depth = 412,
+    hands_kind = null, hands_done = false, hands_ok = null, bolt = null, bolt_watch = null, bolt_report = null,
+    logs_found = 0, log_rounds = '{}', fixes = 0, result = null, outcome = null, reason = null, started_at = now()
+  where room_id = p_room_id;
+  update public.players set opened = false, ready = false, dead = null, dead_at = null where room_id = p_room_id;
+  update public.rooms set round = 0 where id = p_room_id;
+  perform private.set_phase(p_room_id, 'tb_orders');
+end;
+$$;
+
+-- Unscrew the porthole (read your orders), then "Ready".
+create function public.tb_orders(p_room_id uuid, p_ready boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+  v_me public.players := private.me(p_room_id);
+begin
+  if v_me.id is null or v_room.phase <> 'tb_orders' then
+    return;
+  end if;
+  update public.players set opened = true, ready = ready or p_ready where id = v_me.id;
+  if not exists (select 1 from public.players where room_id = p_room_id and not ready) then
+    perform private.tb_start_watch(p_room_id);
+  else
+    perform private.touch(p_room_id);
+  end if;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Trapped Below: repairs
+-- ---------------------------------------------------------------------------
+
+create function private.tb_my_repair(p_room_id uuid)
+returns public.tb_repairs
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_room public.rooms;
+  v_me public.players := private.me(p_room_id);
+  v_rep public.tb_repairs;
+begin
+  select * into v_room from public.rooms where id = p_room_id;
+  if v_room.phase <> 'tb_watch' then
+    raise exception 'The watch is over';
+  end if;
+  select * into v_rep from public.tb_repairs
+  where room_id = p_room_id and watch = v_room.round and v_me.id = any (members) for update;
+  if not found then
+    raise exception 'You don''t have a repair this watch';
+  end if;
+  if v_rep.solved then
+    raise exception 'Already fixed';
+  end if;
+  return v_rep;
+end;
+$$;
+
+-- When every repair is done, the watch ends.
+create function private.tb_watch_check(p_room_id uuid)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_room public.rooms;
+begin
+  select * into v_room from public.rooms where id = p_room_id;
+  if private.tb_out_of_air(p_room_id) then
+    return;
+  end if;
+  if not exists (select 1 from public.tb_repairs where room_id = p_room_id and watch = v_room.round and not solved) then
+    -- A short beat to see the last fix land.
+    update public.rooms set deadline = least(deadline, now() + interval '4 seconds'), version = version + 1 where id = p_room_id;
+  else
+    perform private.touch(p_room_id);
+  end if;
+end;
+$$;
+
+-- Wires: the panel holder restarts the engine with the wire they cut and the code they set.
+create function public.tb_restart(p_room_id uuid, p_cut text, p_code text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+  v_me public.players := private.me(p_room_id);
+  v_rep public.tb_repairs := private.tb_my_repair(p_room_id);
+  v_crew public.tb_crew;
+  v_word text;
+  v_code text;
+  v_right int := 0;
+begin
+  if v_rep.kind <> 'wires' or v_me.id <> v_rep.lead then
+    raise exception 'Only the panel holder can restart';
+  end if;
+  select * into v_crew from public.tb_crew where player_id = v_rep.lead;
+  v_word := (regexp_match(v_crew.deep_a, '[[:alpha:]]+'))[1];
+  v_code := v_crew.num::text || (char_length(coalesce(v_word, '')) % 10)::text;
+  if p_cut = v_crew.colour then v_right := v_right + 1; end if;
+  if p_code = v_code then v_right := v_right + 1; end if;
+  if v_right = 2 then
+    update public.tb_repairs set solved = true, result = 'ok', tries = tries + 1, msg = '', solved_at = now()
+    where room_id = p_room_id and watch = v_rep.watch and idx = v_rep.idx;
+    perform private.tb_fixed(p_room_id, private.tb_bonus(p_room_id));
+  else
+    update public.tb_repairs set tries = tries + 1, msg = v_right || ' of 2 right'
+    where room_id = p_room_id and watch = v_rep.watch and idx = v_rep.idx;
+    perform private.tb_add_air(p_room_id, -10);
+  end if;
+  perform private.tb_watch_check(p_room_id);
+  return v_right = 2;
+end;
+$$;
+
+-- Who said it: the operator presses the answer closest to the guide's guess.
+create function public.tb_pick(p_room_id uuid, p_pick int)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+  v_me public.players := private.me(p_room_id);
+  v_rep public.tb_repairs := private.tb_my_repair(p_room_id);
+  v_ok boolean;
+begin
+  if v_rep.kind <> 'guide' or v_me.id <> v_rep.lead then
+    raise exception 'Only the operator can press';
+  end if;
+  if p_pick is null or p_pick < 0 or p_pick >= jsonb_array_length(v_rep.options) then
+    raise exception 'Pick one';
+  end if;
+  v_ok := (v_rep.options -> p_pick ->> 'owner')::uuid = v_rep.lead;
+  update public.tb_repairs set solved = true, pick = p_pick, result = case when v_ok then 'ok' else 'half' end,
+    tries = 1, solved_at = now()
+  where room_id = p_room_id and watch = v_rep.watch and idx = v_rep.idx;
+  if v_ok then
+    perform private.tb_fixed(p_room_id, private.tb_bonus(p_room_id));
+  else
+    perform private.tb_add_air(p_room_id, 20);
+  end if;
+  perform private.tb_watch_check(p_room_id);
+  return v_ok;
+end;
+$$;
+
+-- The saboteur loosens a bolt: once per watch, felt at the start of the next.
+create function public.tb_bolt(p_room_id uuid, p_place text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+  v_me public.players := private.me(p_room_id);
+  v_game public.tb_games;
+begin
+  select * into v_game from public.tb_games where room_id = p_room_id for update;
+  if v_me.id is null or v_me.id is distinct from v_game.saboteur_id or v_me.dead is not null then
+    raise exception 'Only the saboteur can do that';
+  end if;
+  if v_room.phase <> 'tb_watch' or v_room.round >= 4 then
+    raise exception 'Not now';
+  end if;
+  if v_game.bolt_watch = v_room.round then
+    raise exception 'You already loosened one this watch';
+  end if;
+  if p_place not in ('engine', 'oxygen', 'sonar', 'ballast', 'control') then
+    raise exception 'Pick a system';
+  end if;
+  update public.tb_games set bolt = p_place, bolt_watch = v_room.round where room_id = p_room_id;
+  perform private.touch(p_room_id);
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Trapped Below: all-hands emergencies
+-- ---------------------------------------------------------------------------
+
+create function private.tb_hands_done(p_room_id uuid, p_ok boolean)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+begin
+  update public.tb_games set hands_done = true, hands_ok = p_ok where room_id = p_room_id;
+  if p_ok then
+    perform private.tb_fixed(p_room_id, 60);
+  end if;
+  -- A few seconds to see it land, then the meeting.
+  update public.rooms set deadline = now() + interval '5 seconds', total_secs = 5, version = version + 1 where id = p_room_id;
+end;
+$$;
+
+-- Sonar: anyone but the listener types what the signal spells.
+create function public.tb_sonar(p_room_id uuid, p_word text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+  v_me public.players := private.me(p_room_id);
+  v_game public.tb_games;
+begin
+  select * into v_game from public.tb_games where room_id = p_room_id for update;
+  if v_me.id is null or v_room.phase <> 'tb_hands' or v_game.hands_kind <> 'sonar' or v_game.hands_done then
+    return false;
+  end if;
+  if upper(btrim(coalesce(p_word, ''))) = v_game.sonar_word then
+    perform private.tb_hands_done(p_room_id, true);
+    return true;
+  end if;
+  update public.tb_games set hands_tries = hands_tries + 1 where room_id = p_room_id;
+  perform private.tb_add_air(p_room_id, -10);
+  perform private.touch(p_room_id);
+  return false;
+end;
+$$;
+
+-- Pipes: the target rotation of each tile, and which tiles carry the water.
+create function private.tb_pipes_solved(p_rot int[])
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$
+  -- Tiles 0 (straight), 1, 4, 5, 8 (corners) carry the water. A straight pipe is the same turned twice.
+  select (p_rot[1] % 2) = 0 and p_rot[2] = 2 and p_rot[5] = 0 and p_rot[6] = 2 and p_rot[9] = 0;
+$$;
+
+-- Each player sees one row of the map and turns the valves of the next row.
+create function private.tb_pipe_rows(p_room_id uuid, p_player uuid)
+returns int[]
+language sql
+stable
+set search_path = ''
+as $$
+  select array[(k - 1) % 3, k % 3] from (
+    select row_number() over (order by p.joined_at nulls last, p.created_at, p.id) as k, p.id
+    from public.players p where p.room_id = p_room_id
+  ) s where s.id = p_player;
+$$;
+
+create function public.tb_rotate(p_room_id uuid, p_tile int)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+  v_me public.players := private.me(p_room_id);
+  v_game public.tb_games;
+  v_rows int[];
+  v_rot int[];
+begin
+  select * into v_game from public.tb_games where room_id = p_room_id for update;
+  if v_me.id is null or v_room.phase <> 'tb_hands' or v_game.hands_kind <> 'pipes' or v_game.hands_done then
+    return;
+  end if;
+  v_rows := private.tb_pipe_rows(p_room_id, v_me.id);
+  if p_tile is null or p_tile not between 0 and 8 or p_tile / 3 <> v_rows[2] then
+    raise exception 'That valve is someone else''s';
+  end if;
+  v_rot := v_game.pipe_rot;
+  v_rot[p_tile + 1] := (v_rot[p_tile + 1] + 1) % 4;
+  update public.tb_games set pipe_rot = v_rot where room_id = p_room_id;
+  if private.tb_pipes_solved(v_rot) then
+    perform private.tb_hands_done(p_room_id, true);
+  else
+    perform private.touch(p_room_id);
+  end if;
+end;
+$$;
+
+-- Hull breach: water rises 1.5% a second, 1% more while nobody holds the hatch (with 4+ players, one phone holds it).
+create function private.tb_leak_rate(p_game public.tb_games)
+returns real
+language sql
+stable
+set search_path = ''
+as $$
+  select (1.5 + case when cardinality(p_game.leak_holding) > 0
+                       or (select count(*) from public.players where room_id = p_game.room_id) < 4
+                     then 0 else 1.0 end)::real;
+$$;
+
+-- The water level now, worked out from when it was last measured.
+create function private.tb_water(p_game public.tb_games)
+returns real
+language sql
+stable
+set search_path = ''
+as $$
+  select least(100, greatest(0, p_game.leak_water + greatest(0, extract(epoch from now() - p_game.leak_at)) * private.tb_leak_rate(p_game)))::real;
+$$;
+
+-- Each phone's job in the hull breach: pump (shake), blow (microphone), level (tilt) or hatch (hold).
+create function private.tb_leak_role(p_room_id uuid, p_player uuid)
+returns text
+language sql
+stable
+set search_path = ''
+as $$
+  select (array['pump', 'blow', 'level', 'hatch'])[1 + (k - 1) % 4] from (
+    select row_number() over (order by p.joined_at nulls last, p.created_at, p.id) as k, p.id
+    from public.players p where p.room_id = p_room_id
+  ) s where s.id = p_player;
+$$;
+
+-- Phones report their work a few times a second: pumps (shakes), seconds blowing, seconds level,
+-- and whether they're holding the hatch.
+create function public.tb_leak(p_room_id uuid, p_work real, p_holding boolean)
+returns real
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+  v_me public.players := private.me(p_room_id);
+  v_game public.tb_games;
+  v_water real;
+  v_role text;
+begin
+  select * into v_game from public.tb_games where room_id = p_room_id for update;
+  if v_me.id is null or v_room.phase <> 'tb_hands' or v_game.hands_kind <> 'leak' or v_game.hands_done then
+    return null;
+  end if;
+  v_role := private.tb_leak_role(p_room_id, v_me.id);
+  -- Each job is worth about the same per second of effort.
+  v_water := private.tb_water(v_game) - least(6, greatest(0, coalesce(p_work, 0))) *
+    case v_role when 'pump' then 0.9 when 'blow' then 1.6 when 'level' then 1.0 else 0 end;
+  update public.tb_games set leak_water = greatest(0, v_water), leak_at = greatest(now(), leak_at),
+    leak_holding = case when v_role = 'hatch' and p_holding then array_append(array_remove(leak_holding, v_me.id), v_me.id)
+                        else array_remove(leak_holding, v_me.id) end
+  where room_id = p_room_id returning * into v_game;
+  if v_water <= 0 then
+    perform private.tb_hands_done(p_room_id, true);
+  elsif private.tb_water(v_game) >= 100 then
+    perform private.tb_leak_flood(p_room_id);
+  else
+    perform private.touch(p_room_id);
+  end if;
+  return greatest(0, v_water);
+end;
+$$;
+
+-- The compartment floods: a minute of air, and the water drops back to start again (twice at most).
+create function private.tb_leak_flood(p_room_id uuid)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_game public.tb_games;
+begin
+  update public.tb_games set leak_floods = leak_floods + 1, leak_water = 60, leak_at = now() + interval '3 seconds'
+  where room_id = p_room_id returning * into v_game;
+  perform private.tb_add_air(p_room_id, -60);
+  if v_game.leak_floods >= 2 then
+    perform private.tb_hands_done(p_room_id, false);
+  else
+    perform private.touch(p_room_id);
+  end if;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Trapped Below: the vote, host controls and the clock
+-- ---------------------------------------------------------------------------
+
+create function public.tb_vote(p_room_id uuid, p_target text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+  v_me public.players := private.me(p_room_id);
+begin
+  if v_room.phase <> 'tb_vote' then
+    raise exception 'Voting is closed';
+  end if;
+  if v_me.id is null or v_me.dead is not null then
+    raise exception 'Only crew outside the airlock can vote';
+  end if;
+  if p_target <> 'skip' and not exists (
+    select 1 from public.players where id::text = p_target and room_id = p_room_id and dead is null and id <> v_me.id
+  ) then
+    raise exception 'Pick someone still aboard';
+  end if;
+  insert into public.votes (room_id, round, voter_id, target) values (p_room_id, v_room.round, v_me.id, p_target)
+  on conflict (room_id, round, voter_id) do update set target = excluded.target;
+  if not exists (
+    select 1 from public.players p where p.room_id = p_room_id and p.dead is null
+      and not exists (select 1 from public.votes v where v.room_id = p_room_id and v.round = v_room.round and v.voter_id = p.id)
+  ) then
+    perform private.tb_reveal_votes(p_room_id);
+  else
+    perform private.touch(p_room_id);
+  end if;
+end;
+$$;
+
+-- The host's "next": does what the current screen offers. p_phase must match (a double tap does nothing).
+create function public.tb_next(p_room_id uuid, p_phase text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+begin
+  perform private.require_controller(v_room);
+  if v_room.phase is distinct from p_phase then
+    return;
+  end if;
+  case v_room.phase
+    when 'tb_watch' then perform private.tb_end_watch(p_room_id);
+    when 'tb_hands' then
+      if not (select hands_done from public.tb_games where room_id = p_room_id) then
+        update public.tb_games set hands_done = true, hands_ok = false where room_id = p_room_id;
+      end if;
+      perform private.tb_after_hands(p_room_id);
+    when 'tb_talk' then
+      delete from public.votes where room_id = p_room_id and round = v_room.round;
+      perform private.set_phase(p_room_id, 'tb_vote', 60);
+    when 'tb_vote' then perform private.tb_reveal_votes(p_room_id);
+    when 'tb_verdict' then perform private.tb_after_verdict(p_room_id);
+    else return;
+  end case;
+end;
+$$;
+
+-- Any screen calls this when something is due (the view says when). Only acts once it really is.
+create function public.tb_tick(p_room_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+  v_game public.tb_games;
+  v_late boolean := v_room.deadline is not null and v_room.deadline <= now() + interval '400 milliseconds';
+begin
+  select * into v_game from public.tb_games where room_id = p_room_id for update;
+  if v_game.room_id is null then
+    return false;
+  end if;
+  case v_room.phase
+    when 'tb_brief' then
+      if v_game.stage = 'talk' and now() >= v_room.phase_at + make_interval(secs => private.tb_brief_secs()) then
+        update public.tb_games set stage = 'hatch' where room_id = p_room_id;
+      elsif v_game.stage = 'hatch' and v_game.seal_at is not null and v_game.seal_at <= now() + interval '200 milliseconds'
+            and not exists (select 1 from public.players p where p.room_id = p_room_id and not p.id = any (v_game.holds)) then
+        update public.tb_games set stage = 'sealed', sealed_at = now() where room_id = p_room_id;
+      elsif v_game.stage = 'sealed' and v_game.sealed_at <= now() - interval '3 seconds' then
+        perform private.set_phase(p_room_id, 'tb_dive');
+        return true;
+      else
+        return false;
+      end if;
+      perform private.touch(p_room_id);
+    when 'tb_dive' then
+      if v_game.dive_at is null or v_game.dive_at > now() - interval '8 seconds' then
+        return false;
+      end if;
+      -- Everyone keeps their portrait from the browser (or picks another) and fills in the crew file.
+      update public.players set picked = false where room_id = p_room_id and not answered;
+      perform private.set_phase(p_room_id, 'tb_crew');
+    when 'tb_watch' then
+      if private.tb_out_of_air(p_room_id) then
+        return true;
+      end if;
+      if not v_late then
+        return false;
+      end if;
+      perform private.tb_end_watch(p_room_id);
+    when 'tb_hands' then
+      if private.tb_out_of_air(p_room_id) then
+        return true;
+      end if;
+      if v_game.hands_kind = 'leak' and not v_game.hands_done and private.tb_water(v_game) >= 100 then
+        perform private.tb_leak_flood(p_room_id);
+        return true;
+      end if;
+      if not v_late then
+        return false;
+      end if;
+      if not v_game.hands_done then
+        update public.tb_games set hands_done = true, hands_ok = false where room_id = p_room_id;
+      end if;
+      perform private.tb_after_hands(p_room_id);
+    when 'tb_talk' then
+      if not v_late then
+        return false;
+      end if;
+      delete from public.votes where room_id = p_room_id and round = v_room.round;
+      perform private.set_phase(p_room_id, 'tb_vote', 60);
+    when 'tb_vote' then
+      if not v_late then
+        return false;
+      end if;
+      perform private.tb_reveal_votes(p_room_id);
+    else
+      return false;
+  end case;
+  return true;
+end;
+$$;
+
+-- What the Trapped Below screens see. Public for everyone, plus each phone's own job.
+create function private.tb_view(p_room public.rooms, p_me public.players)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+declare
+  v_game public.tb_games;
+  v_air int;
+  v_out jsonb;
+  v_rep public.tb_repairs;
+  v_mine jsonb;
+  v_lead_name text;
+  v_lead_q text;
+  v_due timestamptz;
+  v_rows int[];
+  v_n int;
+  v_k int;
+begin
+  select * into v_game from public.tb_games where room_id = p_room.id;
+  if v_game.room_id is null then
+    return null;
+  end if;
+  v_air := private.tb_air(v_game);
+
+  -- When the next thing is due, so any screen can call tb_tick() then.
+  v_due := case p_room.phase
+    when 'tb_brief' then case v_game.stage
+      when 'talk' then p_room.phase_at + make_interval(secs => private.tb_brief_secs())
+      when 'hatch' then v_game.seal_at
+      else v_game.sealed_at + interval '3 seconds' end
+    when 'tb_dive' then v_game.dive_at + interval '8 seconds'
+    when 'tb_watch' then least(p_room.deadline, case when v_game.air_running then v_game.air_at end)
+    when 'tb_hands' then least(p_room.deadline, case when v_game.air_running then v_game.air_at end,
+      case when v_game.hands_kind = 'leak' and not v_game.hands_done
+           then greatest(now(), v_game.leak_at) + make_interval(secs => greatest(0, (100 - private.tb_water(v_game)) / private.tb_leak_rate(v_game))) end)
+    when 'tb_talk' then p_room.deadline
+    when 'tb_vote' then p_room.deadline
+    end;
+
+  v_out := jsonb_build_object(
+    'stage', v_game.stage, 'brief_secs', private.tb_brief_secs(),
+    'skip', to_jsonb(v_game.skip), 'holds', to_jsonb(v_game.holds),
+    'seal_at', v_game.seal_at, 'sealed_at', v_game.sealed_at, 'slips', v_game.slips, 'slip_at', v_game.slip_at,
+    'dive_at', v_game.dive_at,
+    'air', v_air, 'air_running', v_game.air_running, 'air_at', v_game.air_at,
+    'depth', v_game.depth, 'saboteur_mode', v_game.saboteur_id is not null,
+    'bolt_report', v_game.bolt_report, 'fixes', v_game.fixes,
+    'logs', private.tb_logs(p_room.id),
+    'due_at', v_due,
+    'crew_done', coalesce((select jsonb_agg(player_id) from public.tb_crew where room_id = p_room.id), '[]'),
+    'voted', case when p_room.phase = 'tb_vote' then coalesce((
+      select jsonb_agg(voter_id) from public.votes where room_id = p_room.id and round = p_room.round and not auto), '[]') end,
+    'result', case when p_room.phase in ('tb_verdict', 'tb_end') then v_game.result end,
+    -- The repairs: who is where, and how it went. A "who said it?" shows whose answers they were once it's done.
+    'repairs', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'idx', r.idx, 'kind', r.kind, 'members', to_jsonb(r.members), 'lead', r.lead, 'place', r.place,
+        'solved', r.solved, 'result', r.result, 'tries', r.tries, 'solved_at', r.solved_at
+      ) || case when r.kind = 'guide' and r.solved then jsonb_build_object('options', r.options, 'pick', r.pick) else '{}' end
+      order by r.idx)
+      from public.tb_repairs r where r.room_id = p_room.id and r.watch = p_room.round
+    ), '[]')
+  );
+
+  if p_room.phase = 'tb_hands' then
+    v_out := v_out || jsonb_build_object('hands', jsonb_build_object(
+      'kind', v_game.hands_kind, 'done', v_game.hands_done, 'ok', v_game.hands_ok, 'tries', v_game.hands_tries,
+      'listener', v_game.sonar_listener, 'letters', char_length(v_game.sonar_word),
+      'rot', to_jsonb(v_game.pipe_rot),
+      'water', private.tb_water(v_game), 'leak_at', v_game.leak_at, 'floods', v_game.leak_floods,
+      'hatch_held', cardinality(v_game.leak_holding) > 0,
+      'rate', private.tb_leak_rate(v_game),
+      'word', case when v_game.hands_done then v_game.sonar_word end,
+      'roles', coalesce((
+        select jsonb_object_agg(p.id, jsonb_build_object(
+          'leak', private.tb_leak_role(p_room.id, p.id), 'rows', to_jsonb(private.tb_pipe_rows(p_room.id, p.id))))
+        from public.players p where p.room_id = p_room.id
+      ), '{}')
+    ));
+  end if;
+
+  if p_room.phase = 'tb_end' then
+    v_out := v_out || jsonb_build_object('outcome', v_game.outcome, 'reason', v_game.reason, 'saboteur', v_game.saboteur_id,
+      'files', coalesce((
+        select jsonb_agg(jsonb_build_object('player', c.player_id, 'colour', c.colour, 'num', c.num, 'bring', c.bring, 'q', c.deep_q, 'a', c.deep_a))
+        from public.tb_crew c where c.room_id = p_room.id
+      ), '[]'));
+  end if;
+
+  -- This phone's own part.
+  if p_me.id is not null then
+    v_mine := jsonb_build_object(
+      'role', case when p_room.phase in ('tb_brief', 'tb_dive', 'tb_crew') then null
+                   when p_me.id = v_game.saboteur_id then 'saboteur' else 'crew' end,
+      'crew', (select jsonb_build_object('colour', colour, 'num', num, 'bring', bring, 'q', deep_q, 'a', deep_a)
+               from public.tb_crew where player_id = p_me.id)
+    );
+    if p_me.id = v_game.saboteur_id then
+      v_mine := v_mine || jsonb_build_object('bolt', case when v_game.bolt_watch = p_room.round then v_game.bolt end,
+        'can_bolt', p_room.phase = 'tb_watch' and p_room.round < 4 and v_game.bolt_watch is distinct from p_room.round and p_me.dead is null);
+    end if;
+    if p_room.phase = 'tb_watch' then
+      select * into v_rep from public.tb_repairs where room_id = p_room.id and watch = p_room.round and p_me.id = any (members);
+      if found then
+        select name into v_lead_name from public.players where id = v_rep.lead;
+        select deep_q into v_lead_q from public.tb_crew where player_id = v_rep.lead;
+        v_n := array_length(v_rep.members, 1);
+        v_k := array_position(v_rep.members, p_me.id);
+        v_mine := v_mine || jsonb_build_object('repair', jsonb_build_object(
+          'kind', v_rep.kind, 'place', v_rep.place, 'members', to_jsonb(v_rep.members), 'lead', v_rep.lead,
+          'lead_name', v_lead_name, 'solved', v_rep.solved, 'result', v_rep.result, 'tries', v_rep.tries, 'msg', v_rep.msg,
+          'is_lead', p_me.id = v_rep.lead,
+          -- Wires: the readers' riddles (in a trio, each reader gets one of the two).
+          'riddles', case when v_rep.kind = 'wires' and p_me.id <> v_rep.lead then
+              case when v_n = 3 then to_jsonb(array[case when v_k = 2 then 'wire' else 'code' end])
+                   else to_jsonb(array['wire', 'code']) end end,
+          'lead_q', case when v_rep.kind = 'wires' and p_me.id <> v_rep.lead then v_lead_q end,
+          -- Guide: the operator sees the answers but not whose; the guide sees the question.
+          'options', case when v_rep.kind = 'guide' and p_me.id = v_rep.lead then
+              (select jsonb_agg(o -> 'a') from jsonb_array_elements(v_rep.options) o) end
+        ));
+      end if;
+    end if;
+    if p_room.phase = 'tb_hands' then
+      v_rows := private.tb_pipe_rows(p_room.id, p_me.id);
+      v_mine := v_mine || jsonb_build_object(
+        'listener', p_me.id = v_game.sonar_listener,
+        -- Only the listener's phone gets the signal (as shorts and longs, not letters).
+        'signal', case when p_me.id = v_game.sonar_listener and v_game.hands_kind = 'sonar' then (
+          select string_agg(case ch
+            when 'A' then '.-' when 'B' then '-...' when 'C' then '-.-.' when 'D' then '-..' when 'E' then '.'
+            when 'F' then '..-.' when 'I' then '..' when 'K' then '-.-' when 'L' then '.-..' when 'O' then '---'
+            when 'P' then '.--.' when 'R' then '.-.' when 'S' then '...' when 'U' then '..-' when 'Y' then '-.--'
+            else '' end, ' ')
+          from regexp_split_to_table(v_game.sonar_word, '') ch) end,
+        'see', v_rows[1], 'turn', v_rows[2],
+        'leak', private.tb_leak_role(p_room.id, p_me.id)
+      );
+    end if;
+    v_out := v_out || jsonb_build_object('mine', v_mine);
+  end if;
+  return v_out;
+end;
+$$;
+
 -- ---------------------------------------------------------------------------
 -- What each screen sees
 -- ---------------------------------------------------------------------------
@@ -1683,6 +3011,11 @@ begin
       select jsonb_agg(jsonb_build_object('q', a.question, 'a', a.answer) order by a.idx)
       from public.answers a where a.player_id = v_me.id
     ), '[]'));
+  end if;
+
+  -- Trapped Below has its own slice.
+  if v_room.story = 'station' then
+    return v_view || jsonb_build_object('tb', private.tb_view(v_room, v_me));
   end if;
 
   if v_room.phase in ('join', 'browse', 'lobby') or v_game.room_id is null then

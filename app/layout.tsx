@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Kalam, Literata, Pixelify_Sans } from "next/font/google";
 import "./globals.css";
 import "./gathering.css";
+import "./trapped.css";
 
 // The design system's three typefaces: Pixelify Sans (display and labels),
 // Literata (body and buttons) and Kalam (handwriting).
