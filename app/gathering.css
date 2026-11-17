@@ -377,20 +377,13 @@
 .story-bg img { width: 100%; height: 100%; object-fit: cover; display: block; transform-origin: 60% 40%; animation: kb 28s var(--t) ease-in-out infinite alternate; }
 .story-bg.coming { background: radial-gradient(55% 55% at 62% 42%, #22222a, #0b0b0e 70%); }
 @keyframes kb { from { transform: scale(1.03); } to { transform: scale(1.14) translate(-1.6%, 1.2%); } }
-.story-bg.cur.r { animation: wipe-r 1.25s var(--t) both cubic-bezier(.75, 0, .2, 1); }
-.story-bg.cur.l { animation: wipe-l 1.25s var(--t) both cubic-bezier(.75, 0, .2, 1); }
+/* Swapping stories: the new picture fades in over the old one while both drift the same way. No hard edge, no flash. */
+.story-bg.cur.r, .story-bg.cur.l { animation: bg-in 1.1s var(--t) both cubic-bezier(.3, 0, .2, 1); }
 .story-bg.cur.first { animation: bg-first 1.6s var(--t) both ease-out; }
-.story-bg.prev { animation: bg-out 1.25s var(--t) both cubic-bezier(.75, 0, .2, 1); }
-@keyframes wipe-r { from { clip-path: inset(0 0 0 100%); filter: brightness(1.8); } 70% { filter: brightness(1.15); } to { clip-path: inset(0 0 0 0); filter: none; } }
-@keyframes wipe-l { from { clip-path: inset(0 100% 0 0); filter: brightness(1.8); } 70% { filter: brightness(1.15); } to { clip-path: inset(0 0 0 0); filter: none; } }
+.story-bg.prev { animation: bg-out 1.1s var(--t) both cubic-bezier(.3, 0, .2, 1); }
+@keyframes bg-in { from { opacity: 0; transform: translateX(calc(var(--dir) * 4%)) scale(1.05); } to { opacity: 1; transform: none; } }
 @keyframes bg-first { from { opacity: 0; transform: scale(1.1); } to { opacity: 1; transform: none; } }
-@keyframes bg-out { from { transform: none; filter: none; } to { transform: scale(1.08) translateX(calc(var(--dir) * -4%)); filter: brightness(.35) blur(3px); } }
-/* The bright seam that sweeps across as one story replaces another. */
-.seam { position: absolute; top: 0; bottom: 0; width: 3px; background: var(--hue); box-shadow: 0 0 34px 10px var(--hue); z-index: 2; opacity: 0; }
-.seam.r { animation: seam-r 1.25s var(--t) both cubic-bezier(.75, 0, .2, 1); }
-.seam.l { animation: seam-l 1.25s var(--t) both cubic-bezier(.75, 0, .2, 1); }
-@keyframes seam-r { from { left: 100%; opacity: 1; } 90% { opacity: 1; } to { left: 0; opacity: 0; } }
-@keyframes seam-l { from { left: 0; opacity: 1; } 90% { opacity: 1; } to { left: 100%; opacity: 0; } }
+@keyframes bg-out { from { transform: none; filter: none; } to { transform: translateX(calc(var(--dir) * -4%)) scale(1.03); filter: brightness(.45); } }
 .story-shade { position: absolute; inset: 0; z-index: 3; background: linear-gradient(90deg, rgba(5,5,6,.86) 0%, rgba(5,5,6,.55) 42%, rgba(5,5,6,.08) 72%), linear-gradient(0deg, rgba(5,5,6,.92), transparent 38%), linear-gradient(180deg, rgba(5,5,6,.6), transparent 22%); }
 .story-ui { position: relative; z-index: 2; padding: clamp(30px, 6vw, 100px) clamp(20px, 6vw, 110px) clamp(24px, 3vw, 44px); display: flex; flex-direction: column; justify-content: space-between; gap: 34px; --action: var(--hue); --action-pressed: color-mix(in srgb, var(--hue) 68%, #000); --on-action: #f3ead6; }
 .story-info { max-width: 920px; display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
@@ -462,8 +455,7 @@
 .p-btn.story-go { --action: var(--hue); --action-pressed: color-mix(in srgb, var(--hue) 68%, #000); --on-action: #f3ead6; }
 .btn.ghost { background: linear-gradient(var(--ink), var(--ink)) 20% 0 / 6% 6px no-repeat, linear-gradient(var(--ink), var(--ink)) 65% 100% / 6% 6px no-repeat, var(--paper); color: var(--ink); box-shadow: inset -6px -6px 0 var(--paper-shade), 0 -6px 0 var(--ink), 0 6px 0 var(--ink), -6px 0 0 var(--ink), 6px 0 0 var(--ink); }
 @media (prefers-reduced-motion: reduce) {
-  .story-bg, .story-bg img, .seam, .story-info > *, .s-title .w, .thumb.on, .s-card, .tag, .title-plate, .entering, .entering span, .tv.arrive::after { animation: none !important; }
-  .seam { display: none; }
+  .story-bg, .story-bg img, .story-info > *, .s-title .w, .thumb.on, .s-card, .tag, .title-plate, .entering, .entering span, .tv.arrive::after { animation: none !important; }
 }
 
 /* ---------- Home page ---------- */

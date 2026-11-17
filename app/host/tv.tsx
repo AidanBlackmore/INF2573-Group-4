@@ -479,11 +479,16 @@ function Browse({ view, busy, onGo, onEnter }: { view: View; busy: boolean; onGo
   const side = shown.prev === null ? "first" : dir > 0 ? "r" : "l";
   const prev = fresh && shown.prev !== null ? STORIES[shown.prev] : null;
   const t = since(focus_at);
-  const bg = (s: (typeof STORIES)[number], cls: string) =>
+  // Load every story's picture up front, so a swipe never waits on one.
+  useEffect(() => {
+    for (const s of STORIES) if (s.bg) new Image().src = s.bg;
+  }, []);
+  // Each change mounts fresh layers (keyed by when it happened), so every swipe plays the crossfade.
+  const bg = (s: (typeof STORIES)[number], cls: string, key: string) =>
     s.coming ? (
-      <div className={`story-bg ${cls} coming`} />
+      <div key={key} className={`story-bg ${cls} coming`} />
     ) : (
-      <div className={`story-bg ${cls}`}>
+      <div key={key} className={`story-bg ${cls}`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={s.bg} alt="" />
       </div>
@@ -491,9 +496,8 @@ function Browse({ view, busy, onGo, onEnter }: { view: View; busy: boolean; onGo
   return (
     <>
       <div className="story-bgs" style={{ "--t": t, "--dir": dir, "--hue": st.hue } as CSSProperties}>
-        {prev && bg(prev, "prev")}
-        {bg(st, `cur ${side}`)}
-        {side !== "first" && fresh && <i className={`seam ${side}`} />}
+        {prev && bg(prev, "prev", `p${shown.prev}:${focus_at}`)}
+        {bg(st, `cur ${side}`, `c${focus}:${focus_at}`)}
         <i className="story-shade" />
       </div>
       <div className="here">

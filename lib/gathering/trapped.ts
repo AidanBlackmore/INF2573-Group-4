@@ -37,7 +37,7 @@ export const crewPic = (portrait: number | null | undefined) => `/trapped/crew/$
 
 // ---------- the sub ----------
 // Rooms with their own background (public/trapped/bg) and sound.
-export type Place = "exterior" | "corridor" | "control" | "engine" | "sonar" | "escape" | "pipewall" | "cargo" | "quarters" | "galley" | "torpedo" | "flooded" | "wreck";
+export type Place = "exterior" | "corridor" | "control" | "engine" | "sonar" | "escape" | "pipewall" | "cargo" | "quarters" | "galley" | "torpedo" | "flooded" | "wreck" | "dawn";
 export const PLACE_NAME: Record<string, string> = {
   engine: "Engine room", oxygen: "Oxygen bay", control: "Control room", sonar: "Sonar room", galley: "Galley", quarters: "Crew quarters",
   ballast: "Ballast tanks",

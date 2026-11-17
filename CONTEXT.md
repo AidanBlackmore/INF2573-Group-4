@@ -124,6 +124,6 @@ Things to know when testing:
 
 ## Open items
 
-- **Trapped Below:** the backgrounds are small crops from the Figma overview; full-size exports would look sharper. The air numbers (8:00 start, bonuses) need tuning from real games (see `game_ended` with `story = station`).
+- **Trapped Below:** the air numbers (8:00 start, bonuses) need tuning from real games (see `game_ended` with `story = station`).
 - **Old PostHog events:** hide them (see Analytics).
 - **The dashboard:** fills in once games are played on the live site.

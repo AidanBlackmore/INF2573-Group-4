@@ -11,7 +11,7 @@ import type { Place } from "./trapped";
 
 // Each room's level, measured so it sits clearly on top of the ambience track.
 const ROOM_GAIN: Partial<Record<Place, number>> = {
-  engine: 1, sonar: 3.2, quarters: 3.6, galley: 4.2, corridor: 3, cargo: 3, escape: 3, control: 3, torpedo: 3, pipewall: 2.6, exterior: 1.4, wreck: 1.4, flooded: 1.3,
+  engine: 1, sonar: 3.2, quarters: 3.6, galley: 4.2, corridor: 3, cargo: 3, escape: 3, control: 3, torpedo: 3, pipewall: 2.6, exterior: 1.4, wreck: 1.4, dawn: 1.4, flooded: 1.3,
 };
 
 type Room = { stop: () => void };
@@ -184,6 +184,7 @@ class Deep {
     switch (name) {
       case "exterior":
       case "wreck":
+      case "dawn":
         bed("brown", "lowpass", 160, 1, 0.6);
         every(8000, 14000, () => blip(190, 2.6, 0.05, "sine", 110));
         break;

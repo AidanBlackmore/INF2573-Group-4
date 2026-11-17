@@ -35,7 +35,7 @@ export function tvPlace(view: View, now: number): Place {
   const tb = view.tb;
   const phase = view.room.phase;
   if (!tb) return "exterior";
-  if (phase === "tb_end") return tb.outcome === "crew" ? "exterior" : "wreck";
+  if (phase === "tb_end") return tb.outcome === "crew" ? "dawn" : "wreck";
   if (lowAir(view, now)) return "flooded";
   const hands = tb.hands?.kind;
   return ((

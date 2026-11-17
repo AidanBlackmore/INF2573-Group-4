@@ -18,7 +18,7 @@ export function phonePlace(view: View, id: string | null, now: number): Place {
   const tb = view.tb;
   const phase = view.room.phase;
   if (!tb) return "exterior";
-  if (phase === "tb_end") return tb.outcome === "crew" ? "exterior" : "wreck";
+  if (phase === "tb_end") return tb.outcome === "crew" ? "dawn" : "wreck";
   if (lowAir(view, now)) return "flooded";
   if (phase === "tb_watch") {
     const r = tb.repairs.find((x) => id && x.members.includes(id));

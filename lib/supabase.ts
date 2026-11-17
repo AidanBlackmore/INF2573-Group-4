@@ -20,7 +20,12 @@ export async function ensureSignedIn(): Promise<string> {
 
 export function errorMessage(error: unknown): string {
   if (error && typeof error === "object" && "message" in error) {
-    return String(error.message);
+    const msg = String(error.message);
+    // Only the old database says this about a story the app has opened: the SQL in Supabase needs re-running.
+    if (msg === "This story is coming soon") {
+      return "The game's database is out of date. Re-run supabase/migrations/0001_the_gathering.sql in Supabase, then try again.";
+    }
+    return msg;
   }
   return "Something went wrong";
 }
