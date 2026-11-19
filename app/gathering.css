@@ -554,3 +554,25 @@
 .coach-back { background: var(--paper); color: var(--ink); padding: 7px 12px 9px; box-shadow: 0 -3px 0 var(--ink), 0 3px 0 var(--ink), -3px 0 0 var(--ink), 3px 0 0 var(--ink); }
 .coach-skip { background: none; color: var(--brown); text-decoration: underline; padding: 4px 0; font-weight: 500; }
 .coach-try { font: 500 0.72rem var(--label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--action); animation: flicker 2.4s infinite; }
+
+/* ---------- One place to look (lib/gathering/focus.ts) ---------- */
+/* TV: who should check their phone, and what for. */
+.phone-cue { position: absolute; left: clamp(16px, 3vw, 48px); bottom: 18px; z-index: 5; display: flex; align-items: center; gap: 12px; background: var(--paper); color: var(--ink); padding: 8px 16px 10px 12px; font: 500 0.95rem/1.25 var(--body); box-shadow: 0 -4px 0 var(--ink), 0 4px 0 var(--ink), -4px 0 0 var(--ink), 4px 0 0 var(--ink), 6px 6px 0 4px rgba(0, 0, 0, 0.6); animation: cue-pop 1.1s ease-out; max-width: min(560px, 60%); }
+.phone-cue b { font: 600 1rem var(--pixel); font-variant-ligatures: none; }
+.phone-cue small { font-size: 0.85rem; color: var(--brown-2); }
+.ph-icon { width: 18px; height: 30px; border: 3px solid var(--ink); border-radius: 4px; position: relative; flex: none; animation: ph-buzz 2.6s ease-in-out infinite; }
+.ph-icon::after { content: ""; position: absolute; left: 50%; bottom: 2px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--ink); }
+@keyframes cue-pop { 0% { transform: scale(0.6); opacity: 0; } 25% { transform: scale(1.08); opacity: 1; } 100% { transform: none; } }
+@keyframes ph-buzz { 0%, 70%, 100% { transform: none; } 74% { transform: rotate(-12deg); } 78% { transform: rotate(12deg); } 82% { transform: rotate(-8deg); } 86% { transform: rotate(6deg); } }
+
+/* Phone: not needed right now. */
+.look-tv { display: flex; align-items: center; justify-content: center; gap: 10px; background: var(--ink); color: var(--paper); padding: 6px 10px 8px; margin: 0 -2px; }
+.look-tv b { font: 600 0.9rem var(--pixel); letter-spacing: 0.04em; font-variant-ligatures: none; }
+.look-tv .chev { display: flex; flex-direction: column; gap: 0; }
+.look-tv .chev i { width: 9px; height: 9px; border-left: 3px solid var(--paper); border-top: 3px solid var(--paper); transform: rotate(45deg); animation: look-bob 1.6s ease-in-out infinite; }
+.look-tv .chev i + i { margin-top: -3px; opacity: 0.6; animation-delay: 0.15s; }
+/* Phone: it just started needing you. */
+.your-move { position: absolute; left: 50%; top: -12px; transform: translateX(-50%); z-index: 3; font: 700 0.8rem var(--pixel); letter-spacing: 0.1em; text-transform: uppercase; background: var(--action); color: var(--on-action); padding: 4px 12px 5px; box-shadow: 0 0 0 3px var(--ink); animation: your-move 3s ease-out forwards; }
+@keyframes your-move { 0% { transform: translateX(-50%) scale(0.6); } 12% { transform: translateX(-50%) scale(1.12); } 20%, 80% { transform: translateX(-50%); opacity: 1; } 100% { transform: translateX(-50%); opacity: 0; } }
+.screen:has(> .your-move) { animation: phone-wake 0.9s ease-out; }
+@keyframes phone-wake { 0% { box-shadow: inset -6px -6px 0 var(--paper-shade), 0 -6px 0 var(--ink), 0 6px 0 var(--ink), -6px 0 0 var(--ink), 6px 0 0 var(--ink), 0 0 0 10px rgba(179, 38, 30, 0.6); } 100% { box-shadow: inset -6px -6px 0 var(--paper-shade), 0 -6px 0 var(--ink), 0 6px 0 var(--ink), -6px 0 0 var(--ink), 6px 0 0 var(--ink), 0 0 0 0 rgba(179, 38, 30, 0); } }

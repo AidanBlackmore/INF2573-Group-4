@@ -40,6 +40,8 @@ export function ManorWelcome({ view, now, onDone }: { view: View; now: () => num
     onDone();
   };
 
+  // The TV can jump ahead (Next, Skip), and the phone can't tell, so it doesn't claim which part is
+  // showing: it carries on by itself when the intro would end, or when the player taps Continue.
   if (stage === "intro") {
     const { beat, frac } = introAt(ms);
     return (
@@ -49,11 +51,9 @@ export function ManorWelcome({ view, now, onDone }: { view: View; now: () => num
           <i />
           <i />
         </div>
-        <span className="p-eyebrow">
-          How tonight works · {beat + 1} of {INTRO.length}
-        </span>
+        <span className="p-eyebrow">How tonight works</span>
         <h2>Eyes on the TV</h2>
-        <p className="p-small">{INTRO[beat].title}</p>
+        <p className="p-small">The TV is telling the story. Your phone carries on by itself when it&apos;s done.</p>
         <div className="intro-bar" aria-hidden>
           <i style={{ width: `${Math.round(((beat + frac) / INTRO.length) * 100)}%` }} />
         </div>
@@ -64,7 +64,7 @@ export function ManorWelcome({ view, now, onDone }: { view: View; now: () => num
             setStage("ask");
           }}
         >
-          I know the story. Skip
+          Done on the TV? Continue
         </button>
       </div>
     );

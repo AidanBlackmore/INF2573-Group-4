@@ -15,6 +15,7 @@ import { crewPic } from "@/lib/gathering/trapped";
 import { TrappedPhone } from "./trapped";
 import { ManorWelcome } from "./practice";
 import { seen } from "@/lib/gathering/onboarding";
+import { marloweFocus } from "@/lib/gathering/focus";
 import { DRAWS, LOOK_MAX } from "@/lib/gathering/look";
 import { LookError, drawPortrait, type Drawn } from "@/lib/gathering/portrait";
 
@@ -258,6 +259,28 @@ function Phone({ view, reload, left, now }: { view: View; reload: () => Promise<
   const host = view.me !== null && view.me === view.host_player;
 
   const deepSea = phase.startsWith("tb_");
+  // One place to look (lib/gathering/focus.ts): "Eyes on the TV" when the phone isn't needed,
+  // "Your move" when it starts being needed. Trapped Below does its own (trapped.tsx).
+  const focus = deepSea || !me ? null : marloweFocus(view, me.id);
+  const [wake, setWake] = useState(0);
+  const wasFocus = useRef<boolean | null>(null);
+  const lastKey = useRef("");
+  const focusKey = `${phase}:${view.room.round}`;
+  useEffect(() => {
+    const before = wasFocus.current, newScreen = lastKey.current !== focusKey;
+    wasFocus.current = focus;
+    lastKey.current = focusKey;
+    // Not in the join or the lobby: those screens are already the phone's from the start.
+    if (focus && phase !== "join" && phase !== "lobby" && (before === false || (before !== null && newScreen))) {
+      setWake((w) => w + 1);
+      try {
+        navigator.vibrate?.(80);
+      } catch {
+        // No vibration (iPhone): the badge is enough.
+      }
+    }
+  }, [focus, focusKey, phase]);
+
   let body: ReactNode;
   if (deepSea) body = <TrappedPhone ctx={ctx} now={now} />;
   else if (phase === "join") body = me?.joined ? <YoureIn ctx={ctx} /> : <NameAndLook ctx={ctx} />;
@@ -267,15 +290,15 @@ function Phone({ view, reload, left, now }: { view: View; reload: () => Promise<
   else if (phase === "tasks") body = <TaskPhone ctx={ctx} />;
   else if (phase === "discuss") body = <DiscussPhone ctx={ctx} />;
   else if (phase === "meeting") body = <MeetingPhone ctx={ctx} />;
-  else if (phase === "quiet") body = <Msg title="No vote this round" text="No murderer's notes turned up. Look at the TV." />;
-  else if (phase === "tally") body = <Msg title="The votes are in" text="Look at the TV." />;
-  else if (phase === "revealed") body = <Msg title="The verdict" text="Look at the TV." />;
+  else if (phase === "quiet") body = <Msg title="No vote this round" text="No murderer's notes turned up." />;
+  else if (phase === "tally") body = <Msg title="The votes are in" text="The TV is counting them." />;
+  else if (phase === "revealed") body = <Msg title="The verdict" text="It's on the TV." />;
   else {
     const won = view.outcome === "detectives", mine = view.role === "murderer";
     body = (
       <Msg
         title={won ? "The detectives win" : "The murderer wins"}
-        text={`${mine ? (won ? "They caught you." : "You got away with it.") : `It was ${nameOf(view, view.murderer)}.`} Look at the TV and talk it over.`}
+        text={`${mine ? (won ? "They caught you." : "You got away with it.") : `It was ${nameOf(view, view.murderer)}.`} Talk it over.`}
       />
     );
   }
@@ -308,11 +331,30 @@ function Phone({ view, reload, left, now }: { view: View; reload: () => Promise<
             </span>
           </div>
         )}
+        {focus === false && <LookAtTv />}
+        {focus && wake > 0 && (
+          <span className="your-move" key={wake}>
+            Your move
+          </span>
+        )}
         {body}
         {phase !== "lobby" && phase !== "join" && error && <div className="err">{error}</div>}
         {host && <HostPanel ctx={ctx} />}
       </div>
     </main>
+  );
+}
+
+// The phone isn't needed right now.
+function LookAtTv() {
+  return (
+    <div className="look-tv" role="status">
+      <span className="chev" aria-hidden>
+        <i />
+        <i />
+      </span>
+      <b>Eyes on the TV</b>
+    </div>
   );
 }
 
@@ -769,7 +811,7 @@ function TaskPhone({ ctx }: { ctx: Ctx }) {
   const { view } = ctx;
   const me = playerOf(view, view.me)!;
   const lock = view.lock;
-  if (!lock) return <Msg title={chapterOf(view.room.round).time} text="Look at the TV." />;
+  if (!lock) return <Msg title={chapterOf(view.room.round).time} text="No lock for you this hour." />;
   const others = lock.members.filter((m) => m !== me.id).map((m) => nameOf(view, m));
   return (
     <>

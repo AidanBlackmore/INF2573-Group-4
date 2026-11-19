@@ -14,6 +14,7 @@ import { ensureSignedIn, errorMessage, supabase } from "@/lib/supabase";
 import { Art, Avatar, Line, Ring, Tag, ageOf, colorOf, since } from "../_ui/bits";
 import { HousePlan } from "../_ui/house";
 import { INTRO, INTRO_DELAY_MS, introAt, remember, seen } from "@/lib/gathering/onboarding";
+import { PHONE_FOR, marloweFocus } from "@/lib/gathering/focus";
 import { Weather, type WeatherHandle } from "../_ui/weather";
 import { TbBackdrop, TrappedTv, useTrappedTv } from "./trapped";
 
@@ -128,7 +129,11 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
   const entered = phase === "lobby" ? ageOf(view.room.phase_at) : Infinity;
   // Then the intro (lib/gathering/onboarding.ts): four short beats on what's going on, timed from
   // entering the story so the phones know when it ends. Once per room on this TV, and skippable.
-  const intro = introAt(entered);
+  // "Next" jumps to the next beat on this TV: `jump` is how far ahead of the clock the TV has got.
+  // (Phones keep their own clock; they show "Eyes on the TV" and can carry on whenever the TV is done.)
+  const [jump, setJump] = useState({ at: "", ms: 0 });
+  const ahead = jump.at === view.room.phase_at ? jump.ms : 0;
+  const intro = introAt(entered + ahead);
   const [, setIntroSkip] = useState(0);
   const introOn = phase === "lobby" && !intro.done && seen("intro", view.room.id) === null;
   const skipIntro = () => {
@@ -136,14 +141,23 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
     track("intro_skipped", { room_id: view.room.id, beat: intro.beat + 1 });
     setIntroSkip((n) => n + 1);
   };
+  const nextBeat = () => {
+    if (intro.beat === INTRO.length - 1) {
+      remember("intro", view.room.id, "watched");
+      setIntroSkip((n) => n + 1);
+      return;
+    }
+    const left = (1 - intro.frac) * INTRO[intro.beat].secs * 1000;
+    setJump({ at: view.room.phase_at, ms: ahead + Math.ceil(left) + 30 });
+  };
   useEffect(() => {
     if (phase !== "lobby") return;
-    const at = new Date(view.room.phase_at).getTime();
+    const at = new Date(view.room.phase_at).getTime() - ahead;
     let t = INTRO_DELAY_MS;
     const marks = [1800, 3300, ...INTRO.map((b) => (t += b.secs * 1000))];
     const timers = marks.map((ms) => setTimeout(() => redraw((n) => n + 1), Math.max(0, at + ms - Date.now())));
     return () => timers.forEach(clearTimeout);
-  }, [phase, view.room.phase_at]);
+  }, [phase, view.room.phase_at, ahead]);
   useEffect(() => {
     if (phase === "lobby" && intro.done && seen("intro", view.room.id) === null) remember("intro", view.room.id, "watched");
   });
@@ -161,7 +175,7 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
     tb_hands: deepScreen, tb_talk: deepScreen, tb_vote: deepScreen, tb_verdict: deepScreen, tb_end: deepScreen,
     join: () => <Join view={view} busy={busy} onGo={() => run("we_are_in")} />,
     browse: () => <Browse view={view} busy={busy} onGo={go} onEnter={() => run("enter_story")} />,
-    lobby: () => (introOn ? <Intro beat={intro.beat} onSkip={skipIntro} /> : <Lobby view={view} busy={busy} onStart={() => run("start_game")} />),
+    lobby: () => (introOn ? <Intro beat={intro.beat} onSkip={skipIntro} onNext={nextBeat} /> : <Lobby view={view} busy={busy} onStart={() => run("start_game")} />),
     roles: () => <Roles view={view} />,
     tasks: () => <Tasks view={view} busy={busy} onNext={next} />,
     quiet: () => <Quiet view={view} busy={busy} onNext={next} />,
@@ -193,6 +207,7 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
           </div>
         )}
         {error && <p className="report">{error}</p>}
+        {world === "marlowe" && !introOn && <PhoneCue view={view} />}
         {TIMED.includes(phase) && <Ring left={left} total={view.room.total_secs} big />}
       </section>
     </div>
@@ -574,7 +589,7 @@ function Browse({ view, busy, onGo, onEnter }: { view: View; busy: boolean; onGo
             <button aria-label="Next story" onClick={() => onGo(focus + 1, 1)}>
               ›
             </button>
-            <span>Browse stories</span>
+            <span>Swipe on any phone to browse</span>
           </div>
         </div>
       </div>
@@ -582,8 +597,27 @@ function Browse({ view, busy, onGo, onEnter }: { view: View; busy: boolean; onGo
   );
 }
 
+// Who should be looking at their phone, and what for (lib/gathering/focus.ts). Everyone else watches the TV.
+function PhoneCue({ view }: { view: View }) {
+  const who = view.players.filter((p) => marloweFocus(view, p.id));
+  const what = PHONE_FOR[view.room.phase];
+  if (!who.length || !what) return null;
+  const all = who.length === view.players.length;
+  const label = all ? "Everyone" : names(who.map((p) => p.name ?? "Someone"));
+  return (
+    <div className="phone-cue" key={`${view.room.phase}:${view.room.round}:${who.map((p) => p.id).join()}`}>
+      <span className="ph-icon" />
+      <span>
+        <b>{label}</b>, check your phone{who.length > 1 && !all ? "s" : ""}
+        <br />
+        <small>{what}</small>
+      </span>
+    </div>
+  );
+}
+
 // Stepping into Marlowe Manor: what's going on, in four beats. Phones show "Eyes on the TV" meanwhile.
-function Intro({ beat, onSkip }: { beat: number; onSkip: () => void }) {
+function Intro({ beat, onSkip, onNext }: { beat: number; onSkip: () => void; onNext: () => void }) {
   const b = INTRO[beat];
   return (
     <>
@@ -606,9 +640,14 @@ function Intro({ beat, onSkip }: { beat: number; onSkip: () => void }) {
             <b>Eyes on the TV.</b> Your phone carries on when this ends.
           </p>
           <div className="row">
-            <button className="btn quiet" onClick={onSkip}>
-              Skip intro
+            <button className="btn" onClick={onNext}>
+              {beat === INTRO.length - 1 ? "Done" : "Next ›"}
             </button>
+            {beat < INTRO.length - 1 && (
+              <button className="btn quiet" onClick={onSkip}>
+                Skip intro
+              </button>
+            )}
           </div>
         </div>
       </div>
