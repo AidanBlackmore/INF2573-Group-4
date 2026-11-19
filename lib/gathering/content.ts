@@ -2,6 +2,8 @@
 // The rules and anything secret (who the murderer is, lock answers) live in the
 // database; see supabase/migrations/0001_the_gathering.sql.
 
+import { INTRO } from "./onboarding";
+
 export const TITLE = "Murder at Marlowe Manor";
 
 // ---------- The Gathering: the stories ----------
@@ -132,6 +134,8 @@ export const chapterOf = (round: number) => CHAPTERS[Math.min(Math.max(round, 1)
 // Every narrated line, word for word. Each has a recording at /narration/<id>.mp3;
 // if one is missing, the browser's own voice reads it. Lines never include player names.
 export const NARRATION: Record<string, string> = {
+  // The intro when the group first steps into the manor (lib/gathering/onboarding.ts).
+  ...Object.fromEntries(INTRO.map((b) => [b.id, b.text])),
   prologue: `${TITLE}. ${PROLOGUE}`,
   ...Object.fromEntries(CHAPTERS.map((c, i) => [`round-${i + 1}`, `${c.time}. ${c.title}. ${c.text}`])),
   quiet: "No murderer's notes tonight. The house is quiet. Nobody points a finger yet.",

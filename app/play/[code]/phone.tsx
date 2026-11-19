@@ -13,6 +13,8 @@ import { ensureSignedIn, errorMessage, supabase } from "@/lib/supabase";
 import { Art, Avatar, KnifeSvg, Ring, Tag, colorOf, since } from "../../_ui/bits";
 import { crewPic } from "@/lib/gathering/trapped";
 import { TrappedPhone } from "./trapped";
+import { ManorWelcome } from "./practice";
+import { seen } from "@/lib/gathering/onboarding";
 import { DRAWS, LOOK_MAX } from "@/lib/gathering/look";
 import { LookError, drawPortrait, type Drawn } from "@/lib/gathering/portrait";
 
@@ -260,7 +262,7 @@ function Phone({ view, reload, left, now }: { view: View; reload: () => Promise<
   if (deepSea) body = <TrappedPhone ctx={ctx} now={now} />;
   else if (phase === "join") body = me?.joined ? <YoureIn ctx={ctx} /> : <NameAndLook ctx={ctx} />;
   else if (phase === "browse") body = <BrowsePhone ctx={ctx} />;
-  else if (phase === "lobby") body = <Onboarding ctx={ctx} />;
+  else if (phase === "lobby") body = <Onboarding ctx={ctx} now={now} />;
   else if (phase === "roles") body = <Envelope ctx={ctx} />;
   else if (phase === "tasks") body = <TaskPhone ctx={ctx} />;
   else if (phase === "discuss") body = <DiscussPhone ctx={ctx} />;
@@ -510,9 +512,11 @@ function BrowsePhone({ ctx }: { ctx: Ctx }) {
 
 // ---------- inside Marlowe Manor: pick a detective, then three questions ----------
 
-function Onboarding({ ctx }: { ctx: Ctx }) {
+function Onboarding({ ctx, now }: { ctx: Ctx; now: () => number }) {
   const { view, run, busy, error } = ctx;
   const me = playerOf(view, view.me);
+  // First the intro and, for new players, the practice round (practice.tsx). Once per room.
+  const [welcomed, setWelcomed] = useState(() => seen("practice", view.room.id) !== null);
   if (!me) return null;
   if (me.answered) {
     return (
@@ -527,7 +531,7 @@ function Onboarding({ ctx }: { ctx: Ctx }) {
       </div>
     );
   }
-  if (!me.picked) return <WhoAreYou ctx={ctx} />;
+  if (!me.picked) return welcomed ? <WhoAreYou ctx={ctx} /> : <ManorWelcome view={view} now={now} onDone={() => setWelcomed(true)} />;
   return <Questions view={view} run={run} busy={busy} error={error} />;
 }
 

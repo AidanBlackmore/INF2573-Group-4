@@ -35,6 +35,7 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
 1. **Join** (`join` phase): every TV page load creates a new room with a random code (e.g. `OAK47`). Phones join with a name and a few words about what they look like, and get a pen-and-ink portrait drawn by Cloudflare Workers AI (free plan; a pre-drawn one if that fails). Colours are given automatically. With 3+ in, the host taps **We're in**. The first player in is the host, and the TV can also press every host button. Unfinished joiners are dropped.
 2. **Browse** (`browse`): a full-screen story browser. Anyone can swipe and every screen follows. Only the host or the TV can **Enter this story**.
 3. **Marlowe Manor:**
+   - **Onboarding** (start of `lobby`, no database changes): a 45-second intro on the TV (phones show "Eyes on the TV"), then each phone asks "Have you played before?". New players get a practice round on their phone with a spotlight and speech boxes; it happens before picking a detective, so **Start the night** also waits for it. Remembered per room in `sessionStorage`.
    - **`lobby`:** each player picks a detective portrait and answers 3 questions. They can shuffle a question, but must answer. Answers are final.
    - **`roles`:** a secret role arrives in an envelope: one murderer, the rest detectives.
    - **`tasks`:** rounds are hours of the night. Players pair up (a trio if odd) to open locks: fuse box, charades, sketch, or two truths and a lie. Behind each lock is a torn note, and each partner sees half. Every answer is a note somewhere in the house, and the murderer's notes are the clues.
@@ -73,6 +74,8 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
 | `app/trapped.css` | Trapped Below's look, scoped to `[data-world="deep"]` |
 | `lib/gathering/trapped.ts` | Trapped Below's text: questions, briefing timing, captain's lines, rooms, Morse, pipes |
 | `lib/gathering/deep.ts` | Trapped Below's synthesised sounds (rooms, creaks, heartbeat, chime, Morse), `shake()` and `buzz()` |
+| `lib/gathering/onboarding.ts` | Marlowe Manor's intro beats (text, art, timing) and the per-room "seen" flags |
+| `app/play/[code]/practice.tsx` | Marlowe Manor on the phone before picking a detective: "Eyes on the TV", "Have you played before?", and the practice round with its spotlight (`Coach`) |
 | `lib/analytics.ts` | `track()`; adds `screen: tv/phone` |
 | `app/api/portrait/route.ts` | Draws a portrait with Cloudflare Workers AI (needs `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`) |
 | `lib/gathering/look.ts`, `portrait.ts` | Portrait prompt, word list, pre-drawn library matching; the phone's ink-on-paper clean-up and upload |

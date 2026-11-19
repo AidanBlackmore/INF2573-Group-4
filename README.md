@@ -20,17 +20,19 @@ Phones and the laptop never talk to each other directly. Every action goes to Su
 
 1. **Join The Gathering.** Open the site on the laptop. It shows the title, a QR code, the address (`inf-2573-group-4.vercel.app/join`) and a room code (like `OAK47`). Every time the page loads it opens a new room with a new code. Each phone scans the QR code, which takes it straight in (or goes to `/join` and types the code into the five boxes), then types a **name** and **what they look like** ("curly hair, round glasses, a big scarf") and taps **Draw me**. A pen-and-ink portrait is drawn from it (up to 3 tries), and once they tap **I'm in** it appears on the TV. Each player also gets a colour automatically for their name tag. With 3 or more in, the host taps **We're in** (on the TV, or on the host's phone: the first player in is the host). Anyone who joined the room but didn't finish is left out of this gathering.
 2. **Pick a story.** The TV becomes a full-screen story browser. Anyone can swipe on their phone (or use the arrows and thumbnails on the TV) and every screen follows, with the new story wiping in over the old one. Marlowe Manor brings rain, lightning and its music; Trapped Below has rising bubbles and its deep-water ambience. The host taps **Enter this story** to step in.
-3. **Inside Marlowe Manor**, each player picks one of six detective portraits and answers **three questions** ("What's your most irrational fear?"). Players can shuffle to a different question but must answer to continue. Answers are private and final.
-4. **Start the night** (on the TV, or on the host's phone: the first player to join gets host controls). Each phone opens a sealed envelope with its secret role: one **murderer**, everyone else **detectives**. The night starts once everyone has tapped **Got it**.
-5. **Each round is an hour of the night** (nine o'clock to dawn). Everyone is split into pairs (a trio if odd), with new partners each round. Each pair goes to a room of the house and opens a **lock** together. Each lock needs both phones:
+3. **Stepping into Marlowe Manor**, the TV plays a short **intro** (four beats, about 45 seconds, read by the narrator): the storm and the dinner, the murder, how your answers become the clues, and how you catch the murderer. Phones show "Eyes on the TV" meanwhile. The TV and each phone can skip it.
+   Then each phone asks **"Have you played Murder at Marlowe Manor before?"** Players who say yes go straight on. New players get a **practice round** on their phone: one hour of the night on mock screens (the envelope, a fuse-box lock, the torn note, the meeting and the vote), with a spotlight on each part and a speech box saying what to do there. Nothing in it is saved and nobody else sees it; it can be skipped at any point. Both are remembered per room, so coming back to the manor doesn't repeat them. No database changes: see [`lib/gathering/onboarding.ts`](lib/gathering/onboarding.ts) and [`app/play/[code]/practice.tsx`](app/play/[code]/practice.tsx).
+4. **Inside Marlowe Manor**, each player picks one of six detective portraits and answers **three questions** ("What's your most irrational fear?"). Players can shuffle to a different question but must answer to continue. Answers are private and final.
+5. **Start the night** (on the TV, or on the host's phone: the first player to join gets host controls). Each phone opens a sealed envelope with its secret role: one **murderer**, everyone else **detectives**. The night starts once everyone has tapped **Got it**.
+6. **Each round is an hour of the night** (nine o'clock to dawn). Everyone is split into pairs (a trio if odd), with new partners each round. Each pair goes to a room of the house and opens a **lock** together. Each lock needs both phones:
    - **Fuse box:** one phone sees the wires, the other has the manual.
    - **Charades** and **Sketch:** one phone sees what to act or draw, the other types the guess.
    - **Two truths and a lie:** one player tells three things about themselves, the others spot the lie. Every round, one pair gets this lock.
-6. **Behind every lock is a torn note**, and each partner sees half. Every answer from the start is a note somewhere in the house; the murderer's say "the murderer" and everyone else's say "an innocent person". One pair finds one of the murderer's notes each round, while they last. Locks nobody opens keep their notes for later rounds.
-7. **The murderer** has secret moves on their phone: **forge a note** once (a fake secret that turns up as one of theirs) and **strike someone** in even rounds. The person who was with the victim looks guilty.
-8. **The meeting.** When time runs out (or the host calls it), everyone gathers. If a murderer's note turned up or someone died, the TV shows the notes and the group talks it through, then everyone **votes** on their phone (or skips). The TV counts the votes one mark at a time, then the verdict. If nothing turned up, there's no vote that round.
-9. **Ghosts.** Killed or voted out players become ghosts: they still pair up and open locks, but can't vote.
-10. **The end.** The detectives win by voting out the murderer. The murderer wins when only one detective is left. The TV then reveals whose every note was. **Play again** starts a new night with the same players and answers; **Choose another story** goes back to the story browser with the same group.
+7. **Behind every lock is a torn note**, and each partner sees half. Every answer from the start is a note somewhere in the house; the murderer's say "the murderer" and everyone else's say "an innocent person". One pair finds one of the murderer's notes each round, while they last. Locks nobody opens keep their notes for later rounds.
+8. **The murderer** has secret moves on their phone: **forge a note** once (a fake secret that turns up as one of theirs) and **strike someone** in even rounds. The person who was with the victim looks guilty.
+9. **The meeting.** When time runs out (or the host calls it), everyone gathers. If a murderer's note turned up or someone died, the TV shows the notes and the group talks it through, then everyone **votes** on their phone (or skips). The TV counts the votes one mark at a time, then the verdict. If nothing turned up, there's no vote that round.
+10. **Ghosts.** Killed or voted out players become ghosts: they still pair up and open locks, but can't vote.
+11. **The end.** The detectives win by voting out the murderer. The murderer wins when only one detective is left. The TV then reveals whose every note was. **Play again** starts a new night with the same players and answers; **Choose another story** goes back to the story browser with the same group.
 
 Every timer is 2 minutes (locks, discussion and vote). The host's phone can add a minute.
 
@@ -67,7 +69,7 @@ Sound: the deep-water ambience loops all game. Each room of the sub has its own 
   - `public/audio/deep.mp3`: Trapped Below's deep-water ambience. It plays on its page in the story browser and all game inside the story, under the captain.
   - `public/trapped/`: Trapped Below's art: `bg/` (the rooms of the sub), `crew/` (the six crew portraits), `kit/` (brass and steel buttons, panels, the air tank, the porthole) and `sub.webp` (the blueprint).
   - Both loop by crossfading the end of the track into the start. Switching stories fades one out and the other in.
-  - `public/narration/<line>.mp3`: the narrator (ElevenLabs, "Harry"). One file per line in `NARRATION` in `content.ts`. If a file is missing, the browser's own voice reads that line. Trapped Below's captain (ElevenLabs, "Oswald") is `tb-*.mp3`, one file per line in `TB_NARRATION` in `trapped.ts`.
+  - `public/narration/<line>.mp3`: the narrator (ElevenLabs, "Harry"). One file per line in `NARRATION` in `content.ts`. If a file is missing, the browser's own voice reads that line. The intro's four lines (`intro-1` to `intro-4`) aren't recorded yet, so for now the browser reads them. Trapped Below's captain (ElevenLabs, "Oswald") is `tb-*.mp3`, one file per line in `TB_NARRATION` in `trapped.ts`.
   - `public/sfx/<name>.mp3` (optional): recorded sound effects (`thunder`, `lock`, `chime`, `scream`, `sting`, `gavel`, `bark`, `heartbeat`, `tick`). Without them, the sounds are synthesised in the browser.
 
 ## Privacy and server rules
@@ -135,6 +137,9 @@ PostHog records pageviews plus the events below. Every event has `screen` (`tv` 
 
 | Event | Sent by | When | Properties |
 |---|---|---|---|
+| `intro_skipped` | TV | Marlowe Manor: the TV skips the intro | `beat` (which of the four was showing) |
+| `practice_choice` | phone | Marlowe Manor: a player answers "Have you played before?" | `played_before` |
+| `practice_finished` | phone | Marlowe Manor: a player finishes or skips the practice round | `completed`, `step` (where they stopped), `steps`, `seconds` |
 | `answers_submitted` | phone | A player locks in their three answers | `shuffles` (questions skipped), `seconds` |
 | `game_started` | TV | Roles are dealt | `story`, `players`, `setup_seconds` (portraits and questions) |
 | `round_started` | TV | Each round (hour) starts | `round`, `players`, `pairs` |

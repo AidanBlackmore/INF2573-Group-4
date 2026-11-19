@@ -13,6 +13,7 @@ import { sound, type SoundSettings, type Track } from "@/lib/gathering/sound";
 import { ensureSignedIn, errorMessage, supabase } from "@/lib/supabase";
 import { Art, Avatar, Line, Ring, Tag, ageOf, colorOf, since } from "../_ui/bits";
 import { HousePlan } from "../_ui/house";
+import { INTRO, INTRO_DELAY_MS, introAt, remember, seen } from "@/lib/gathering/onboarding";
 import { Weather, type WeatherHandle } from "../_ui/weather";
 import { TbBackdrop, TrappedTv, useTrappedTv } from "./trapped";
 
@@ -125,15 +126,31 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
   // Stepping into a story: a flash and the title (1.8 s), then the manor fades up from black.
   const [, redraw] = useState(0);
   const entered = phase === "lobby" ? ageOf(view.room.phase_at) : Infinity;
+  // Then the intro (lib/gathering/onboarding.ts): four short beats on what's going on, timed from
+  // entering the story so the phones know when it ends. Once per room on this TV, and skippable.
+  const intro = introAt(entered);
+  const [, setIntroSkip] = useState(0);
+  const introOn = phase === "lobby" && !intro.done && seen("intro", view.room.id) === null;
+  const skipIntro = () => {
+    remember("intro", view.room.id, "skipped");
+    track("intro_skipped", { room_id: view.room.id, beat: intro.beat + 1 });
+    setIntroSkip((n) => n + 1);
+  };
   useEffect(() => {
     if (phase !== "lobby") return;
-    const timers = [1800, 3300].map((ms) => setTimeout(() => redraw((n) => n + 1), ms));
+    const at = new Date(view.room.phase_at).getTime();
+    let t = INTRO_DELAY_MS;
+    const marks = [1800, 3300, ...INTRO.map((b) => (t += b.secs * 1000))];
+    const timers = marks.map((ms) => setTimeout(() => redraw((n) => n + 1), Math.max(0, at + ms - Date.now())));
     return () => timers.forEach(clearTimeout);
   }, [phase, view.room.phase_at]);
+  useEffect(() => {
+    if (phase === "lobby" && intro.done && seen("intro", view.room.id) === null) remember("intro", view.room.id, "watched");
+  });
 
   // The narrator reads this screen's lines once.
   useLayoutEffect(() => {
-    const ids = phase === "lobby" ? [] : [...new Set([...(tv.current?.querySelectorAll<HTMLElement>("[data-line]") ?? [])].map((el) => el.dataset.line!))];
+    const ids = phase === "lobby" && !introOn ? [] : [...new Set([...(tv.current?.querySelectorAll<HTMLElement>("[data-line]") ?? [])].map((el) => el.dataset.line!))];
     sound().narrate(`${phase}:${round}:${ids.join("|")}`, ids);
   });
 
@@ -144,7 +161,7 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
     tb_hands: deepScreen, tb_talk: deepScreen, tb_vote: deepScreen, tb_verdict: deepScreen, tb_end: deepScreen,
     join: () => <Join view={view} busy={busy} onGo={() => run("we_are_in")} />,
     browse: () => <Browse view={view} busy={busy} onGo={go} onEnter={() => run("enter_story")} />,
-    lobby: () => <Lobby view={view} busy={busy} onStart={() => run("start_game")} />,
+    lobby: () => (introOn ? <Intro beat={intro.beat} onSkip={skipIntro} /> : <Lobby view={view} busy={busy} onStart={() => run("start_game")} />),
     roles: () => <Roles view={view} />,
     tasks: () => <Tasks view={view} busy={busy} onNext={next} />,
     quiet: () => <Quiet view={view} busy={busy} onNext={next} />,
@@ -565,6 +582,40 @@ function Browse({ view, busy, onGo, onEnter }: { view: View; busy: boolean; onGo
   );
 }
 
+// Stepping into Marlowe Manor: what's going on, in four beats. Phones show "Eyes on the TV" meanwhile.
+function Intro({ beat, onSkip }: { beat: number; onSkip: () => void }) {
+  const b = INTRO[beat];
+  return (
+    <>
+      <span className="eyebrow">How tonight works</span>
+      <div className="tv-grid intro" key={b.id}>
+        <div className="intro-art">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`/figma/${b.art}.jpg`} alt="" />
+        </div>
+        <div>
+          <span className="intro-kicker">{b.eyebrow}</span>
+          <p className="chapter">{b.title}</p>
+          <Line id={b.id} text={b.text} />
+          <div className="intro-dots" aria-label={`Part ${beat + 1} of ${INTRO.length}`}>
+            {INTRO.map((x, i) => (
+              <i key={x.id} className={i < beat ? "past" : i === beat ? "on" : ""} style={i === beat ? ({ "--secs": `${x.secs}s` } as CSSProperties) : undefined} />
+            ))}
+          </div>
+          <p className="todo">
+            <b>Eyes on the TV.</b> Your phone carries on when this ends.
+          </p>
+          <div className="row">
+            <button className="btn quiet" onClick={onSkip}>
+              Skip intro
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // Inside Marlowe Manor: everyone picks a detective and answers three questions.
 function Lobby({ view, busy, onStart }: { view: View; busy: boolean; onStart: () => void }) {
   const waiting = view.players.filter((p) => !p.picked || !p.answered);
@@ -586,6 +637,7 @@ function Lobby({ view, busy, onStart }: { view: View; busy: boolean; onStart: ()
         <p>Lord Fenwick invites you to his birthday dinner at Marlowe Manor. He likes to know his guests, so he has three questions for you.</p>
         <span className="tone ink">What to do</span>
         <p>Answer three questions on your phone. Your answers get hidden around the house, and one of you will be the murderer.</p>
+        <p className="hint">First time here? Your phone has a short practice round first. Played before? Skip it.</p>
         <div className="row">
           <button className="btn" disabled={!ready || busy} onClick={onStart}>
             Start the night
