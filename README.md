@@ -76,7 +76,7 @@ Sound: the deep-water ambience loops all game. Each room of the sub has its own 
 - **Secrets stay on the server.** Who the murderer is, the notes, the lock answers and the votes are in tables no device can read. Each screen reads its own slice through `get_view()`: the TV gets the public picture, each phone also gets its own role, its side of its lock and its half of the note. Whose note was whose only comes out at the end.
 
 - **Portraits are checked twice.** The description is checked against a word list on the phone and again on the server before anything is drawn, so nothing rude reaches the shared TV. A player can only save a pre-drawn portrait or one they uploaded themselves.
-- **What is sent where.** The description goes to Cloudflare to be drawn (the name never does). The drawing is stored in a public Supabase Storage bucket so the TV can show it. Analytics only records how the drawing went, never the description.
+- **What is sent where.** The description goes to Cloudflare to be drawn (the name never does). The drawing is stored in a public Supabase Storage bucket so the TV can show it. Every drawing is also sent to PostHog AI observability (the description inside the prompt, plus the picture) so it can be evaluated; that is the only place a player's words reach PostHog. Other analytics never include the description.
 
 ## Character portraits
 
@@ -96,6 +96,19 @@ On the join screen each player describes what they look like and gets a portrait
 
 Without them the game still works: every player gets a pre-drawn portrait.
 
+### Evaluating the portraits (PostHog)
+
+Each drawing is reported to PostHog as an `$ai_generation` ([`lib/gathering/observe.ts`](lib/gathering/observe.ts)), after the phone already has its answer: the full prompt, the picture, how long it took, any error, `prompt_version` (`PROMPT_VERSION` in `look.ts`) and `steps`. They show under **AI observability > Generations**, and the **Evaluations** tab scores them:
+
+| Evaluation | Kind | Checks |
+|---|---|---|
+| Portrait was drawn | code (free) | Cloudflare returned a picture |
+| Portrait matches the description | AI judge, 1–5 (pass is 4+) | each feature the player mentioned is in the picture |
+| Portrait follows the house style | AI judge, pass/fail | black ink, one person, plain white, no colour, text or frame |
+
+- **The judges need an AI key.** In PostHog, **Settings > AI observability > Bring your own key**, add a Gemini key (free from [Google AI Studio](https://aistudio.google.com/apikey)), then switch both judges on in the Evaluations tab.
+- **To improve the model:** change `portraitPrompt` (or the model or `steps`), bump `PROMPT_VERSION`, play a few games, then compare the evaluation scores by `prompt_version`.
+
 ## Environment variables
 
 | Name | Required | What it is |
@@ -111,7 +124,7 @@ Without them the game still works: every player gets a pre-drawn portrait.
 
 ### Analytics (PostHog)
 
-PostHog records pageviews plus the events below. Every event has `screen` (`tv` or `phone`) and, once there is one, `room_id`. **Group events come from the TV only**, so each is counted once per room; phones only send what happens to that one player. No answers, names or other things players type are ever sent.
+PostHog records pageviews plus the events below. Every event has `screen` (`tv` or `phone`) and, once there is one, `room_id`. **Group events come from the TV only**, so each is counted once per room; phones only send what happens to that one player. No answers, names or other things players type are sent with these events (the portrait description goes only to AI observability, see Evaluating the portraits).
 
 **Joining** (is it easy to get a group in?)
 

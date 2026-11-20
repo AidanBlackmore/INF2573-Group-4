@@ -74,6 +74,7 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
 | `lib/gathering/trapped.ts` | Trapped Below's text: questions, briefing timing, captain's lines, rooms, Morse, pipes |
 | `lib/gathering/deep.ts` | Trapped Below's synthesised sounds (rooms, creaks, heartbeat, chime, Morse), `shake()` and `buzz()` |
 | `lib/analytics.ts` | `track()`; adds `screen: tv/phone` |
+| `lib/gathering/observe.ts` | Reports each portrait drawing to PostHog AI observability for evaluations |
 | `app/api/portrait/route.ts` | Draws a portrait with Cloudflare Workers AI (needs `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`) |
 | `lib/gathering/look.ts`, `portrait.ts` | Portrait prompt, word list, pre-drawn library matching; the phone's ink-on-paper clean-up and upload |
 | `supabase/migrations/0001_the_gathering.sql` | The whole database: tables, RLS, RPCs, game rules |
@@ -91,7 +92,7 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
 
 - **Project:** "Default project", id 654207.
 - **Dashboard:** "The Gathering: game health" (https://us.posthog.com/project/654207/dashboard/2231394), with 14 charts. The headline is a funnel counted **per room**: `room_created → lobby_completed → story_entered → game_started → game_ended`.
-- **Who sends what:** group events come from the TV only, so each counts once per room; per-player events come from phones. Nothing players type is sent.
+- **Who sends what:** group events come from the TV only, so each counts once per room; per-player events come from phones. Nothing players type is sent, except the portrait description: each drawing goes to PostHog AI observability (`lib/gathering/observe.ts`) as an `$ai_generation` so the **Evaluations** tab can score it (README, "Evaluating the portraits"). The two AI judges need a Gemini key added in PostHog (Bring your own key); the free "Portrait was drawn" check is on.
 - **Events:** the full list and their properties are in the README (Analytics section).
 - **Old events:** events from the old "Alternate Universes" version (`universe_*`, `round_N_started`, `act_started`, `vote_submitted`, `choice_auto_selected`) are still in PostHog and not yet hidden.
 

@@ -26,6 +26,10 @@ export function lookProblem(look: string): string | null {
 
 // The player's words go inside this fixed prompt, so everyone is drawn in the same hand.
 // The phone then turns the result into ink on paper with a hand-drawn border (portrait.ts).
+// Bump this whenever portraitPrompt's wording changes, so PostHog can compare the versions'
+// evaluation scores (it's sent as `prompt_version` with every drawing).
+export const PROMPT_VERSION = "v1";
+
 export function portraitPrompt(look: string): string {
   const clean = look.replace(/[^\p{L}\p{N} ,.'&-]/gu, " ").replace(/\s+/g, " ").trim();
   return (
