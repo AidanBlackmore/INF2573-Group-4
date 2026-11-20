@@ -16,6 +16,8 @@ export function marloweFocus(view: View, id: string): boolean | null {
     case "browse":
       return null;
     case "lobby":
+      // First the guest book, then picking a detective and answering.
+      if (!view.room.book_at) return !p.signed_at;
       return !(p.picked && p.answered);
     case "roles":
       return !p.ready;

@@ -1,7 +1,7 @@
 "use client";
 
 // Marlowe Manor's onboarding on the phone, before the player picks a detective:
-// 1. While the TV plays the intro ("what's going on"), the phone says "Eyes on the TV".
+// 1. While the TV closes the guest book and plays the intro ("what's going on"), the phone says "Eyes on the TV".
 // 2. "Have you played before?" Yes skips ahead; no starts the practice round.
 // 3. The practice round: one hour of the night, step by step, on mock screens that look like
 //    the real ones. A spotlight picks out each part and a speech box says what to do there.
@@ -11,15 +11,16 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Reac
 import { createPortal } from "react-dom";
 import { FUSE_RULES, ROOM_SCENE, WIRE_HEX } from "@/lib/gathering/content";
 import type { View } from "@/lib/gathering/game";
-import { INTRO, INTRO_DELAY_MS, INTRO_MS, introAt, remember, seen } from "@/lib/gathering/onboarding";
+import { INTRO, INTRO_MS, introAt, introStart, remember, seen } from "@/lib/gathering/onboarding";
 import { track } from "@/lib/analytics";
 import { Art, Avatar, KnifeSvg, Ring } from "../../_ui/bits";
 
 export function ManorWelcome({ view, now, onDone }: { view: View; now: () => number; onDone: () => void }) {
   const roomId = view.room.id;
-  const at = new Date(view.room.phase_at).getTime();
+  // The intro starts a little after the guest book closes (lib/gathering/onboarding.ts).
+  const at = introStart(view.room) ?? now();
   const [stage, setStage] = useState<"intro" | "ask" | "practice">(() =>
-    seen("intro", roomId) !== null || now() - at >= INTRO_DELAY_MS + INTRO_MS ? "ask" : "intro",
+    seen("intro", roomId) !== null || now() - at >= INTRO_MS ? "ask" : "intro",
   );
   const [ms, setMs] = useState(() => now() - at);
   useEffect(() => {

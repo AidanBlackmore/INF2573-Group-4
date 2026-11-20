@@ -13,7 +13,8 @@ import { sound, type SoundSettings, type Track } from "@/lib/gathering/sound";
 import { ensureSignedIn, errorMessage, supabase } from "@/lib/supabase";
 import { Art, Avatar, Line, Ring, Tag, ageOf, colorOf, since } from "../_ui/bits";
 import { HousePlan } from "../_ui/house";
-import { INTRO, INTRO_DELAY_MS, introAt, remember, seen } from "@/lib/gathering/onboarding";
+import { BOOK_CLOSE_MS, INTRO, introAt, remember, seen } from "@/lib/gathering/onboarding";
+import { GuestBook } from "./guestbook";
 import { PHONE_FOR, marloweFocus } from "@/lib/gathering/focus";
 import { Weather, type WeatherHandle } from "../_ui/weather";
 import { TbBackdrop, TrappedTv, useTrappedTv } from "./trapped";
@@ -127,15 +128,19 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
   // Stepping into a story: a flash and the title (1.8 s), then the manor fades up from black.
   const [, redraw] = useState(0);
   const entered = phase === "lobby" ? ageOf(view.room.phase_at) : Infinity;
-  // Then the intro (lib/gathering/onboarding.ts): four short beats on what's going on, timed from
-  // entering the story so the phones know when it ends. Once per room on this TV, and skippable.
+  // Then the guest book (guestbook.tsx): everyone signs, and BOOK_CLOSE_MS after the book closed
+  // (rooms.book_at) the intro (lib/gathering/onboarding.ts) starts: four short beats on what's going
+  // on, timed from there so the phones know when it ends. Once per room on this TV, and skippable.
   // "Next" jumps to the next beat on this TV: `jump` is how far ahead of the clock the TV has got.
   // (Phones keep their own clock; they show "Eyes on the TV" and can carry on whenever the TV is done.)
+  const bookAt = view.room.book_at;
+  const sinceBook = phase === "lobby" && bookAt ? ageOf(bookAt) : null;
+  const bookOn = phase === "lobby" && (sinceBook === null || sinceBook < BOOK_CLOSE_MS);
   const [jump, setJump] = useState({ at: "", ms: 0 });
-  const ahead = jump.at === view.room.phase_at ? jump.ms : 0;
-  const intro = introAt(entered + ahead);
+  const ahead = jump.at === bookAt ? jump.ms : 0;
+  const intro = introAt((sinceBook ?? 0) - BOOK_CLOSE_MS + ahead);
   const [, setIntroSkip] = useState(0);
-  const introOn = phase === "lobby" && !intro.done && seen("intro", view.room.id) === null;
+  const introOn = phase === "lobby" && !bookOn && !intro.done && seen("intro", view.room.id) === null;
   const skipIntro = () => {
     remember("intro", view.room.id, "skipped");
     track("intro_skipped", { room_id: view.room.id, beat: intro.beat + 1 });
@@ -148,23 +153,26 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
       return;
     }
     const left = (1 - intro.frac) * INTRO[intro.beat].secs * 1000;
-    setJump({ at: view.room.phase_at, ms: ahead + Math.ceil(left) + 30 });
+    setJump({ at: bookAt ?? "", ms: ahead + Math.ceil(left) + 30 });
   };
   useEffect(() => {
     if (phase !== "lobby") return;
-    const at = new Date(view.room.phase_at).getTime() - ahead;
-    let t = INTRO_DELAY_MS;
-    const marks = [1800, 3300, ...INTRO.map((b) => (t += b.secs * 1000))];
-    const timers = marks.map((ms) => setTimeout(() => redraw((n) => n + 1), Math.max(0, at + ms - Date.now())));
+    const entry = new Date(view.room.phase_at).getTime();
+    const timers = [1800, 3300].map((ms) => setTimeout(() => redraw((n) => n + 1), Math.max(0, entry + ms - Date.now())));
+    if (bookAt) {
+      const at = new Date(bookAt).getTime() - ahead;
+      let t = BOOK_CLOSE_MS;
+      for (const ms of [t, ...INTRO.map((b) => (t += b.secs * 1000))]) timers.push(setTimeout(() => redraw((n) => n + 1), Math.max(0, at + ms - Date.now())));
+    }
     return () => timers.forEach(clearTimeout);
-  }, [phase, view.room.phase_at, ahead]);
+  }, [phase, view.room.phase_at, bookAt, ahead]);
   useEffect(() => {
     if (phase === "lobby" && intro.done && seen("intro", view.room.id) === null) remember("intro", view.room.id, "watched");
   });
 
   // The narrator reads this screen's lines once.
   useLayoutEffect(() => {
-    const ids = phase === "lobby" && !introOn ? [] : [...new Set([...(tv.current?.querySelectorAll<HTMLElement>("[data-line]") ?? [])].map((el) => el.dataset.line!))];
+    const ids = phase === "lobby" && !introOn && !bookOn ? [] : [...new Set([...(tv.current?.querySelectorAll<HTMLElement>("[data-line]") ?? [])].map((el) => el.dataset.line!))];
     sound().narrate(`${phase}:${round}:${ids.join("|")}`, ids);
   });
 
@@ -175,7 +183,14 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
     tb_hands: deepScreen, tb_talk: deepScreen, tb_vote: deepScreen, tb_verdict: deepScreen, tb_end: deepScreen,
     join: () => <Join view={view} busy={busy} onGo={() => run("we_are_in")} />,
     browse: () => <Browse view={view} busy={busy} onGo={go} onEnter={() => run("enter_story")} />,
-    lobby: () => (introOn ? <Intro beat={intro.beat} onSkip={skipIntro} onNext={nextBeat} /> : <Lobby view={view} busy={busy} onStart={() => run("start_game")} />),
+    lobby: () =>
+      bookOn ? (
+        <GuestBook view={view} busy={busy} onClose={() => run("close_book")} />
+      ) : introOn ? (
+        <Intro beat={intro.beat} onSkip={skipIntro} onNext={nextBeat} />
+      ) : (
+        <Lobby view={view} busy={busy} onStart={() => run("start_game")} />
+      ),
     roles: () => <Roles view={view} />,
     tasks: () => <Tasks view={view} busy={busy} onNext={next} />,
     quiet: () => <Quiet view={view} busy={busy} onNext={next} />,
@@ -207,7 +222,7 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
           </div>
         )}
         {error && <p className="report">{error}</p>}
-        {world === "marlowe" && !introOn && <PhoneCue view={view} />}
+        {world === "marlowe" && !introOn && !(bookOn && bookAt) && <PhoneCue view={view} />}
         {TIMED.includes(phase) && <Ring left={left} total={view.room.total_secs} big />}
       </section>
     </div>
@@ -600,7 +615,7 @@ function Browse({ view, busy, onGo, onEnter }: { view: View; busy: boolean; onGo
 // Who should be looking at their phone, and what for (lib/gathering/focus.ts). Everyone else watches the TV.
 function PhoneCue({ view }: { view: View }) {
   const who = view.players.filter((p) => marloweFocus(view, p.id));
-  const what = PHONE_FOR[view.room.phase];
+  const what = view.room.phase === "lobby" && !view.room.book_at ? "sign the guest book" : PHONE_FOR[view.room.phase];
   if (!who.length || !what) return null;
   const all = who.length === view.players.length;
   const label = all ? "Everyone" : names(who.map((p) => p.name ?? "Someone"));

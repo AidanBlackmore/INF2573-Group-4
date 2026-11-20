@@ -65,6 +65,7 @@ begin
         'cut_wire', 'guess_word', 'new_word', 'add_stroke', 'clear_sketch', 'choose_lie', 'spot_lie',
         'forge_note', 'strike', 'cast_vote', 'host_next', 'add_time', 'advance_if_due', 'get_view',
         'pick_color', 'set_name_color', 'use_draw', 'set_name_look', 'we_are_in', 'browse_story', 'enter_story', 'another_story',
+        'sign_book', 'close_book',
         'tb_skip', 'tb_hold', 'tb_dive', 'tb_portrait', 'tb_crew_file', 'tb_start', 'tb_orders', 'tb_restart',
         'tb_pick', 'tb_bolt', 'tb_sonar', 'tb_rotate', 'tb_leak', 'tb_vote', 'tb_next', 'tb_tick'
       )
@@ -107,6 +108,8 @@ create table public.rooms (
   task_secs int not null default 120 check (task_secs between 20 and 600),
   talk_secs int not null default 120 check (talk_secs between 10 and 600),
   vote_secs int not null default 120 check (vote_secs between 10 and 600),
+  -- Marlowe Manor's guest book: when it closed (everyone signed, or the host closed it). Null while guests sign.
+  book_at timestamptz,
   -- Bumped on every change, so Realtime wakes every screen.
   version bigint not null default 0,
   created_at timestamptz not null default now()
@@ -136,6 +139,9 @@ create table public.players (
   -- Opened the role envelope / tapped "Got it".
   opened boolean not null default false,
   ready boolean not null default false,
+  -- Their signature in Marlowe Manor's guest book: strokes of [x, y] points in a 230 × 56 box.
+  signature jsonb check (signature is null or (jsonb_typeof(signature) = 'array' and octet_length(signature::text) <= 40000)),
+  signed_at timestamptz,
   -- Ghosts: 'killed' by the murderer or 'ejected' by the vote.
   dead text check (dead in ('killed', 'ejected')),
   dead_at timestamptz,
@@ -1092,6 +1098,62 @@ begin
     raise exception 'That detective is taken';
   end if;
   update public.players set portrait = p_portrait where id = v_player.id;
+  perform private.touch(p_room_id);
+end;
+$$;
+
+-- Stepping into Marlowe Manor, every guest signs the visitors' book on their phone; the TV writes
+-- each signature in. When the last guest has signed, the book closes (rooms.book_at) and the intro starts.
+create function public.sign_book(p_room_id uuid, p_strokes jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+  v_player public.players := private.me(p_room_id);
+  v_points int;
+begin
+  if v_player.id is null then
+    raise exception 'You are not in this room';
+  end if;
+  if v_room.phase <> 'lobby' or v_room.book_at is not null or v_player.signed_at is not null then
+    return;
+  end if;
+  if jsonb_typeof(p_strokes) <> 'array' or jsonb_array_length(p_strokes) not between 1 and 40 then
+    raise exception 'Sign first';
+  end if;
+  if exists (select 1 from jsonb_array_elements(p_strokes) s where jsonb_typeof(s) <> 'array') then
+    raise exception 'That signature didn''t come through';
+  end if;
+  select coalesce(sum(jsonb_array_length(s)), 0) into v_points from jsonb_array_elements(p_strokes) s;
+  if v_points < 2 or v_points > 1500 or octet_length(p_strokes::text) > 40000 then
+    raise exception 'That signature didn''t come through';
+  end if;
+  update public.players set signature = p_strokes, signed_at = now() where id = v_player.id;
+  if not exists (select 1 from public.players where room_id = p_room_id and joined_at is not null and signed_at is null) then
+    update public.rooms set book_at = now() where id = p_room_id;
+  end if;
+  perform private.touch(p_room_id);
+end;
+$$;
+
+-- Close the guest book without waiting for everyone (host or TV).
+create function public.close_book(p_room_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+begin
+  perform private.require_controller(v_room);
+  if v_room.phase <> 'lobby' or v_room.book_at is not null then
+    return;
+  end if;
+  update public.rooms set book_at = now() where id = p_room_id;
   perform private.touch(p_room_id);
 end;
 $$;
@@ -3010,7 +3072,7 @@ begin
       'id', v_room.id, 'code', v_room.code, 'phase', v_room.phase, 'round', v_room.round,
       'phase_at', v_room.phase_at, 'deadline', v_room.deadline, 'total_secs', v_room.total_secs,
       'version', v_room.version, 'focus', v_room.focus, 'focus_dir', v_room.focus_dir,
-      'focus_at', v_room.focus_at, 'story', v_room.story
+      'focus_at', v_room.focus_at, 'story', v_room.story, 'book_at', v_room.book_at
     ),
     'server_now', now(),
     'me', v_me.id,
@@ -3021,6 +3083,7 @@ begin
         'id', p.id, 'name', p.name, 'color', p.color, 'joined', p.joined_at is not null, 'portrait_url', p.portrait_url,
         'portrait', p.portrait, 'picked', p.picked, 'answered', p.answered,
         'opened', p.opened, 'ready', p.ready, 'dead', p.dead, 'dead_at', p.dead_at,
+        'signed_at', p.signed_at, 'signature', case when v_room.phase = 'lobby' then p.signature end,
         'voted', v_room.phase = 'meeting' and exists (
           select 1 from public.votes v where v.room_id = p_room_id and v.round = v_room.round and v.voter_id = p.id
         )

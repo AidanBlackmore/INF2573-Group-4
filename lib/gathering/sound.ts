@@ -610,6 +610,53 @@ class Sound {
       this.noiseHit(c, t, "bandpass", 4200, 3000, 0.08, 0.001, 0.02);
     }, 0.4);
   }
+
+  // Marlowe Manor's guest book (app/host/guestbook.tsx): a page turning, the book shutting, the seal.
+  pageTurn() {
+    this.play("page", (c, t) => this.noiseHit(c, t, "highpass", 2600, 1800, 0.1 + Math.random() * 0.05, 0.05, 0.22), 0.5);
+  }
+
+  bookShut() {
+    this.play("book-shut", (c, t) => {
+      this.tone(c, t, "sine", 130, 0.5, 0.004, 0.4, 70);
+      this.noiseHit(c, t, "lowpass", 900, 300, 0.35, 0.004, 0.3, true);
+    });
+  }
+
+  seal() {
+    this.play("seal", (c, t) => {
+      this.tone(c, t, "sine", 230, 0.4, 0.003, 0.25, 130);
+      this.noiseHit(c, t, "lowpass", 1200, 400, 0.2, 0.003, 0.18);
+    }, 0.7);
+  }
+
+  // A nib on paper while a signature is written: louder as the pen moves faster. Call set(0..1) as it
+  // moves and stop() at the end of the stroke.
+  scratch(): { set: (v: number) => void; stop: () => void } {
+    const c = this.ok() ? this.ctx() : null;
+    if (!c) return { set: () => {}, stop: () => {} };
+    const src = c.createBufferSource();
+    src.buffer = this.noiseBuf(c);
+    src.loop = true;
+    const f = c.createBiquadFilter();
+    f.type = "bandpass";
+    f.frequency.value = 3800;
+    f.Q.value = 1.4;
+    const g = c.createGain();
+    g.gain.value = 0;
+    src.connect(f).connect(g).connect(c.destination);
+    src.start();
+    return {
+      set: (v) => {
+        g.gain.setTargetAtTime(v * 0.06, c.currentTime, 0.02);
+        f.frequency.setTargetAtTime(3000 + v * 2200, c.currentTime, 0.03);
+      },
+      stop: () => {
+        g.gain.setTargetAtTime(0, c.currentTime, 0.04);
+        setTimeout(() => src.stop(), 300);
+      },
+    };
+  }
 }
 
 // British male voices on Apple, Chrome and Windows, best first. Prefer the newer

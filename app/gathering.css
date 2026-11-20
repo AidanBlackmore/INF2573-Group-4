@@ -576,3 +576,12 @@
 @keyframes your-move { 0% { transform: translateX(-50%) scale(0.6); } 12% { transform: translateX(-50%) scale(1.12); } 20%, 80% { transform: translateX(-50%); opacity: 1; } 100% { transform: translateX(-50%); opacity: 0; } }
 .screen:has(> .your-move) { animation: phone-wake 0.9s ease-out; }
 @keyframes phone-wake { 0% { box-shadow: inset -6px -6px 0 var(--paper-shade), 0 -6px 0 var(--ink), 0 6px 0 var(--ink), -6px 0 0 var(--ink), 6px 0 0 var(--ink), 0 0 0 10px rgba(179, 38, 30, 0.6); } 100% { box-shadow: inset -6px -6px 0 var(--paper-shade), 0 -6px 0 var(--ink), 0 6px 0 var(--ink), -6px 0 0 var(--ink), 6px 0 0 var(--ink), 0 0 0 0 rgba(179, 38, 30, 0); } }
+
+/* ---------- Marlowe Manor's guest book on the phone (app/play/[code]/guestbook.tsx) ---------- */
+.sign-book { gap: 10px; }
+.sign-pad { width: 100%; height: 190px; background: var(--paper-light); border: 3px solid var(--ink); touch-action: none; cursor: crosshair; background-image: linear-gradient(transparent 146px, rgba(90, 60, 30, 0.45) 146px, rgba(90, 60, 30, 0.45) 148px, transparent 148px); box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.35); }
+.sign-x { font: 500 0.7rem var(--label); letter-spacing: 0.12em; text-transform: uppercase; color: var(--brown); margin-top: -4px; }
+.sign-row { gap: 10px; }
+.sign-row .p-btn { flex: 1; }
+.signed-sig { width: 100%; max-width: 300px; height: auto; background: var(--paper-light); border-bottom: 2px solid rgba(90, 60, 30, 0.45); }
+.signed-sig path { fill: none; stroke: #1d1630; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }

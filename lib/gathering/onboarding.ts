@@ -1,14 +1,20 @@
-// Marlowe Manor's onboarding: a short intro on the TV ("what's going on"), then a practice
-// round on each phone for players who haven't played before.
-//
-// None of this touches the database. The intro is timed from the moment the story was entered
-// (rooms.phase_at), so the TV and every phone agree on when it ends without talking to each
-// other. The practice round runs on the phone only, before the player picks a detective and
-// answers their questions, so "Start the night" (which waits for everyone's answers) also
-// waits for anyone still practising.
+// Marlowe Manor's onboarding, in order:
+// 1. The guest book: everyone signs on their phone, the TV writes each signature in, and when the
+//    last guest has signed the book closes and is sealed (rooms.book_at; app/host/guestbook.tsx).
+// 2. A short intro on the TV ("what's going on"). It starts BOOK_CLOSE_MS after the book closed,
+//    so the TV and every phone agree on when it runs without talking to each other.
+// 3. A practice round on each phone for players who haven't played before. It runs on the phone
+//    only, before the player picks a detective and answers their questions, so "Start the night"
+//    (which waits for everyone's answers) also waits for anyone still practising.
 
-// The TV holds its title card for this long after entering the story (see `entering` in tv.tsx).
-export const INTRO_DELAY_MS = 1800;
+// From the book closing to the intro: time for the TV to finish writing the last signature (about
+// 2.5 s), then shut and seal the book (about 6 s).
+export const BOOK_CLOSE_MS = 9000;
+
+// When the intro starts (ms since the epoch, server clock), or null while guests are still signing.
+export function introStart(room: { book_at: string | null }): number | null {
+  return room.book_at ? new Date(room.book_at).getTime() + BOOK_CLOSE_MS : null;
+}
 
 export type IntroBeat = { id: string; eyebrow: string; title: string; text: string; art: string; secs: number };
 
@@ -50,9 +56,9 @@ export const INTRO: IntroBeat[] = [
 
 export const INTRO_MS = INTRO.reduce((t, b) => t + b.secs * 1000, 0);
 
-// Where the intro is, `ms` after entering the story: the beat showing and how far through it.
+// Where the intro is, `ms` after it started: the beat showing and how far through it.
 export function introAt(ms: number): { beat: number; frac: number; done: boolean } {
-  let t = ms - INTRO_DELAY_MS;
+  let t = ms;
   if (t < 0) return { beat: 0, frac: 0, done: false };
   for (let i = 0; i < INTRO.length; i++) {
     const len = INTRO[i].secs * 1000;

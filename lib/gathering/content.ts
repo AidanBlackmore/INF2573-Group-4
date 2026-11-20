@@ -134,7 +134,9 @@ export const chapterOf = (round: number) => CHAPTERS[Math.min(Math.max(round, 1)
 // Every narrated line, word for word. Each has a recording at /narration/<id>.mp3;
 // if one is missing, the browser's own voice reads it. Lines never include player names.
 export const NARRATION: Record<string, string> = {
-  // The intro when the group first steps into the manor (lib/gathering/onboarding.ts).
+  // Stepping into the manor: the guest book (app/host/guestbook.tsx), then the intro (lib/gathering/onboarding.ts).
+  "book-1": "Before dinner, Lord Fenwick asks each guest to sign his visitors' book. Sign it on your phone.",
+  "book-2": "Everyone is here. The doors are locked, and the night begins.",
   ...Object.fromEntries(INTRO.map((b) => [b.id, b.text])),
   prologue: `${TITLE}. ${PROLOGUE}`,
   ...Object.fromEntries(CHAPTERS.map((c, i) => [`round-${i + 1}`, `${c.time}. ${c.title}. ${c.text}`])),

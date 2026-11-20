@@ -28,7 +28,13 @@ export type Player = {
   dead: "killed" | "ejected" | null;
   dead_at: string | null;
   voted: boolean;
+  // Marlowe Manor's guest book: when they signed, and the strokes (only sent in the lobby).
+  signed_at: string | null;
+  signature: Stroke[] | null;
 };
+
+// A pen stroke: [x, y] points in the guest book's 230 × 56 signature box.
+export type Stroke = [number, number][];
 
 export type Pair = { idx: number; members: string[]; room: RoomKey; lock_type: LockType; solved: boolean; tries: number };
 
@@ -103,6 +109,8 @@ export type View = {
     id: string; code: string; phase: Phase; round: number; phase_at: string; deadline: string | null; total_secs: number; version: number;
     // The story browser: which story is on screen, which way the last swipe went, and when.
     focus: number; focus_dir: 1 | -1; focus_at: string; story: string | null;
+    // Marlowe Manor: when the guest book closed (null while guests are still signing).
+    book_at: string | null;
   };
   server_now: string;
   me: string | null;
