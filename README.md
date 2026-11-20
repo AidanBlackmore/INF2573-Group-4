@@ -104,7 +104,7 @@ Each drawing is reported to PostHog as an `$ai_generation` ([`lib/gathering/obse
 |---|---|---|
 | Portrait was drawn | code (free) | Cloudflare returned a picture |
 | Portrait matches the description | AI judge, 1–5 (pass is 4+) | each feature the player mentioned is in the picture |
-| Portrait follows the house style | AI judge, pass/fail | black ink, one person, plain white, no colour, text or frame |
+| Portrait follows the house style | AI judge, pass/fail | thick black brush ink in the Figma avatars' caricature style, one person, cream or plain paper, no text or frame |
 
 - **The judges need an AI key.** In PostHog, **Settings > AI observability > Bring your own key**, add a Gemini key (free from [Google AI Studio](https://aistudio.google.com/apikey)), then switch both judges on in the Evaluations tab.
 - **To improve the model:** change `portraitPrompt` (or the model or `steps`), bump `PROMPT_VERSION`, play a few games, then compare the evaluation scores by `prompt_version`.

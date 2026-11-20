@@ -28,15 +28,19 @@ export function lookProblem(look: string): string | null {
 // The phone then turns the result into ink on paper with a hand-drawn border (portrait.ts).
 // Bump this whenever portraitPrompt's wording changes, so PostHog can compare the versions'
 // evaluation scores (it's sent as `prompt_version` with every drawing).
-export const PROMPT_VERSION = "v1";
+export const PROMPT_VERSION = "v2";
 
+// v2: the player's description comes first (FLUX weighs the start most), every feature they
+// typed must show, their clothes win over the style, and the style matches the Figma avatars
+// (public/figma/av-*.jpg): thick brush ink, caricature features, warm cream paper, tight crop.
 export function portraitPrompt(look: string): string {
-  const clean = look.replace(/[^\p{L}\p{N} ,.'&-]/gu, " ").replace(/\s+/g, " ").trim();
+  const clean = look.replace(/[^\p{L}\p{N} ,.'&-]/gu, " ").replace(/\s+/g, " ").trim().replace(/[ ,.]+$/, "");
   return (
-    "Hand-drawn pen-and-ink storybook illustration, chest-up portrait of a single person, " +
-    "bold black ink outlines, loose cross-hatching for shading, simple cartoon face with small dot eyes, " +
-    "old-fashioned vintage clothing, black ink only on plain white paper, plain white background, no colour, no text, no frame. " +
-    `The person: ${clean}.`
+    `A head-and-shoulders portrait of a person: ${clean}. ` +
+    "Every feature listed must be clearly visible: hair, face, glasses, facial hair, accessories and the clothes described. " +
+    "Drawn as a caricature in thick, confident black brush-ink lines, like a vintage editorial cartoon: " +
+    "slightly exaggerated features, expressive heavy-lidded eyes, flat shading with only a little hatching, on warm cream paper. " +
+    "One person, centred, cropped tightly at the shoulders."
   );
 }
 
