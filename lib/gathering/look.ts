@@ -34,7 +34,7 @@ export const PROMPT_VERSION = "v2";
 // typed must show, their clothes win over the style, and the style matches the Figma avatars
 // (public/figma/av-*.jpg): thick brush ink, caricature features, warm cream paper, tight crop.
 export function portraitPrompt(look: string): string {
-  const clean = look.replace(/[^\p{L}\p{N} ,.'&-]/gu, " ").replace(/\s+/g, " ").trim().replace(/[ ,.]+$/, "");
+  const clean = look.replace(/[\u2018\u2019]/g, "'").replace(/[^\p{L}\p{N} ,.'&-]/gu, " ").replace(/\s+/g, " ").trim().replace(/[ ,.]+$/, "");
   return (
     `A head-and-shoulders portrait of a person: ${clean}. ` +
     "Every feature listed must be clearly visible: hair, face, glasses, facial hair, accessories and the clothes described. " +

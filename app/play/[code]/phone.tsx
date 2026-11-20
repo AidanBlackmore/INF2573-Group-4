@@ -351,7 +351,10 @@ function NameAndLook({ ctx }: { ctx: Ctx }) {
     setProblem(null);
     try {
       const d = await drawPortrait(view.room.id, look);
-      setDrawn(d);
+      // Out of drawings (the phone was reloaded, so it didn't know): keep the portrait it has,
+      // or take the closest pre-drawn one so the player is never stuck without one.
+      const out = d.reason === "out of drawings";
+      if (!(out && drawn)) setDrawn(d);
       if (typeof d.left === "number") setLeft(d.left);
       track("portrait_drawn", { room_id: view.room.id, engine: d.engine, ms: d.ms, reason: d.reason ?? null, look_length: look.trim().length });
     } catch (e) {
@@ -377,7 +380,11 @@ function NameAndLook({ ctx }: { ctx: Ctx }) {
         {drawn && <img key={drawn.url} src={drawn.url} alt="Your portrait" />}
         {drawing ? <span className="look-pen">Sketching…</span> : !drawn && <span className="look-empty">Describe yourself below, then tap Draw me</span>}
       </div>
-      {drawn?.engine === "library" && !drawing && <p className="hand">The artist is busy, so here&apos;s the closest one from the sketchbook.</p>}
+      {drawn?.engine === "library" && !drawing && (
+        <p className="hand">
+          {drawn.reason === "out of drawings" ? "You've used your drawings, so here's the closest one from the sketchbook." : "The artist is busy, so here's the closest one from the sketchbook."}
+        </p>
+      )}
       <span className="p-eyebrow">Your name</span>
       <input className="name-line" maxLength={12} aria-label="Your name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="given-name" />
       <span className="p-eyebrow">What do you look like?</span>

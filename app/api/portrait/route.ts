@@ -26,6 +26,8 @@ const CLOUDFLARE = process.env.CLOUDFLARE_API_BASE || "https://api.cloudflare.co
 
 // `fallback: true` tells the phone to use a pre-drawn portrait; otherwise it shows the message.
 // `left` is how many drawings the player has left, once one has been counted.
+const OUT_OF_DRAWINGS = "out of drawings";
+
 const fail = (status: number, error: string, fallback = false, left?: number) => Response.json({ error, fallback, left }, { status });
 
 export async function POST(req: Request) {
@@ -50,7 +52,9 @@ export async function POST(req: Request) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const { data: left, error } = await db.rpc("use_draw", { p_room_id: roomId });
-  if (error) return fail(429, error.message);
+  // Out of drawings: the phone may not know (it was reloaded), so it gets the closest pre-drawn
+  // portrait instead of an error it can't get past.
+  if (error) return /last drawing/i.test(error.message) ? fail(429, OUT_OF_DRAWINGS, true, 0) : fail(429, error.message);
 
   const prompt = portraitPrompt(look);
   const started = performance.now();
