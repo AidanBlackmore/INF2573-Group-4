@@ -17,5 +17,17 @@ export function track(event: string, properties?: Record<string, unknown>, leavi
   }
 }
 
+// Two layers of events (see the README, Analytics):
+// - Game-wide events (`game_started`, `game_ended`, ...) have the same name and the same
+//   core properties in every story, so a chart can compare stories with a `story` breakdown.
+// - Story events start with the story's prefix (`marlowe_`, `trapped_`) and carry that
+//   story's own details (locks, repairs, air...), so each story gets its own charts.
+export const STORY_NAMES: Record<string, string> = { marlowe: "Murder at Marlowe Manor", station: "Trapped Below" };
+export const storyProps = (story: string | null | undefined) => ({ story: story ?? null, story_name: (story && STORY_NAMES[story]) ?? story ?? null });
+
+// Every story has a group side and a hidden traitor; `winner` says which side won in the same words for all of them.
+const WINNERS: Record<string, "group" | "traitor"> = { detectives: "group", murderer: "traitor", crew: "group", saboteur: "traitor" };
+export const winnerOf = (outcome: string | null | undefined) => (outcome && WINNERS[outcome]) ?? null;
+
 // Whole seconds since a moment, for durations.
 export const secondsSince = (ms: number) => Math.max(0, Math.round((Date.now() - ms) / 1000));

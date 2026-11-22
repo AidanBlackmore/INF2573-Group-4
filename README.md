@@ -141,46 +141,63 @@ PostHog records pageviews plus the events below. Every event has `screen` (`tv` 
 
 | Event | Sent by | When | Properties |
 |---|---|---|---|
-| `story_viewed` | TV | A story comes on screen in the browser | `story` (`marlowe`, `station` for Trapped Below, or a Coming soon card), `playable` (false for Coming soon), `position`, `players` |
-| `story_entered` | TV | The group steps into a story | `story`, `players`, `browse_seconds`, `stories_viewed` |
+| `story_viewed` | TV | A story comes on screen in the browser | `story`, `story_name`, `playable` (false for Coming soon), `position`, `players` |
+| `story_entered` | TV | The group steps into a story | `story`, `story_name`, `players`, `browse_seconds`, `stories_viewed` |
 
-**Playing** (is the game fun, fair and the right length?)
+The events come in two layers, so you can look at the whole game or at one story:
+
+- **Game-wide events** have the same name and the same core properties in every story. Break them down by `story` to compare stories. `story` is the story's key (`marlowe`, or `station` for Trapped Below) and `story_name` is its title.
+- **Story events** start with the story's prefix (`marlowe_` or `trapped_`) and carry that story's own details: locks and murders for Marlowe Manor, repairs and air for Trapped Below.
+
+**Playing: every story** (game-wide)
 
 | Event | Sent by | When | Properties |
 |---|---|---|---|
-| `answers_submitted` | phone | A player locks in their three answers | `shuffles` (questions skipped), `seconds` |
-| `game_started` | TV | Roles are dealt | `story`, `players`, `setup_seconds` (portraits and questions) |
-| `round_started` | TV | Each round (hour) starts | `round`, `players`, `pairs` |
-| `lock_opened` | TV | A pair opens their lock | `lock_type` (`fuse`, `charade`, `sketch` or `lie`), `tries` (failed tries first), `seconds`, `players` |
-| `round_ended` | TV | The search ends | `locks_opened`, `locks_total`, `timed_out`, `seconds`, `murderer_notes`, `death`, `meeting` (false = a quiet round, no vote) |
-| `vote_revealed` | TV | The verdict is shown | `ejected`, `was_murderer`, `tie`, `votes_cast` |
-| `onboarding_completed` | TV | Trapped Below: the hatch is sealed | `skipped` (everyone tapped "We know how to play"), `slips`, `seconds` |
-| `repair_done` | TV | Trapped Below: a pair finishes a repair | `kind` (`wires` or `guide`), `result` (`ok`, or `half` for a wrong pick), `tries`, `seconds`, `round` |
-| `emergency_done` | TV | Trapped Below: an all-hands emergency ends | `kind` (`sonar`, `pipes` or `leak`), `ok`, `tries`, `floods`, `seconds`, `round` |
-| `game_ended` | TV | The ending | `story`, `outcome` (`detectives` or `murderer`), `rounds`, `minutes`, `locks_opened`, `survivors` |
+| `game_started` | TV | Roles are dealt (Marlowe: envelopes; Trapped Below: sealed orders), or the first game screen the TV sees | `story`, `story_name`, `players`, `has_traitor` (false for a 3-player Trapped Below dive, which is co-op), `setup_seconds` (from entering the story or picking Play again to roles being dealt), `game_number` (1 for the room's first game, 2+ for replays), `stories_played` |
+| `game_ended` | TV | The ending | `story`, `story_name`, `outcome` (the story's own words: `detectives`/`murderer` or `crew`/`saboteur`), `winner` (the same words for every story: `group` or `traitor`), `has_traitor`, `rounds`, `minutes`, `game_number`, `players` |
+
+**Playing: Murder at Marlowe Manor** (`marlowe_*`, all with `story = marlowe`)
+
+| Event | Sent by | When | Properties |
+|---|---|---|---|
+| `marlowe_answers_submitted` | phone | A player locks in their three answers | `shuffles` (questions skipped), `seconds` |
+| `marlowe_round_started` | TV | Each round (hour) starts | `round`, `players`, `pairs` |
+| `marlowe_lock_opened` | TV | A pair opens their lock | `lock_type` (`fuse`, `charade`, `sketch` or `lie`), `tries` (failed tries first), `seconds`, `pair_size`, `round`, `players` |
+| `marlowe_round_ended` | TV | The search ends | `locks_opened`, `locks_total`, `timed_out`, `seconds`, `murderer_notes`, `death`, `meeting` (false = a quiet round, no vote) |
+| `marlowe_vote_revealed` | TV | The verdict is shown | `ejected`, `was_murderer`, `tie`, `votes_cast`, `round` |
+| `marlowe_game_ended` | TV | The ending | `outcome`, `winner`, `rounds`, `minutes`, `locks_opened`, `survivors` |
+
+**Playing: Trapped Below** (`trapped_*`, all with `story = station`; TV events from the sealed orders on also have `saboteur`, true when there is one)
+
+| Event | Sent by | When | Properties |
+|---|---|---|---|
+| `trapped_onboarding_completed` | TV | The hatch is sealed | `skipped` (everyone tapped "We know how to play"), `slips`, `seconds` |
+| `trapped_crew_file_submitted` | phone | A player files their crew file | `shuffles` (deep questions skipped), `seconds` (never the answers) |
+| `trapped_round_started` | TV | Each watch starts | `round`, `pairs`, `air_left` (seconds) |
+| `trapped_repair_done` | TV | A pair finishes a repair | `kind` (`wires` or `guide`), `result` (`ok`, or `half` for a wrong pick), `tries`, `seconds`, `round` |
+| `trapped_round_ended` | TV | A watch's repairs end | `round`, `repairs_done`, `repairs_total`, `seconds`, `air_left`, `air_change` (seconds of air gained or lost over the watch: negative means used, fixes add some back), `emergency` (an all-hands emergency follows) |
+| `trapped_emergency_done` | TV | An all-hands emergency ends | `kind` (`sonar`, `pipes` or `leak`), `ok`, `tries`, `floods`, `seconds`, `round` |
+| `trapped_vote_revealed` | TV | The verdict is shown | `ejected`, `was_saboteur`, `tie`, `votes_cast`, `round` |
+| `trapped_game_ended` | TV | The ending | `outcome`, `winner`, `end_reason` (`surfaced`, `saboteur_caught`, `air_out`, `crew_lost` or `saboteur_escaped`), `rounds`, `minutes`, `air_left`, `fixes`, `repairs_ok`, `repairs_half` |
 
 **Coming back** (do groups want more?)
 
 | Event | Sent by | When | Properties |
 |---|---|---|---|
-| `replay_chosen` | TV | From the ending, the host picks what's next | `choice` (`same_story` or `another_story`), `players` |
-| `feedback_clicked` | TV | **Give feedback** on the ending screen | `outcome` |
-| `game_abandoned` | TV | The TV is closed, reloaded or starts a new room while a group is still in it | `phase`, `round`, `players`, `in_game`, `minutes`, `how` (`closed` or `new_room`) |
+| `replay_chosen` | TV | From the ending, the host picks what's next | `story` (the story just played), `choice` (`same_story` or `another_story`), `games_played`, `players` |
+| `feedback_clicked` | TV | **Give feedback** on the ending screen | `story`, `outcome`, `winner` |
+| `game_abandoned` | TV | The TV is closed, reloaded or starts a new room while a group is still in it | `story` (empty in the lobby and story browser), `phase`, `round`, `players`, `in_game`, `games_played`, `minutes`, `how` (`closed` or `new_room`) |
 | `action_failed` | phone | Anything a player tries is refused (name taken, no portrait yet, etc.) | `action`, `phase`, `error` |
 
-Insights worth building in PostHog:
+Dashboards in PostHog (project 654207):
 
-- **Group funnel:** `room_created → lobby_completed → story_entered → game_started → game_ended`. Where groups stop is the biggest thing to fix.
-- **Joining:** median `seconds_to_join`, QR vs typed (`join_method`), and `join_failed` by `error`.
-- **Portraits:** `portrait_drawn` by `engine`. Lots of `library` means Cloudflare's free allowance is running out or it's too slow (`ms`).
-- **Story demand:** `story_viewed` by `story`. Views of the Coming soon cards show demand for more stories; `story_entered` by `story` compares Marlowe Manor and Trapped Below.
-- **Trapped Below:** `onboarding_completed` (how often groups skip, how many slips), `repair_done` by `kind` (tries and seconds), `emergency_done` by `kind`, and `game_ended` with `story = station` by `outcome`, `air_left` and `fixes` to tune the air clock.
-- **Balance:** `game_ended` by `outcome` (aim for close to 50/50), and `rounds` and `minutes` (aim for about 25 minutes). `vote_revealed` with `was_murderer` shows how often the group guesses right.
-- **Lock difficulty:** `lock_opened` by `lock_type` with average `tries` and `seconds`, and `round_ended` with `locks_opened / locks_total` and `timed_out`.
-- **Retention:** `replay_chosen` per `game_ended`, and `game_abandoned` by `phase` (where groups give up).
-- **Friction:** `answers_submitted` `shuffles` (are the questions good?), `action_failed` by `error`, and `phone_rejoined` (how often phones drop out).
+- **[The Gathering: game health](https://us.posthog.com/project/654207/dashboard/2231394)**: the whole game, every story. The group funnel `room_created → lobby_completed → story_entered → game_started → game_ended` (where groups stop is the biggest thing to fix), games by story, who wins by story (`winner`), game length by story, story demand, joining, replays and where groups give up.
+- **The Gathering: Murder at Marlowe Manor**: the `marlowe_*` events. Who wins (aim for close to 50/50), whether the vote catches the murderer, lock difficulty by `lock_type`, rounds where the timer ran out, and question shuffles.
+- **The Gathering: Trapped Below**: the `trapped_*` events. How dives end (`end_reason`), air left at the end and per watch (to tune the 8:00 air clock), repairs by `kind`, emergencies by `kind`, onboarding skips and slips, and whether the vote catches the saboteur.
 
-The game used to send other events that are no longer sent: `stories_opened` (now `lobby_completed`), `round_quiet` and `meeting_called` (now `round_ended`), plus `act_started`, `round_N_started`, `universe_*`, `vote_submitted`, `choice_auto_selected`, `icebreaker_answered` and `mystery_*` from the old versions. To hide them, go to **Data management > Events** in PostHog and mark them hidden.
+Other things worth checking: median `seconds_to_join` and QR vs typed (`join_method`); `portrait_drawn` by `engine` (lots of `library` means Cloudflare's free allowance is running out or it's too slow, `ms`); `action_failed` by `error`; and `phone_rejoined` (how often phones drop out).
+
+Renamed in November 2026: the story-specific events got their story's prefix. `answers_submitted`, `round_started`, `lock_opened`, `round_ended` and `vote_revealed` from Marlowe Manor are now `marlowe_*`; `onboarding_completed`, `repair_done`, `emergency_done`, and Trapped Below's `round_started` and `vote_revealed` are now `trapped_*`. Older data stays under the old names. The game also used to send `stories_opened` (now `lobby_completed`), `round_quiet` and `meeting_called` (now `round_ended`), plus `act_started`, `round_N_started`, `universe_*`, `vote_submitted`, `choice_auto_selected`, `icebreaker_answered` and `mystery_*` from the old versions. To hide them, go to **Data management > Events** in PostHog and mark them hidden.
 
 On Vercel, changes to environment variables only apply after a redeploy (**Deployments**, then **...** next to the latest deployment, then **Redeploy**).
 

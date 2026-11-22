@@ -2,7 +2,7 @@
 
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { secondsSince, track } from "@/lib/analytics";
+import { secondsSince, storyProps, track, winnerOf } from "@/lib/analytics";
 import {
   BEATS, LOCK_NAME, MEET_PROMPTS, NARRATION, PROLOGUE, STORIES, TITLE, chapterOf, names, noteText, roomName, type Sky,
 } from "@/lib/gathering/content";
@@ -290,22 +290,31 @@ function useSoundCues(view: View, left: number, weather: React.RefObject<Weather
 }
 
 // Group analytics come from the TV only, so each is counted once per room (see README).
+// This hook sends the game-wide events for every story (same names and core properties,
+// so stories can be compared) plus Marlowe Manor's own `marlowe_*` events.
+// Trapped Below's own `trapped_*` events come from `useTrappedTv`.
 // Returns `abandon`, for when the TV leaves a game before its ending.
+// Roles are dealt in the first of these; the rest are the game itself. A game counts as
+// started at the first of them the TV sees, so a TV that misses a screen still counts it.
+const PLAY_PHASES = ["roles", "tasks", "quiet", "discuss", "meeting", "tally", "revealed", "tb_orders", "tb_watch", "tb_hands", "tb_talk", "tb_vote", "tb_verdict"];
+const END_PHASES = ["ended", "tb_end"];
+const minutesSince = (ms: number) => Math.round(secondsSince(ms) / 6) / 10;
+
 function useAnalytics(view: View) {
   const { phase, round, id, focus } = view.room;
-  const story = view.room.story ?? STORIES[focus]?.key ?? null;
+  const story = phase.startsWith("tb_") ? "station" : phase === "join" || phase === "browse" ? null : (view.room.story ?? STORIES[focus]?.key ?? null);
   const players = view.players.length;
-  const last = useRef<{ phase: string; round: number; focus: number } | null>(null);
+  const last = useRef<{ phase: string; round: number; focus: number; story: string | null } | null>(null);
   const opened = useRef<Set<string>>(new Set());
-  // When each stage began, for durations; and how much the group browsed.
-  const since = useRef({ room: 0, phase: 0, game: 0, viewed: new Set<string>() });
+  // When each stage began, for durations; how much the group browsed; and how many games this room has played.
+  const since = useRef({ room: 0, phase: 0, setup: 0, game: 0, viewed: new Set<string>(), games: 0, stories: new Set<string>() });
   useEffect(() => {
     since.current.room = since.current.phase = Date.now();
   }, []);
   const taskDeadline = useRef<number | null>(null);
-  const live = useRef({ phase, round, players, id });
+  const live = useRef({ phase, round, players, id, story });
   useEffect(() => {
-    live.current = { phase, round, players, id };
+    live.current = { phase, round, players, id, story };
   });
 
   useEffect(() => {
@@ -314,44 +323,72 @@ function useAnalytics(view: View) {
       const k = `${round}:${p.idx}`;
       if (phase === "tasks" && p.solved && !opened.current.has(k)) {
         opened.current.add(k);
-        track("lock_opened", { room_id: id, round, lock_type: p.lock_type, tries: p.tries, players: p.members.length, seconds: secondsSince(t.phase) });
+        track("marlowe_lock_opened", { room_id: id, ...storyProps("marlowe"), round, lock_type: p.lock_type, tries: p.tries, pair_size: p.members.length, players, seconds: secondsSince(t.phase) });
       }
     }
     if (phase === "tasks" && view.room.deadline) taskDeadline.current = new Date(view.room.deadline).getTime();
 
     const prev = last.current;
-    last.current = { phase, round, focus };
+    last.current = { phase, round, focus, story };
     if (!prev) return;
     const base = { room_id: id, round, players };
     // Swiping in the story browser: which stories catch the group's eye (Coming soon ones too).
     if (phase === "browse" && (prev.phase !== "browse" || prev.focus !== focus)) {
       const s = STORIES[focus];
       t.viewed.add(s?.key ?? String(focus));
-      track("story_viewed", { room_id: id, players, story: s?.key, playable: Boolean(s?.open), position: focus });
+      track("story_viewed", { room_id: id, players, ...storyProps(s?.key), playable: Boolean(s?.open), position: focus });
     }
     if (prev.phase === phase && prev.round === round) return;
     const stageSecs = secondsSince(t.phase);
     t.phase = Date.now();
 
+    // ---------- game-wide (every story) ----------
     if (prev.phase === "join" && phase === "browse") track("lobby_completed", { ...base, lobby_seconds: secondsSince(t.room) });
-    if (prev.phase === "ended" || prev.phase === "tb_end") {
-      track("replay_chosen", { ...base, choice: phase === "browse" ? "another_story" : "same_story" });
+    if (END_PHASES.includes(prev.phase)) {
+      track("replay_chosen", { ...base, ...storyProps(prev.story), choice: phase === "browse" ? "another_story" : "same_story", games_played: t.games });
       if (phase === "browse") t.viewed = new Set([STORIES[focus]?.key ?? ""]);
+      else t.setup = Date.now(); // same story again: setting up starts now
     }
     if (phase === "lobby" || phase === "tb_brief") {
-      track("story_entered", { ...base, story, browse_seconds: prev.phase === "browse" ? stageSecs : 0, stories_viewed: t.viewed.size });
+      t.setup = Date.now();
+      track("story_entered", { ...base, ...storyProps(story), browse_seconds: prev.phase === "browse" ? stageSecs : 0, stories_viewed: t.viewed.size });
       t.viewed = new Set();
     }
-    if (phase === "roles") {
+    if (PLAY_PHASES.includes(phase) && !t.game) {
       t.game = Date.now();
+      t.games++;
+      t.stories.add(story ?? "");
       opened.current.clear();
-      track("game_started", { ...base, story, setup_seconds: prev.phase === "lobby" ? stageSecs : null });
+      track("game_started", {
+        ...base,
+        ...storyProps(story),
+        has_traitor: phase.startsWith("tb_") ? Boolean(view.tb?.saboteur_mode) : true,
+        setup_seconds: t.setup ? secondsSince(t.setup) : null, // story entered (or replay) to roles dealt: onboarding, portraits, questions
+        game_number: t.games, // 1 = this room's first game, 2+ = played again
+        stories_played: t.stories.size,
+      });
     }
-    if (phase === "tasks") track("round_started", { ...base, pairs: view.pairs?.length ?? 0 });
+    if (END_PHASES.includes(phase)) {
+      const outcome = phase === "ended" ? view.outcome : view.tb?.outcome;
+      track("game_ended", {
+        ...base,
+        ...storyProps(story),
+        outcome: outcome ?? null, // the story's own words: detectives/murderer, crew/saboteur
+        winner: winnerOf(outcome), // the same words for every story: group or traitor
+        has_traitor: phase === "ended" ? true : Boolean(view.tb?.saboteur_mode),
+        rounds: round,
+        minutes: t.game ? minutesSince(t.game) : null,
+        game_number: t.games,
+      });
+    }
+
+    // ---------- Murder at Marlowe Manor ----------
+    const marlowe = { ...base, ...storyProps("marlowe") };
+    if (phase === "tasks") track("marlowe_round_started", { ...marlowe, pairs: view.pairs?.length ?? 0 });
     if (prev.phase === "tasks" && (phase === "quiet" || phase === "discuss")) {
       const pairs = view.pairs ?? [];
-      track("round_ended", {
-        ...base,
+      track("marlowe_round_ended", {
+        ...marlowe,
         locks_opened: pairs.filter((p) => p.solved).length,
         locks_total: pairs.length,
         timed_out: taskDeadline.current !== null && Date.now() >= taskDeadline.current - 1500,
@@ -363,8 +400,8 @@ function useAnalytics(view: View) {
     }
     if (phase === "revealed") {
       const counts = view.result?.counts ?? [];
-      track("vote_revealed", {
-        ...base,
+      track("marlowe_vote_revealed", {
+        ...marlowe,
         ejected: Boolean(view.result?.ejected),
         was_murderer: Boolean(view.result?.was_murderer),
         tie: Boolean(view.result?.tie),
@@ -372,24 +409,29 @@ function useAnalytics(view: View) {
       });
     }
     if (phase === "ended") {
-      track("game_ended", {
-        ...base,
-        story,
-        outcome: view.outcome,
+      track("marlowe_game_ended", {
+        ...marlowe,
+        outcome: view.outcome ?? null,
+        winner: winnerOf(view.outcome),
         rounds: round,
-        minutes: t.game ? Math.round(secondsSince(t.game) / 6) / 10 : null,
+        minutes: t.game ? minutesSince(t.game) : null,
         locks_opened: opened.current.size,
         survivors: alive(view).length,
       });
     }
+    if (END_PHASES.includes(phase)) t.game = 0; // between games now
   });
 
   // The TV is closed or reloaded with a group still in the room.
   const abandon = useCallback((how: "closed" | "new_room") => {
-    const { phase: at, round: r, players: n, id: roomId } = live.current;
-    if (at === "ended" || at === "tb_end" || n === 0) return;
+    const { phase: at, round: r, players: n, id: roomId, story: s } = live.current;
+    if (END_PHASES.includes(at) || n === 0) return;
     const t = since.current;
-    track("game_abandoned", { room_id: roomId, round: r, players: n, phase: at, how, in_game: t.game > 0, minutes: Math.round(secondsSince(t.game || t.room) / 6) / 10 }, true);
+    track(
+      "game_abandoned",
+      { room_id: roomId, ...storyProps(s), round: r, players: n, phase: at, how, in_game: t.game > 0, games_played: t.games, minutes: minutesSince(t.game || t.room) },
+      true,
+    );
   }, []);
   useEffect(() => {
     const onLeave = () => abandon("closed");
@@ -954,7 +996,7 @@ function Ended({ view, busy, onReplay, onAnother, feedbackUrl }: { view: View; b
           Choose another story
         </button>
         {feedbackUrl && (
-          <a className="tool" href={feedbackUrl} target="_blank" rel="noopener noreferrer" onClick={() => track("feedback_clicked", { room_id: view.room.id, outcome: view.outcome })}>
+          <a className="tool" href={feedbackUrl} target="_blank" rel="noopener noreferrer" onClick={() => track("feedback_clicked", { room_id: view.room.id, ...storyProps("marlowe"), outcome: view.outcome, winner: winnerOf(view.outcome) })}>
             Give feedback
           </a>
         )}

@@ -619,7 +619,7 @@ function Questions({ view, run, busy, error }: { view: View; run: Ctx["run"]; bu
     setLocal(null);
     if (i < 2) return setI(i + 1);
     void run("submit_answers", { p_questions: qs.map((q) => QUESTIONS[q]), p_answers: answers.map((a) => a.trim()) }).then((ok) => {
-      if (ok) track("answers_submitted", { room_id: view.room.id, shuffles: shuffles.current, seconds: Math.round((Date.now() - started.current) / 1000) });
+      if (ok) track("marlowe_answers_submitted", { room_id: view.room.id, story: "marlowe", shuffles: shuffles.current, seconds: Math.round((Date.now() - started.current) / 1000) });
     });
   };
   return (

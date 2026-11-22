@@ -4,7 +4,7 @@
 // four watches of repairs, the all-hands emergencies, the meetings and the ending.
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { secondsSince, track } from "@/lib/analytics";
+import { secondsSince, storyProps, track, winnerOf } from "@/lib/analytics";
 import { deep, shake } from "@/lib/gathering/deep";
 import { nameOf, playerOf, type Player, type TbRepair, type View } from "@/lib/gathering/game";
 import { sound } from "@/lib/gathering/sound";
@@ -617,7 +617,7 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
             Choose another story
           </button>
           {feedbackUrl && (
-            <a className="tool" href={feedbackUrl} target="_blank" rel="noopener noreferrer" onClick={() => track("feedback_clicked", { room_id: view.room.id, outcome: tb.outcome })}>
+            <a className="tool" href={feedbackUrl} target="_blank" rel="noopener noreferrer" onClick={() => track("feedback_clicked", { room_id: view.room.id, ...storyProps("station"), outcome: tb.outcome, winner: winnerOf(tb.outcome) })}>
               Give feedback
             </a>
           )}
@@ -681,6 +681,17 @@ export function TbBackdrop({ place, low }: { place: Place; low: boolean }) {
 }
 
 // ---------- sound, shakes and analytics on the TV ----------
+
+// How a dive ended, in a word for charts (the database sends a sentence for the screen).
+function endReason(reason: string | null | undefined) {
+  const r = reason ?? "";
+  if (r.startsWith("The air ran out")) return "air_out";
+  if (r.includes("voted out the saboteur")) return "saboteur_caught";
+  if (r.includes("Only one crew member")) return "crew_lost";
+  if (r.includes("saboteur still aboard")) return "saboteur_escaped";
+  if (r.includes("reached the surface together")) return "surfaced";
+  return r ? "other" : null;
+}
 
 export function useTrappedTv(view: View, now: () => number, tvRef: React.RefObject<HTMLElement | null>) {
   const tb = view.tb;
@@ -782,40 +793,66 @@ export function useTrappedTv(view: View, now: () => number, tvRef: React.RefObje
   }, [air, tb?.air_running]);
 
   // ---------- analytics (the TV sends group events once per room; see the README) ----------
-  const a = useRef({ phase: "", round: 0, brief: 0, game: 0, watch: 0, hands: 0, solved: new Set<string>() });
+  // Trapped Below's own `trapped_*` events. The game-wide ones (story_entered, game_started,
+  // game_ended, replay_chosen...) come from the TV's main analytics hook for every story.
+  const a = useRef({ phase: "", round: 0, brief: 0, game: 0, watch: 0, hands: 0, repairs: 0, air: 0, solved: new Set<string>(), results: { ok: 0, half: 0 } });
   useEffect(() => {
     if (!tb) return;
     const t = a.current;
-    const base = { room_id: view.room.id, players: view.players.length, story: "station" };
+    const round = view.room.round;
+    // `saboteur`: whether this dive has one. It's only decided when orders are dealt, so the briefing leaves it out.
+    const base = { room_id: view.room.id, players: view.players.length, ...storyProps("station"), ...(["tb_brief", "tb_dive", "tb_crew"].includes(phase) ? {} : { saboteur: tb.saboteur_mode }) };
     for (const r of tb.repairs) {
-      const k = `${view.room.round}:${r.idx}`;
+      const k = `${round}:${r.idx}`;
       if (r.solved && !t.solved.has(k)) {
         t.solved.add(k);
-        track("repair_done", { ...base, round: view.room.round, kind: r.kind, result: r.result, tries: r.tries, seconds: secondsSince(t.watch) });
+        if (r.result === "ok" || r.result === "half") t.results[r.result]++;
+        track("trapped_repair_done", { ...base, round, kind: r.kind, result: r.result, tries: r.tries, seconds: secondsSince(t.watch) });
       }
     }
-    if (t.phase === phase && t.round === view.room.round) return;
-    const prev = t.phase;
+    if (t.phase === phase && t.round === round) return;
+    const prev = t.phase, prevRound = t.round;
+    const airLeft = airNow(view, now());
     t.phase = phase;
-    t.round = view.room.round;
+    t.round = round;
     if (phase === "tb_brief" && prev !== "tb_brief") t.brief = Date.now();
-    if (phase === "tb_dive" && prev === "tb_brief") track("onboarding_completed", { ...base, skipped: tb.skip.length === view.players.length, slips: tb.slips, seconds: secondsSince(t.brief) });
-    if (phase === "tb_orders") {
+    if (phase === "tb_dive" && prev === "tb_brief") track("trapped_onboarding_completed", { ...base, skipped: tb.skip.length === view.players.length, slips: tb.slips, seconds: secondsSince(t.brief) });
+    // The dive starts at the orders, or at the first later screen the TV sees if it missed them.
+    if (!t.game && ["tb_orders", "tb_watch", "tb_hands", "tb_talk", "tb_vote", "tb_verdict"].includes(phase)) {
       t.game = Date.now();
       t.solved.clear();
-      track("game_started", { ...base, saboteur: tb.saboteur_mode });
+      t.results = { ok: 0, half: 0 };
     }
     if (phase === "tb_watch") {
       t.watch = Date.now();
-      track("round_started", { ...base, round: view.room.round, pairs: tb.repairs.length });
+      t.repairs = tb.repairs.length;
+      t.air = airLeft;
+      track("trapped_round_started", { ...base, round, pairs: tb.repairs.length, air_left: airLeft });
+    }
+    // A watch's repairs are over: how many got fixed and how much air the watch cost.
+    if (prev === "tb_watch" && phase !== "tb_watch") {
+      const done = [...t.solved].filter((k) => k.startsWith(`${prevRound}:`)).length;
+      track("trapped_round_ended", { ...base, round: prevRound, repairs_done: done, repairs_total: t.repairs, seconds: secondsSince(t.watch), air_left: airLeft, air_change: airLeft - t.air, /* negative = air used; fixes add some back */ emergency: phase === "tb_hands" });
     }
     if (phase === "tb_hands") t.hands = Date.now();
     if (phase === "tb_verdict") {
       const r = tb.result;
-      track("vote_revealed", { ...base, round: view.room.round, ejected: Boolean(r?.ejected), was_saboteur: Boolean(r?.was_saboteur), tie: Boolean(r?.tie), votes_cast: (r?.counts ?? []).reduce((n, c) => n + c.n, 0) });
+      track("trapped_vote_revealed", { ...base, round, ejected: Boolean(r?.ejected), was_saboteur: Boolean(r?.was_saboteur), tie: Boolean(r?.tie), votes_cast: (r?.counts ?? []).reduce((n, c) => n + c.n, 0) });
     }
     if (phase === "tb_end") {
-      track("game_ended", { ...base, outcome: tb.outcome, saboteur: tb.saboteur_mode, rounds: view.room.round, minutes: t.game ? Math.round(secondsSince(t.game) / 6) / 10 : null, air_left: tb.air, fixes: tb.fixes });
+      track("trapped_game_ended", {
+        ...base,
+        outcome: tb.outcome ?? null,
+        winner: winnerOf(tb.outcome),
+        end_reason: endReason(tb.reason),
+        rounds: round,
+        minutes: t.game ? Math.round(secondsSince(t.game) / 6) / 10 : null,
+        air_left: airLeft,
+        fixes: tb.fixes,
+        repairs_ok: t.results.ok,
+        repairs_half: t.results.half,
+      });
+      t.game = 0; // between dives now
     }
   });
   const handsSent = useRef("");
@@ -825,7 +862,7 @@ export function useTrappedTv(view: View, now: () => number, tvRef: React.RefObje
     const k = `${view.room.id}:${view.room.round}`;
     if (handsSent.current === k) return;
     handsSent.current = k;
-    track("emergency_done", { room_id: view.room.id, players: view.players.length, story: "station", round: view.room.round, kind: h.kind, ok: h.ok, tries: h.tries, floods: h.floods, seconds: secondsSince(a.current.hands) });
+    track("trapped_emergency_done", { room_id: view.room.id, players: view.players.length, ...storyProps("station"), saboteur: Boolean(tb?.saboteur_mode), round: view.room.round, kind: h.kind, ok: h.ok, tries: h.tries, floods: h.floods, seconds: secondsSince(a.current.hands) });
   });
 
   return { place, low };

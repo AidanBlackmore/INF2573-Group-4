@@ -4,6 +4,7 @@
 // the phone goes dark and points up; when the phone needs them, it chimes and lights up.
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { secondsSince, track } from "@/lib/analytics";
 import { buzz, deep, shake } from "@/lib/gathering/deep";
 import { nameOf, playerOf, type View } from "@/lib/gathering/game";
 import {
@@ -313,6 +314,9 @@ function CrewFile({ ctx }: { ctx: Ctx }) {
   const [bring, setBring] = useState("");
   const [qi, setQi] = useState(() => Math.floor(Math.random() * DEEP_QUESTIONS.length));
   const [deepA, setDeepA] = useState("");
+  // For analytics: question shuffles and time on the file (never the answers).
+  const shuffles = useRef(0);
+  const [started] = useState(() => Date.now());
   if (!me.picked) {
     return (
       <>
@@ -374,7 +378,7 @@ function CrewFile({ ctx }: { ctx: Ctx }) {
       body: (
         <>
           <textarea className="tb-text" rows={3} maxLength={120} value={deepA} onChange={(e) => setDeepA(e.target.value)} placeholder="Your answer" />
-          <button className="p-btn2" onClick={() => setQi((qi + 1) % DEEP_QUESTIONS.length)}>
+          <button className="p-btn2" onClick={() => { shuffles.current++; setQi((qi + 1) % DEEP_QUESTIONS.length); }}>
             Shuffle question
           </button>
         </>
@@ -398,7 +402,11 @@ function CrewFile({ ctx }: { ctx: Ctx }) {
         <button
           className="p-btn"
           disabled={!s.ok || busy}
-          onClick={() => void run("tb_crew_file", { p_colour: colour, p_num: num, p_bring: bring.trim(), p_deep_q: DEEP_QUESTIONS[qi], p_deep_a: deepA.trim() })}
+          onClick={() =>
+            void run("tb_crew_file", { p_colour: colour, p_num: num, p_bring: bring.trim(), p_deep_q: DEEP_QUESTIONS[qi], p_deep_a: deepA.trim() }).then((ok) => {
+              if (ok) track("trapped_crew_file_submitted", { room_id: view.room.id, story: "station", shuffles: shuffles.current, seconds: secondsSince(started) });
+            })
+          }
         >
           File it
         </button>
