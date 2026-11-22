@@ -91,10 +91,14 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
 ## Analytics (PostHog)
 
 - **Project:** "Default project", id 654207.
-- **Dashboard:** "The Gathering: game health" (https://us.posthog.com/project/654207/dashboard/2231394), with 14 charts. The headline is a funnel counted **per room**: `room_created → lobby_completed → story_entered → game_started → game_ended`.
+- **Dashboards:**
+  - "The Gathering: game health" (https://us.posthog.com/project/654207/dashboard/2231394): the whole game, every story, charts split by `story_name`. The headline is a funnel counted **per room**: `room_created → lobby_completed → story_entered → game_started → game_ended`.
+  - "The Gathering: Murder at Marlowe Manor" (https://us.posthog.com/project/654207/dashboard/2397465): the `marlowe_*` events.
+  - "The Gathering: Trapped Below" (https://us.posthog.com/project/654207/dashboard/2397473): the `trapped_*` events, including the air clock.
+- **Two layers of events:** game-wide events (`game_started`, `game_ended`, `replay_chosen`...) have the same names and core properties in every story (`story`, `story_name`, `winner` = `group`/`traitor`, `game_number`); story events start with `marlowe_` or `trapped_`. A new story should send the game-wide ones from `useAnalytics` in `app/host/tv.tsx` and its own prefixed ones from its own hook.
 - **Who sends what:** group events come from the TV only, so each counts once per room; per-player events come from phones. Nothing players type is sent, except the portrait description: each drawing goes to PostHog AI observability (`lib/gathering/observe.ts`) as an `$ai_generation` so the **Evaluations** tab can score it (README, "Evaluating the portraits"). The two AI judges need a Gemini key added in PostHog (Bring your own key); the free "Portrait was drawn" check is on.
 - **Events:** the full list and their properties are in the README (Analytics section).
-- **Old events:** events from the old "Alternate Universes" version (`universe_*`, `round_N_started`, `act_started`, `vote_submitted`, `choice_auto_selected`) are still in PostHog and not yet hidden.
+- **Old events:** before November 2026 the story events had no prefix (`lock_opened`, `repair_done`...); that data stays under the old names. Events from the old "Alternate Universes" version (`universe_*`, `round_N_started`, `act_started`, `vote_submitted`, `choice_auto_selected`) are still in PostHog and not yet hidden.
 
 ## How we work (preferences)
 
@@ -127,6 +131,6 @@ Things to know when testing:
 
 ## Open items
 
-- **Trapped Below:** the air numbers (8:00 start, bonuses) need tuning from real games (see `game_ended` with `story = station`).
+- **Trapped Below:** the air numbers (8:00 start, bonuses) need tuning from real games (see the Trapped Below dashboard: `trapped_game_ended` and `trapped_round_ended`).
 - **Old PostHog events:** hide them (see Analytics).
 - **The dashboard:** fills in once games are played on the live site.
