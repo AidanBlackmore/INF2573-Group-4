@@ -576,3 +576,21 @@
 @keyframes your-move { 0% { transform: translateX(-50%) scale(0.6); } 12% { transform: translateX(-50%) scale(1.12); } 20%, 80% { transform: translateX(-50%); opacity: 1; } 100% { transform: translateX(-50%); opacity: 0; } }
 .screen:has(> .your-move) { animation: phone-wake 0.9s ease-out; }
 @keyframes phone-wake { 0% { box-shadow: inset -6px -6px 0 var(--paper-shade), 0 -6px 0 var(--ink), 0 6px 0 var(--ink), -6px 0 0 var(--ink), 6px 0 0 var(--ink), 0 0 0 10px rgba(179, 38, 30, 0.6); } 100% { box-shadow: inset -6px -6px 0 var(--paper-shade), 0 -6px 0 var(--ink), 0 6px 0 var(--ink), -6px 0 0 var(--ink), 6px 0 0 var(--ink), 0 0 0 0 rgba(179, 38, 30, 0); } }
+
+/* ---------- The practice round, at a glance (app/play/[code]/practice.tsx) ---------- */
+.practice-dots { display: flex; gap: 6px; }
+.practice-dots i { width: 9px; height: 9px; border: 2px solid var(--ink); background: transparent; }
+.practice-dots i.past { background: var(--ink); }
+.practice-dots i.on { background: var(--action); border-color: var(--action); }
+.coach-box { gap: 4px; padding: 12px 16px 12px; }
+.coach-box b { font: 600 1.25rem/1.2 var(--pixel); }
+.coach-box p { font-size: 0.9rem; color: var(--brown-2); }
+.coach-tap { align-self: flex-start; margin-top: 4px; font: 600 0.72rem var(--label); letter-spacing: 0.1em; text-transform: uppercase; color: var(--action); animation: flicker 2.4s infinite; }
+.coach-timer { display: block; height: 4px; margin-top: 6px; background: var(--ink); transform-origin: left; animation: coach-time linear forwards; }
+@keyframes coach-time { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.coach-skip-top { position: fixed; top: 12px; left: 12px; pointer-events: auto; background: var(--paper); color: var(--ink); border: 0; font: 600 0.8rem var(--body); padding: 6px 12px 8px; box-shadow: 0 -3px 0 var(--ink), 0 3px 0 var(--ink), -3px 0 0 var(--ink), 3px 0 0 var(--ink); cursor: pointer; }
+.vote-clue { display: block; font: italic 1rem/1.35 var(--body); padding: 8px 10px; background: var(--paper-light); border-left: 4px solid var(--action); }
+.vote-clue::before, .vote-clue::after { content: none; }
+.practice-end { gap: 10px; }
+.practice-recap { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 1rem; }
+.practice-recap li { padding: 8px 12px; background: var(--paper-light); border: 2px solid var(--ink); }
