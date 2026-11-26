@@ -339,10 +339,18 @@ function Coach({ target, find, beat, step, onNext, onSkip }: {
     ? { clipPath: `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${hole.l}px ${hole.t}px, ${hole.r}px ${hole.t}px, ${hole.r}px ${hole.b}px, ${hole.l}px ${hole.b}px, ${hole.l}px ${hole.t}px)` }
     : {};
   // The line goes above the spotlight if there's room (where the eye starts), otherwise below.
+  // What to do sits between the line and the spotlight: big, red, with an arrow into the spotlit part.
+  const todo = beat.act === "vote" ? "Pick one, then Vote" : beat.act === "cut" ? "Tap a wire" : beat.act === "open" ? "Tap to open" : null;
+  const gap = todo ? 70 : 12;
   let place: CSSProperties = {};
+  let chip: CSSProperties | null = null;
+  let chipSide = "above";
   if (box && hole) {
-    if (hole.t >= 120) place = { bottom: box.vh - hole.t + 12 };
-    else place = { top: hole.b + 12 };
+    const above = hole.t >= 120 + gap;
+    place = above ? { bottom: box.vh - hole.t + gap } : { top: Math.min(hole.b + gap, box.vh - 110) };
+    chipSide = above ? "above" : "below";
+    const x = Math.min(Math.max((hole.l + hole.r) / 2, 130), box.vw - 130);
+    chip = { left: x, top: above ? hole.t - 10 : Math.min(hole.b + 10, box.vh - 160) };
   }
   return createPortal(
     <div className="gathering coach" data-side={hole ? "spot" : "middle"}>
@@ -354,8 +362,14 @@ function Coach({ target, find, beat, step, onNext, onSkip }: {
       <div className="coach-box" style={place} role="status" aria-live="polite" key={step} onClick={beat.auto ? onNext : undefined}>
         <b>{beat.say}</b>
         {beat.hint && <p>{beat.hint}</p>}
-        {beat.auto ? <i className="coach-timer" style={{ animationDuration: `${beat.auto}ms` }} /> : <span className="coach-tap">{beat.act === "vote" ? "Pick one, then Vote" : beat.act === "cut" ? "Tap a wire" : "Tap it"}</span>}
+        {beat.auto && <i className="coach-timer" style={{ animationDuration: `${beat.auto}ms` }} />}
       </div>
+      {todo && chip && (
+        <div className="coach-do" data-side={chipSide} style={chip} key={`do${step}`}>
+          <i className="coach-arrow" aria-hidden />
+          {todo}
+        </div>
+      )}
     </div>,
     document.body,
   );

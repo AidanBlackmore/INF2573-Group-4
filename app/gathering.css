@@ -594,3 +594,11 @@
 .practice-end { gap: 10px; }
 .practice-recap { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 1rem; }
 .practice-recap li { padding: 8px 12px; background: var(--paper-light); border: 2px solid var(--ink); }
+/* What to do, on the spotlight's edge: big, red, an arrow pointing into the spotlit part. */
+.coach-do { position: fixed; z-index: 2; pointer-events: none; display: flex; align-items: center; gap: 10px; white-space: nowrap; background: var(--action); color: var(--on-action); font: 700 1.2rem/1 var(--pixel); letter-spacing: 0.02em; font-variant-ligatures: none; padding: 10px 18px 12px; box-shadow: 0 -4px 0 var(--ink), 0 4px 0 var(--ink), -4px 0 0 var(--ink), 4px 0 0 var(--ink), 5px 6px 0 3px rgba(0, 0, 0, 0.45); --y: -100%; --bob: 5px; transform: translate(-50%, var(--y)); animation: coach-do-in 0.45s cubic-bezier(0.3, 1.6, 0.5, 1) both, coach-do-bob 1.4s 0.5s ease-in-out infinite; }
+.coach-do[data-side="below"] { --y: 0%; --bob: -5px; }
+.coach-arrow { width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; }
+.coach-do[data-side="above"] .coach-arrow { border-top: 12px solid var(--on-action); }
+.coach-do[data-side="below"] .coach-arrow { border-bottom: 12px solid var(--on-action); }
+@keyframes coach-do-in { from { transform: translate(-50%, var(--y)) scale(0.4); opacity: 0; } }
+@keyframes coach-do-bob { 0%, 100% { transform: translate(-50%, var(--y)); } 50% { transform: translate(-50%, calc(var(--y) + var(--bob))); } }
