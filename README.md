@@ -2,7 +2,7 @@
 
 "How well do you know your friends?" A party game for 3 to 6 players. One shared screen on a TV, phones as controllers. Everyone joins The Gathering, then the group picks a story to play together. Two stories are playable: **Murder at Marlowe Manor** (one of you is secretly the murderer, and everyone else has to work out who before it's too late) and **Trapped Below** (a submarine 400 m down, a saboteur aboard, and an air clock running out).
 
-Live: **https://inf-2573-group-4.vercel.app** (it opens on the TV screen).
+Live: **https://thegathering-inf-2573-alternate-universes.vercel.app** (it opens on the TV screen).
 
 - `/` (also `/host`): the shared screen (the TV). Open it on a laptop connected to the TV. It also plays the music, the narrator and the sound effects. Sound is on by default; see [Sound on the TV](#sound-on-the-tv) for the one-time browser setting that lets it start without a click.
 - `/play/CODE`: the phone. Scanning the QR code on the TV opens it and joins straight away.
@@ -18,7 +18,7 @@ Phones and the laptop never talk to each other directly. Every action goes to Su
 
 ## How a game works
 
-1. **Join The Gathering.** Open the site on the laptop. It shows the title, a QR code, the address (`inf-2573-group-4.vercel.app/join`) and a room code (like `OAK47`). Every time the page loads it opens a new room with a new code. Each phone scans the QR code, which takes it straight in (or goes to `/join` and types the code into the five boxes), then types a **name** and **what they look like** ("curly hair, round glasses, a big scarf") and taps **Draw me**. A pen-and-ink portrait is drawn from it (up to 3 tries), and once they tap **I'm in** it appears on the TV. Each player also gets a colour automatically for their name tag. With 3 or more in, the host taps **We're in** (on the TV, or on the host's phone: the first player in is the host). Anyone who joined the room but didn't finish is left out of this gathering.
+1. **Join The Gathering.** Open the site on the laptop. It shows the title, a QR code, the address (`thegathering-inf-2573-alternate-universes.vercel.app/join`) and a room code (like `OAK47`). Every time the page loads it opens a new room with a new code. Each phone scans the QR code, which takes it straight in (or goes to `/join` and types the code into the five boxes), then types a **name** and **what they look like** ("curly hair, round glasses, a big scarf") and taps **Draw me**. A pen-and-ink portrait is drawn from it (up to 3 tries), and once they tap **I'm in** it appears on the TV. Each player also gets a colour automatically for their name tag. With 3 or more in, the host taps **We're in** (on the TV, or on the host's phone: the first player in is the host). Anyone who joined the room but didn't finish is left out of this gathering.
 2. **Pick a story.** The TV becomes a full-screen story browser. Anyone can swipe on their phone (or use the arrows and thumbnails on the TV) and every screen follows, with the new story wiping in over the old one. Marlowe Manor brings rain, lightning and its music; Trapped Below has rising bubbles and its deep-water ambience. The host taps **Enter this story** to step in.
 3. **Stepping into Marlowe Manor**, the first thing is the **guest book** on the TV ([`app/host/guestbook.tsx`](app/host/guestbook.tsx)). Lord Fenwick's visitors' book opens and its pages flutter past; a quill writes each guest's name (as typed when they joined) into the book, one handwriting font per guest, beside their portrait and an arrival time. Then the pages flutter back, the book shuts, slides to the middle and is sealed with wax. It runs on a fixed timetable (about 6.5 s, plus 2.9 s per guest, plus 7.4 s to close), so it needs no database; the TV can **Skip** it. Phones show "Eyes on the TV" meanwhile.
    Then the TV plays a short **intro** (four beats, about 45 seconds, read by the narrator): the storm and the dinner, the murder, how your answers become the clues, and how you catch the murderer. Phones show "Eyes on the TV" meanwhile. The TV has **Next** (the next beat) and **Skip intro**; a phone carries on by itself when the intro would end, or with **Done on the TV? Continue**.
@@ -110,7 +110,7 @@ Without them the game still works: every player gets a pre-drawn portrait.
 | `NEXT_PUBLIC_POSTHOG_KEY` | no | PostHog project API key. Without it, analytics is skipped. |
 | `NEXT_PUBLIC_POSTHOG_HOST` | no | `https://us.i.posthog.com` (default) or `https://eu.i.posthog.com` |
 | `FEEDBACK_URL` | no | "Give feedback" link on the TV's ending screen. Hidden if empty. |
-| `NEXT_PUBLIC_SITE_URL` | no | Where the TV's QR code and "or go to" line send phones. Defaults to `https://inf-2573-group-4.vercel.app`. |
+| `NEXT_PUBLIC_SITE_URL` | no | Where the TV's QR code and "or go to" line send phones. Defaults to `https://thegathering-inf-2573-alternate-universes.vercel.app`. |
 | `CLOUDFLARE_ACCOUNT_ID` | no | Cloudflare account for drawing portraits (see Character portraits). Server only. |
 | `CLOUDFLARE_API_TOKEN` | no | Cloudflare API token with Workers AI permission. Server only: never prefix it with `NEXT_PUBLIC_`. |
 
@@ -212,7 +212,7 @@ University and guest Wi-Fi networks often block devices from talking to each oth
 The music and narrator are on by default, but browsers don't let a website play sound until someone has clicked or pressed a key on the page, or the browser has been told to allow sound for that site. Do this once on the laptop that runs the TV, and sound then starts by itself every time:
 
 - **Chrome or Edge:** open the site, click the icon left of the address, then **Site settings**, and set **Sound** to **Allow**.
-- **Safari:** open the site, choose **Safari > Settings for inf-2573-group-4.vercel.app…**, and set **Auto-Play** to **Allow All Auto-Play**.
+- **Safari:** open the site, choose **Safari > Settings for thegathering-inf-2573-alternate-universes.vercel.app…**, and set **Auto-Play** to **Allow All Auto-Play**.
 - **Firefox:** click the icon left of the address and set **Autoplay** to **Allow Audio and Video**.
 
 Without it, sound starts on the first click or key press anywhere on the TV page (for example **We're in**), and any narration that was due is read then.
@@ -225,11 +225,11 @@ First-time setup:
 
 1. On [vercel.com](https://vercel.com), sign in with GitHub, click **Add New > Project**, and import the repository.
 2. Before clicking Deploy, open **Environment Variables** and add the variables from the table above.
-3. Click **Deploy**. Open `https://inf-2573-group-4.vercel.app` on the laptop. The QR code points to that address, so phones can join from any network. If the project lives at a different address, set `NEXT_PUBLIC_SITE_URL` to it.
+3. Click **Deploy**. Open `https://thegathering-inf-2573-alternate-universes.vercel.app` on the laptop. The QR code points to that address, so phones can join from any network. If the project lives at a different address, set `NEXT_PUBLIC_SITE_URL` to it.
 
 ## Test checklist
 
-- [ ] Open the site. The title, a room code and a QR code appear. Scanning the QR code opens `inf-2573-group-4.vercel.app/play/CODE` and goes straight to the name step.
+- [ ] Open the site. The title, a room code and a QR code appear. Scanning the QR code opens `thegathering-inf-2573-alternate-universes.vercel.app/play/CODE` and goes straight to the name step.
 - [ ] Three or four phones join, each with a name and a description. **Draw me** shows a pen-and-ink portrait within a few seconds (or a pre-drawn one with a note if Cloudflare is busy), and a rude description is refused. After **I'm in** the portraits appear on the TV without a refresh. **We're in** stays disabled until 3 are in. A phone that joined but didn't finish sees "Already started" after **We're in**.
 - [ ] Swipe on a phone: the TV and every phone move to the next story with the wipe. On Marlowe Manor: rain, lightning and the manor's music. On Trapped Below: bubbles and the deep-water ambience, which keeps looping. Only the host's phone (or the TV) can enter.
 - [ ] Enter Marlowe Manor. Each phone picks a portrait (a portrait someone else has is shown as taken) and answers three questions. **Start the night** stays disabled until everyone has answered.

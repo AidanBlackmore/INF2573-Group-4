@@ -455,7 +455,10 @@ function useAnalytics(view: View) {
 type ScreenProps = { view: View; busy: boolean; onNext: () => void };
 
 // Where phones join: the live site on Vercel, unless NEXT_PUBLIC_SITE_URL says otherwise (e.g. testing on a local network).
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://inf-2573-group-4.vercel.app").replace(/\/$/, "");
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://thegathering-inf-2573-alternate-universes.vercel.app").replace(/\/$/, "");
+// The "or go to" address, split before its first dot so a long Vercel name wraps onto two lines inside the card.
+const JOIN_HOST = SITE_URL.replace(/^https?:\/\//, "");
+const JOIN_AT = JOIN_HOST.includes(".") ? [JOIN_HOST.slice(0, JOIN_HOST.indexOf(".")), JOIN_HOST.slice(JOIN_HOST.indexOf("."))] : [JOIN_HOST, ""];
 
 // The Gathering's lobby: scan the QR code (or go to the address) and type the code.
 // Each guest arrives as the portrait drawn on their phone.
@@ -502,7 +505,7 @@ function Join({ view, busy, onGo }: { view: View; busy: boolean; onGo: () => voi
           <span className="lbl">Scan to join</span>
           <QRCodeSVG className="qr-svg" value={url} size={240} marginSize={2} bgColor="#ffffff" fgColor="#111113" title={`Scan to join: ${url}`} />
           <span className="url">
-            or go to <b>{SITE_URL.replace(/^https?:\/\//, "")}/join</b>
+            or go to <b>{JOIN_AT[0]}<wbr />{JOIN_AT[1]}/join</b>
           </span>
           <p className="bigcode">{view.room.code}</p>
         </div>
