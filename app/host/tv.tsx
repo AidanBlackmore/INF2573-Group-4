@@ -454,16 +454,30 @@ function useAnalytics(view: View) {
 
 type ScreenProps = { view: View; busy: boolean; onNext: () => void };
 
-// Where phones join: the live site on Vercel, unless NEXT_PUBLIC_SITE_URL says otherwise (e.g. testing on a local network).
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://thegathering-inf-2573-alternate-universes.vercel.app").replace(/\/$/, "");
+// Where phones join: the same site the TV is on (the live site, a branch preview, or the project under a
+// new name), so phones always run the same code as the TV. A preview's QR code used to send phones to the
+// live site, where a branch's phone screens (e.g. Marlowe Manor's practice round) don't exist yet.
+// On localhost phones can't reach the laptop, so NEXT_PUBLIC_SITE_URL (e.g. the laptop's network
+// address) or the live site is used instead.
+const FALLBACK_SITE = (process.env.NEXT_PUBLIC_SITE_URL || "https://thegathering-inf-2573-alternate-universes.vercel.app").replace(/\/$/, "");
+function siteUrl(): string {
+  if (typeof window === "undefined") return FALLBACK_SITE;
+  const { origin, hostname } = window.location;
+  return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(hostname) ? FALLBACK_SITE : origin;
+}
 // The "or go to" address, split before its first dot so a long Vercel name wraps onto two lines inside the card.
-const JOIN_HOST = SITE_URL.replace(/^https?:\/\//, "");
-const JOIN_AT = JOIN_HOST.includes(".") ? [JOIN_HOST.slice(0, JOIN_HOST.indexOf(".")), JOIN_HOST.slice(JOIN_HOST.indexOf("."))] : [JOIN_HOST, ""];
+function joinAt(site: string): [string, string] {
+  const host = site.replace(/^https?:\/\//, "");
+  const dot = host.indexOf(".");
+  return dot < 0 ? [host, ""] : [host.slice(0, dot), host.slice(dot)];
+}
 
 // The Gathering's lobby: scan the QR code (or go to the address) and type the code.
 // Each guest arrives as the portrait drawn on their phone.
 function Join({ view, busy, onGo }: { view: View; busy: boolean; onGo: () => void }) {
-  const url = `${SITE_URL}/play/${view.room.code}`;
+  const site = siteUrl();
+  const url = `${site}/play/${view.room.code}`;
+  const at = joinAt(site);
   const joined = view.players.filter((p) => p.joined);
   const n = joined.length;
   return (
@@ -505,7 +519,7 @@ function Join({ view, busy, onGo }: { view: View; busy: boolean; onGo: () => voi
           <span className="lbl">Scan to join</span>
           <QRCodeSVG className="qr-svg" value={url} size={240} marginSize={2} bgColor="#ffffff" fgColor="#111113" title={`Scan to join: ${url}`} />
           <span className="url">
-            or go to <b>{JOIN_AT[0]}<wbr />{JOIN_AT[1]}/join</b>
+            or go to <b>{at[0]}<wbr />{at[1]}/join</b>
           </span>
           <p className="bigcode">{view.room.code}</p>
         </div>

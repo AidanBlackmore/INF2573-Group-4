@@ -110,7 +110,7 @@ Without them the game still works: every player gets a pre-drawn portrait.
 | `NEXT_PUBLIC_POSTHOG_KEY` | no | PostHog project API key. Without it, analytics is skipped. |
 | `NEXT_PUBLIC_POSTHOG_HOST` | no | `https://us.i.posthog.com` (default) or `https://eu.i.posthog.com` |
 | `FEEDBACK_URL` | no | "Give feedback" link on the TV's ending screen. Hidden if empty. |
-| `NEXT_PUBLIC_SITE_URL` | no | Where the TV's QR code and "or go to" line send phones. Defaults to `https://thegathering-inf-2573-alternate-universes.vercel.app`. |
+| `NEXT_PUBLIC_SITE_URL` | no | Only used when the TV is on `localhost`: where its QR code and "or go to" line send phones (e.g. your laptop's network address). Defaults to `https://thegathering-inf-2573-alternate-universes.vercel.app`. Anywhere else the QR code points to the address the TV is on, so a branch preview's phones get that branch's code. |
 | `CLOUDFLARE_ACCOUNT_ID` | no | Cloudflare account for drawing portraits (see Character portraits). Server only. |
 | `CLOUDFLARE_API_TOKEN` | no | Cloudflare API token with Workers AI permission. Server only: never prefix it with `NEXT_PUBLIC_`. |
 
@@ -225,7 +225,7 @@ First-time setup:
 
 1. On [vercel.com](https://vercel.com), sign in with GitHub, click **Add New > Project**, and import the repository.
 2. Before clicking Deploy, open **Environment Variables** and add the variables from the table above.
-3. Click **Deploy**. Open `https://thegathering-inf-2573-alternate-universes.vercel.app` on the laptop. The QR code points to that address, so phones can join from any network. If the project lives at a different address, set `NEXT_PUBLIC_SITE_URL` to it.
+3. Click **Deploy**. Open `https://thegathering-inf-2573-alternate-universes.vercel.app` on the laptop. The QR code points to that address, so phones can join from any network. The QR code always points to the address the TV is open on, so this also works for branch previews and if the project is renamed.
 
 ## Test checklist
 
