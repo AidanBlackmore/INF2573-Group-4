@@ -78,9 +78,10 @@ export function ManorWelcome({ view, now, onDone }: { view: View; now: () => num
   if (stage === "ask") {
     return (
       <div className="ob played-before">
+        <span className="p-eyebrow">Before you play</span>
         <Art name="sketch-candle" className="ask-art" />
-        <h2>Played before?</h2>
-        <p className="p-small">New here? Try one round. 30 seconds, just you.</p>
+        <h2>Practice round</h2>
+        <p className="p-small">Learn how to play in one quick round: about 30 seconds, only on your phone.</p>
         <div className="spacer" />
         <button
           className="p-btn"
@@ -89,7 +90,7 @@ export function ManorWelcome({ view, now, onDone }: { view: View; now: () => num
             setStage("practice");
           }}
         >
-          Show me
+          Start practice
         </button>
         <button
           className="p-btn2 wide"
@@ -98,7 +99,7 @@ export function ManorWelcome({ view, now, onDone }: { view: View; now: () => num
             finish("played");
           }}
         >
-          I&apos;ve played
+          I know how to play
         </button>
       </div>
     );
