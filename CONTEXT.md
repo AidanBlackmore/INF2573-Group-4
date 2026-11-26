@@ -7,7 +7,7 @@ A short brief for anyone (or any AI session) picking up this project, so the bac
 **The Gathering** is a party game for a group in one room: a shared screen (a laptop on a TV) plus everyone's phones. The TV shows a QR code; phones scan it to join, pick a name and a colour, then the group browses **stories** together and picks one. Each story is its own game world. The tagline is "How well do you know your friends?": the games are built on what players reveal about themselves.
 
 - **Course:** INF2573, Group 4. Repo: `AidanBlackmore/INF2573-Group-4`.
-- **Live site:** https://inf-2573-group-4.vercel.app. The front page is the TV screen.
+- **Live site:** https://the-gatheringg.vercel.app. The front page is the TV screen.
 - **Design:** Figma file "Alternative Universe" (https://www.figma.com/design/B2zj8NNZnGIC4sfuUkCJyz/Alternative-Universe?node-id=159-2). Exported art is in `public/figma/`.
 - **Demo:** an interactive HTML demo of the whole flow was built as a Claude artifact (https://claude.ai/artifact/7QkRaGpmPjU6zF775igHt9). The app was then built to match it.
 

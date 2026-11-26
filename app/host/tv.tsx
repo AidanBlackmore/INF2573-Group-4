@@ -446,7 +446,7 @@ function useAnalytics(view: View) {
 type ScreenProps = { view: View; busy: boolean; onNext: () => void };
 
 // Where phones join: the live site on Vercel, unless NEXT_PUBLIC_SITE_URL says otherwise (e.g. testing on a local network).
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://inf-2573-group-4.vercel.app").replace(/\/$/, "");
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://the-gatheringg.vercel.app").replace(/\/$/, "");
 
 // The Gathering's lobby: scan the QR code (or go to the address) and type the code.
 // Each guest arrives as the portrait drawn on their phone.
