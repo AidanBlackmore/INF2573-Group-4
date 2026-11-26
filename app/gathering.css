@@ -1,5 +1,5 @@
 /* The Gathering: the Figma design system (silhouette world, detective paper).
-   Pixelify Sans for display and labels, Literata for body and buttons, Kalam for handwriting.
+   Jersey 15 for display and labels (Pixelify Sans only for the first screen's title), Literata for body and buttons, Kalam for handwriting.
    Images are in /public/figma. */
 
 :root {
@@ -25,10 +25,13 @@
   --player-4: #d7678f;
   --player-5: #8c6bc8;
   --player-6: #3fa7a3;
-  --pixel: var(--font-pixelify), "Pixelify Sans", system-ui, sans-serif;
+  --pixel: var(--font-jersey), "Jersey 15", system-ui, sans-serif;
+  --pixel-title: var(--font-pixelify), "Pixelify Sans", system-ui, sans-serif;
   --label: var(--pixel);
   --body: var(--font-literata), "Literata", Georgia, serif;
   --hand: var(--font-kalam), "Kalam", cursive;
+  /* Jersey 15 has one weight: never fake-bold it (that smears the pixels). Kalam's bold names opt back in. */
+  font-synthesis-weight: none;
 }
 
 .gathering, .gathering * { box-sizing: border-box; }
@@ -346,7 +349,7 @@
 .lobby2 { display: flex; flex-direction: column; gap: clamp(26px, 4vw, 56px); padding: 18px clamp(0px, 3vw, 56px) 28px; min-height: 560px; }
 .title-plate { align-self: center; text-align: center; padding: 38px clamp(28px, 7vw, 120px) 34px; position: relative; animation: rise .8s both ease-out; }
 .title-plate::before { content: ""; position: absolute; top: -13px; left: 50%; width: 100px; height: 28px; margin-left: -50px; background: #ddd2b2; box-shadow: inset 0 -5px 0 #c9bc95, inset 0 5px 0 #e8dfc6; }
-.title-plate h1 { font: 700 clamp(2.4rem, 6.2vw, 5.4rem)/1 var(--pixel); color: var(--ink); letter-spacing: .05em; margin: 0 0 20px; font-variant-ligatures: none; }
+.title-plate h1 { font: 700 clamp(2.4rem, 6.2vw, 5.4rem)/1 var(--pixel-title); color: var(--ink); letter-spacing: .05em; margin: 0 0 20px; font-variant-ligatures: none; }
 .title-plate p { font: clamp(1rem, 1.8vw, 1.55rem) var(--body); color: #4a4a50; margin: 0; }
 .lobby2-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 330px); gap: clamp(24px, 6vw, 110px); align-items: center; }
 @media (max-width: 860px) { .lobby2-row { grid-template-columns: minmax(0, 1fr); } }
@@ -366,7 +369,7 @@
 .guest img { width: 100%; aspect-ratio: 5 / 7; object-fit: contain; display: block; filter: drop-shadow(4px 4px 0 #000); }
 .guest:nth-child(odd) img { transform: rotate(-1.5deg); }
 .guest:nth-child(even) img { transform: rotate(1.5deg); }
-.guest figcaption { display: flex; align-items: center; gap: 8px; max-width: 100%; font: 700 clamp(.95rem, 1.35vw, 1.25rem) var(--hand); color: var(--paper); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.guest figcaption { display: flex; align-items: center; gap: 8px; max-width: 100%; font: 700 clamp(.95rem, 1.35vw, 1.25rem) var(--hand); color: var(--paper); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-synthesis-weight: auto; }
 .guest figcaption::before { content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--pc); box-shadow: 0 0 0 2px var(--ink); flex: none; }
 .guest-open { aspect-ratio: 5 / 7; border: 2px dashed rgba(237, 237, 239, .35); color: #8a8a92; display: grid; place-items: center; text-align: center; padding: 8px; font: clamp(.85rem, 1.1vw, 1rem) var(--body); }
 .lobby-go { display: flex; align-items: center; justify-content: center; gap: 18px; flex-wrap: wrap; margin-top: 10px; }
@@ -451,7 +454,7 @@
 .look-card.drawing img { opacity: .25; animation: none; }
 @keyframes look-in { from { clip-path: inset(0 0 100% 0); filter: grayscale(1) contrast(1.8); } to { clip-path: inset(0 0 0 0); } }
 .look-empty { font: 1.1rem/1.3 var(--hand); color: var(--brown); padding: 18px; text-align: center; }
-.look-pen { position: relative; font: 700 1.2rem var(--hand); color: var(--ink); animation: look-pen 1s ease-in-out infinite alternate; }
+.look-pen { position: relative; font: 700 1.2rem var(--hand); font-synthesis-weight: auto; color: var(--ink); animation: look-pen 1s ease-in-out infinite alternate; }
 @keyframes look-pen { from { transform: rotate(-3deg) translateX(-6px); } to { transform: rotate(3deg) translateX(6px); } }
 .screen .look-text { font: 1.15rem/1.35 var(--hand); min-height: 80px; resize: none; }
 .look .row { flex-wrap: wrap; gap: 6px 10px; }
