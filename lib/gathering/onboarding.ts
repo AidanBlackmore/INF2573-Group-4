@@ -1,19 +1,29 @@
 // Marlowe Manor's onboarding, in order:
-// 1. The guest book: everyone signs on their phone, the TV writes each signature in, and when the
-//    last guest has signed the book closes and is sealed (rooms.book_at; app/host/guestbook.tsx).
-// 2. A short intro on the TV ("what's going on"). It starts BOOK_CLOSE_MS after the book closed,
-//    so the TV and every phone agree on when it runs without talking to each other.
+// 1. The guest book on the TV (app/host/guestbook.tsx): it opens, each guest's name is written in
+//    with a quill in a handwriting font, then the book shuts and is sealed. Phones say "Eyes on the TV".
+// 2. A short intro on the TV ("what's going on").
 // 3. A practice round on each phone for players who haven't played before. It runs on the phone
 //    only, before the player picks a detective and answers their questions, so "Start the night"
 //    (which waits for everyone's answers) also waits for anyone still practising.
+//
+// None of this touches the database. The book and the intro run on a fixed timetable from the
+// moment the story was entered (rooms.phase_at) and the number of guests, so the TV and every
+// phone agree on when each part ends without talking to each other.
 
-// From the book closing to the intro: time for the TV to finish writing the last signature (about
-// 2.5 s), then shut and seal the book (about 6 s).
-export const BOOK_CLOSE_MS = 9000;
+// The guest book's timetable, from entering the story: the manor fades up (BOOK_OPEN_AT), the book
+// opens and its pages flutter past, each name takes BOOK_NAME_MS, then it shuts and is sealed.
+export const BOOK_OPEN_AT = 3600;
+export const BOOK_FIRST_NAME_AT = 6600;
+export const BOOK_NAME_MS = 2900;
+export const BOOK_SHUT_MS = 7400;
+export const bookMs = (guests: number) => BOOK_FIRST_NAME_AT + guests * BOOK_NAME_MS + BOOK_SHUT_MS;
 
-// When the intro starts (ms since the epoch, server clock), or null while guests are still signing.
-export function introStart(room: { book_at: string | null }): number | null {
-  return room.book_at ? new Date(room.book_at).getTime() + BOOK_CLOSE_MS : null;
+type Timed = { room: { phase_at: string }; players: { joined: boolean }[] };
+export const guestsOf = (view: Timed) => view.players.filter((p) => p.joined).length;
+
+// When the intro starts (ms since the epoch, server clock).
+export function introStart(view: Timed): number {
+  return new Date(view.room.phase_at).getTime() + bookMs(guestsOf(view));
 }
 
 export type IntroBeat = { id: string; eyebrow: string; title: string; text: string; art: string; secs: number };
@@ -70,11 +80,11 @@ export function introAt(ms: number): { beat: number; frac: number; done: boolean
 
 // Remembered per room and per device for the rest of the visit, so coming back to the manor
 // ("Choose another story", a refresh) doesn't replay the intro or ask again.
-const key = (what: "intro" | "practice", roomId: string) => `gathering:manor-${what}:${roomId}`;
+const key = (what: "book" | "intro" | "practice", roomId: string) => `gathering:manor-${what}:${roomId}`;
 
 export type PracticeChoice = "played" | "done" | "skipped";
 
-export function seen(what: "intro" | "practice", roomId: string): string | null {
+export function seen(what: "book" | "intro" | "practice", roomId: string): string | null {
   try {
     return sessionStorage.getItem(key(what, roomId));
   } catch {
@@ -82,7 +92,7 @@ export function seen(what: "intro" | "practice", roomId: string): string | null 
   }
 }
 
-export function remember(what: "intro" | "practice", roomId: string, value: string) {
+export function remember(what: "book" | "intro" | "practice", roomId: string, value: string) {
   try {
     sessionStorage.setItem(key(what, roomId), value);
   } catch {

@@ -14,7 +14,6 @@ import { Art, Avatar, KnifeSvg, Ring, Tag, colorOf, since } from "../../_ui/bits
 import { crewPic } from "@/lib/gathering/trapped";
 import { TrappedPhone } from "./trapped";
 import { ManorWelcome } from "./practice";
-import { SignBook, Signed } from "./guestbook";
 import { seen } from "@/lib/gathering/onboarding";
 import { marloweFocus } from "@/lib/gathering/focus";
 import { DRAWS, LOOK_MAX } from "@/lib/gathering/look";
@@ -574,11 +573,7 @@ function Onboarding({ ctx, now }: { ctx: Ctx; now: () => number }) {
       </div>
     );
   }
-  if (!me.picked) {
-    // The guest book comes first (guestbook.tsx), until it closes.
-    if (!view.room.book_at) return me.signed_at ? <Signed view={view} /> : <SignBook view={view} run={run} busy={busy} error={error} />;
-    return welcomed ? <WhoAreYou ctx={ctx} /> : <ManorWelcome view={view} now={now} onDone={() => setWelcomed(true)} />;
-  }
+  if (!me.picked) return welcomed ? <WhoAreYou ctx={ctx} /> : <ManorWelcome view={view} now={now} onDone={() => setWelcomed(true)} />;
   return <Questions view={view} run={run} busy={busy} error={error} />;
 }
 
@@ -1221,14 +1216,7 @@ function HostPanel({ ctx }: { ctx: Ctx }) {
         We&apos;re in
       </button>
     ),
-    lobby: !view.room.book_at ? (
-      <button
-        disabled={busy || !view.players.some((p) => p.signed_at) || view.players.every((p) => !p.joined || p.signed_at)}
-        onClick={() => void run("close_book")}
-      >
-        Close the book
-      </button>
-    ) : (
+    lobby: (
       <button disabled={busy || !allIn} onClick={() => void run("start_game")}>
         Start the night
       </button>

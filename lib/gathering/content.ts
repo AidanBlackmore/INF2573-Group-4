@@ -135,7 +135,7 @@ export const chapterOf = (round: number) => CHAPTERS[Math.min(Math.max(round, 1)
 // if one is missing, the browser's own voice reads it. Lines never include player names.
 export const NARRATION: Record<string, string> = {
   // Stepping into the manor: the guest book (app/host/guestbook.tsx), then the intro (lib/gathering/onboarding.ts).
-  "book-1": "Before dinner, Lord Fenwick asks each guest to sign his visitors' book. Sign it on your phone.",
+  "book-1": "Before dinner, Lord Fenwick asks each guest to sign his visitors' book.",
   "book-2": "Everyone is here. The doors are locked, and the night begins.",
   ...Object.fromEntries(INTRO.map((b) => [b.id, b.text])),
   prologue: `${TITLE}. ${PROLOGUE}`,

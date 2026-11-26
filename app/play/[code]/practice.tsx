@@ -11,14 +11,14 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Reac
 import { createPortal } from "react-dom";
 import { FUSE_RULES, ROOM_SCENE, WIRE_HEX } from "@/lib/gathering/content";
 import type { View } from "@/lib/gathering/game";
-import { INTRO, INTRO_MS, introAt, introStart, remember, seen } from "@/lib/gathering/onboarding";
+import { INTRO_MS, introAt, introStart, remember, seen } from "@/lib/gathering/onboarding";
 import { track } from "@/lib/analytics";
 import { Art, Avatar, KnifeSvg, Ring } from "../../_ui/bits";
 
 export function ManorWelcome({ view, now, onDone }: { view: View; now: () => number; onDone: () => void }) {
   const roomId = view.room.id;
-  // The intro starts a little after the guest book closes (lib/gathering/onboarding.ts).
-  const at = introStart(view.room) ?? now();
+  // The guest book and then the intro play on the TV first (lib/gathering/onboarding.ts).
+  const at = introStart(view);
   const [stage, setStage] = useState<"intro" | "ask" | "practice">(() =>
     seen("intro", roomId) !== null || now() - at >= INTRO_MS ? "ask" : "intro",
   );
@@ -44,7 +44,9 @@ export function ManorWelcome({ view, now, onDone }: { view: View; now: () => num
   // The TV can jump ahead (Next, Skip), and the phone can't tell, so it doesn't claim which part is
   // showing: it carries on by itself when the intro would end, or when the player taps Continue.
   if (stage === "intro") {
-    const { beat, frac } = introAt(ms);
+    // Progress through the whole thing: the guest book, then the intro.
+    const lead = at - new Date(view.room.phase_at).getTime();
+    const done = Math.min(1, Math.max(0, (ms + lead) / (lead + INTRO_MS)));
     return (
       <div className="p-msg look-up">
         <div className="look-arrows" aria-hidden>
@@ -52,11 +54,13 @@ export function ManorWelcome({ view, now, onDone }: { view: View; now: () => num
           <i />
           <i />
         </div>
-        <span className="p-eyebrow">How tonight works</span>
+        <span className="p-eyebrow">{ms < 0 ? "The guest book" : "How tonight works"}</span>
         <h2>Eyes on the TV</h2>
-        <p className="p-small">The TV is telling the story. Your phone carries on by itself when it&apos;s done.</p>
+        <p className="p-small">
+          {ms < 0 ? "Your name is going into Lord Fenwick's visitors' book." : "The TV is telling the story."} Your phone carries on by itself when it&apos;s done.
+        </p>
         <div className="intro-bar" aria-hidden>
-          <i style={{ width: `${Math.round(((beat + frac) / INTRO.length) * 100)}%` }} />
+          <i style={{ width: `${Math.round(done * 100)}%` }} />
         </div>
         <button
           className="p-btn2"

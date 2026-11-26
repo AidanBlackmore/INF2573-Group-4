@@ -1,31 +1,40 @@
 "use client";
 
 // Marlowe Manor's guest book on the TV (the first part of the manor's onboarding; see
-// lib/gathering/onboarding.ts). The book opens with its pages fluttering past; as each guest signs
-// on their phone, a quill writes their signature in, stroke by stroke, next to their portrait.
-// When the last guest has signed (rooms.book_at), the pages flutter back, the book shuts, slides to
-// the middle and is sealed with wax. The TV moves on to the intro BOOK_CLOSE_MS after that.
+// lib/gathering/onboarding.ts). The book opens with its pages fluttering past; a quill writes each
+// guest's name in, one hand per guest (handwriting fonts), beside their portrait and an arrival
+// time. Then the pages flutter back, the book shuts, slides to the middle and is sealed with wax.
+// It all runs on a fixed timetable from entering the story (bookMs), so no database is involved and
+// the phones know when it ends.
 //
 // The book is a fixed 1000 × 600 scene scaled to fit, with real 3D: page blocks and board covers
 // with thickness, a front cover that swings on the spine, and loose pages that flip over.
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { Player, Stroke, View } from "@/lib/gathering/game";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { Player, View } from "@/lib/gathering/game";
+import { BOOK_FIRST_NAME_AT, BOOK_NAME_MS, BOOK_OPEN_AT } from "@/lib/gathering/onboarding";
 import { sound } from "@/lib/gathering/sound";
 import { Line } from "../_ui/bits";
 
 const W = 1000, H = 600;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const frame = () => new Promise((r) => requestAnimationFrame(r));
-const firstName = (p: Player) => (p.name ?? "Guest").split(" ")[0];
 const picOf = (p: Player) => p.portrait_url ?? `/figma/av-${p.portrait ?? 1}.jpg`;
 // Arrival times in the book, as if it were 1891: one guest every two minutes from 7:40.
 const arrived = (i: number) => `7:${String(40 + i * 2).padStart(2, "0")} pm`;
+// One hand per guest, in turn (fonts in app/layout.tsx), at the size that suits each.
+const HANDS = [
+  { font: "var(--font-sig-a)", size: 46 },
+  { font: "var(--font-sig-b)", size: 46 },
+  { font: "var(--font-sig-c)", size: 34 },
+  { font: "var(--font-kalam)", size: 28 },
+];
+const LINE_W = 236;
 
-export function GuestBook({ view, busy, onClose }: { view: View; busy: boolean; onClose: () => void }) {
-  const signed = view.players.filter((p) => p.joined && p.signed_at).sort((a, b) => a.signed_at!.localeCompare(b.signed_at!));
-  const waiting = view.players.filter((p) => p.joined && !p.signed_at);
-  const closedAt = view.room.book_at;
+export function GuestBook({ view, onSkip }: { view: View; onSkip: () => void }) {
+  // Every guest who joined, in seat order. The timetable (lib/gathering/onboarding.ts) counts the same.
+  const guests = view.players.filter((p) => p.joined);
+  const [shut, setShut] = useState(false);
 
   // Scale the scene to the space it has.
   const box = useRef<HTMLDivElement>(null);
@@ -44,67 +53,44 @@ export function GuestBook({ view, busy, onClose }: { view: View; busy: boolean; 
   const flips = useRef<HTMLDivElement>(null);
   const dust = useRef<HTMLCanvasElement>(null);
   const title = useRef<HTMLDivElement>(null);
-  const sigs = useRef(new Map<string, SVGSVGElement>());
-  const sigRef = useCallback(
-    (id: string) => (el: SVGSVGElement | null) => {
-      if (el) sigs.current.set(id, el);
-      else sigs.current.delete(id);
-    },
-    [],
-  );
+  const rows = useRef<HTMLDivElement>(null);
 
-  // Everything that happens over time runs through one queue, so signatures are written one at a time
-  // and the book only closes once the last one is in.
-  const engine = useRef({ alive: true, queue: Promise.resolve(), drawn: new Set<string>(), closing: false, started: false, at: { x: 980, y: 600 } });
+  const engine = useRef({ alive: true, started: false, at: { x: 980, y: 600 } });
 
+  // The whole sequence, on the timetable from entering the story. Coming in late (a slow TV),
+  // anything already past is shown done.
   useLayoutEffect(() => {
     const e = engine.current;
     e.alive = true;
+    if (e.started) return () => void (e.alive = false);
+    e.started = true;
     const b = book.current!;
-    if (!e.started) {
-      e.started = true;
-      // Coming back to this screen after the book closed (a refresh): show it shut and sealed.
-      if (closedAt && Date.now() - new Date(closedAt).getTime() > 1500) {
-        b.className = "gb-book instant closed centred sealed";
-        e.closing = true;
-      } else {
-        b.className = "gb-book instant closed centred";
-        const mountedAt = new Date(view.room.phase_at).getTime();
-        e.queue = e.queue.then(() => openBook(e, mountedAt));
+    b.className = "gb-book instant closed centred";
+    const t0 = new Date(view.room.phase_at).getTime();
+    const until = (ms: number) => sleep(Math.max(0, t0 + ms - Date.now()));
+    const n = guests.length;
+    void (async () => {
+      await frame();
+      b.classList.remove("instant");
+      await until(BOOK_OPEN_AT);
+      if (!e.alive) return;
+      await openBook(e);
+      for (let i = 0; i < n; i++) {
+        await until(BOOK_FIRST_NAME_AT + i * BOOK_NAME_MS);
+        if (!e.alive) return;
+        await writeName(e, i, BOOK_NAME_MS - 700);
       }
-    }
+      await until(BOOK_FIRST_NAME_AT + n * BOOK_NAME_MS);
+      if (!e.alive) return;
+      setShut(true);
+      await shutBook(e);
+    })();
     return () => {
       e.alive = false;
     };
     // Runs once: the book's state lives in the DOM from here on.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // New signatures: write each one in, in the order they came.
-  const signedKey = signed.map((p) => p.id).join();
-  useEffect(() => {
-    const e = engine.current;
-    for (const p of signed) {
-      if (e.drawn.has(p.id) || !p.signature) continue;
-      e.drawn.add(p.id);
-      const strokes = p.signature;
-      if (e.closing) {
-        drawNow(sigs.current.get(p.id), strokes);
-        continue;
-      }
-      e.queue = e.queue.then(() => writeIn(e, p.id, strokes));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signedKey]);
-
-  // Everyone's in (or the host closed the book): shut it.
-  useEffect(() => {
-    const e = engine.current;
-    if (!closedAt || e.closing) return;
-    e.closing = true;
-    e.queue = e.queue.then(() => shutBook(e));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [closedAt]);
 
   // ---------- the moves ----------
 
@@ -131,13 +117,8 @@ export function GuestBook({ view, busy, onClose }: { view: View; busy: boolean; 
     }
   }
 
-  async function openBook(e: typeof engine.current, mountedAt: number) {
+  async function openBook(e: typeof engine.current) {
     const b = book.current!;
-    await frame();
-    b.classList.remove("instant");
-    // Let the manor fade up first (the TV's "entering" title card), so the book is seen shut.
-    await sleep(Math.max(900, 3600 - (Date.now() - mountedAt)));
-    if (!e.alive) return;
     b.classList.remove("closed", "centred");
     sound().whoosh(-1);
     await sleep(950);
@@ -147,46 +128,38 @@ export function GuestBook({ view, busy, onClose }: { view: View; busy: boolean; 
     quill.current?.classList.add("on");
   }
 
-  async function writeIn(e: typeof engine.current, id: string, strokes: Stroke[]) {
-    const svg = sigs.current.get(id);
-    if (!svg || !e.alive) return;
-    const row = svg.closest(".gb-row");
-    row?.classList.add("pinned");
-    quill.current?.classList.add("on");
-    const ns = "http://www.w3.org/2000/svg";
-    svg.innerHTML = "";
-    const paths = strokes.map((pts) => {
-      const p = document.createElementNS(ns, "path");
-      p.setAttribute("d", pts.map(([x, y], i) => `${i ? "L" : "M"}${(6 + x).toFixed(1)} ${(2 + y).toFixed(1)}`).join(" "));
-      p.setAttribute("class", "wet");
-      svg.appendChild(p);
-      const len = p.getTotalLength() || 1;
-      p.style.strokeDasharray = `${len}`;
-      p.style.strokeDashoffset = `${len}`;
-      return { p, len };
-    });
-    // A long, fussy signature still goes in within about 2.5 s.
-    const total = paths.reduce((t, x) => t + x.len, 0);
-    const speed = Math.max(4.2, total / 2200);
-    for (const { p, len } of paths) {
-      const start = p.getPointAtLength(0);
-      await glide(e, stagePoint(svg, start.x, start.y), 240);
-      const dur = Math.max(120, len * (4.2 / speed) * 1), sc = sound().scratch(), t0 = performance.now();
-      for (;;) {
-        if (!e.alive) return sc.stop();
-        const t = Math.min(1, (performance.now() - t0) / dur);
-        p.style.strokeDashoffset = `${len * (1 - t)}`;
-        const q = p.getPointAtLength(len * t), at = stagePoint(svg, q.x, q.y);
-        putQuill(at);
-        e.at = at;
-        sc.set(0.7);
-        if (t >= 1) break;
-        await frame();
-      }
-      sc.stop();
+  // Write guest i's name in their hand: the ink is revealed left to right behind the nib.
+  async function writeName(e: typeof engine.current, i: number, ms: number) {
+    const row = rows.current?.children[i] as HTMLElement | undefined;
+    const svg = row?.querySelector("svg");
+    const text = svg?.querySelector("text"), rect = svg?.querySelector("rect");
+    if (!row || !svg || !text || !rect) return;
+    await document.fonts.ready;
+    // Long names shrink to fit the line.
+    let bb = text.getBBox();
+    if (bb.width > LINE_W) {
+      text.style.fontSize = `${parseFloat(text.style.fontSize) * (LINE_W / bb.width)}px`;
+      bb = text.getBBox();
     }
-    row?.classList.add("done");
-    await sleep(350);
+    row.classList.add("pinned");
+    quill.current?.classList.add("on");
+    await glide(e, stagePoint(svg, bb.x, 44), 450);
+    const dur = Math.max(900, ms - 450), sc = sound().scratch(), t0 = performance.now();
+    for (;;) {
+      if (!e.alive) return sc.stop();
+      const t = Math.min(1, (performance.now() - t0) / dur);
+      // Uneven speed and a little bounce, like a hand.
+      rect.setAttribute("width", String(Math.max(0, bb.x + bb.width * (t + Math.sin(t * Math.PI * 7) * 0.012) + 4)));
+      const at = stagePoint(svg, bb.x + bb.width * t, 40 + (Math.sin(t * 46) * 9 + Math.sin(t * 17) * 4) * 0.6);
+      putQuill(at, -6 + Math.sin(t * 30) * 4);
+      e.at = at;
+      sc.set(0.35 + Math.abs(Math.cos(t * 46)) * 0.65);
+      if (t >= 1) break;
+      await frame();
+    }
+    sc.stop();
+    rect.setAttribute("width", "400");
+    row.classList.add("done");
   }
 
   // Loose pages turning over: right to left (dir 1, opening) or back (dir -1, closing). Each has the
@@ -256,10 +229,9 @@ export function GuestBook({ view, busy, onClose }: { view: View; busy: boolean; 
     }, 500);
   }
 
-  const shown = signed.length;
   return (
     <>
-      <span className="eyebrow">{closedAt ? "Everyone is here" : "Sign the guest book"}</span>
+      <span className="eyebrow">{shut ? "Everyone is here" : "The guest book"}</span>
       <div className="gb-box" ref={box}>
         <div className="gb-scene" ref={scene} style={{ transform: `translate(-50%, -50%) scale(${k})`, visibility: k ? "visible" : "hidden" }}>
           <div className="gb-desk">
@@ -278,17 +250,27 @@ export function GuestBook({ view, busy, onClose }: { view: View; busy: boolean; 
                       <span>Signature</span>
                       <span>Arrived</span>
                     </div>
-                    {signed.map((p, i) => (
-                      <div className="gb-row" key={p.id}>
-                        <i className="gb-pic" style={{ backgroundImage: `url(${picOf(p)})` }} />
-                        <svg className="gb-sig" viewBox="0 0 250 60" preserveAspectRatio="xMinYMid meet" ref={sigRef(p.id)} />
-                        <span className="gb-when">{arrived(i)}</span>
-                        <span className="gb-who">{firstName(p)}</span>
-                      </div>
-                    ))}
-                    {Array.from({ length: Math.max(0, 6 - shown) }, (_, i) => (
-                      <div className="gb-row" key={`blank${i}`} />
-                    ))}
+                    <div ref={rows}>
+                      {guests.map((p, i) => (
+                        <div className="gb-row" key={p.id}>
+                          <i className="gb-pic" style={{ backgroundImage: `url(${picOf(p)})` }} />
+                          <svg className="gb-sig" viewBox="0 0 250 60" preserveAspectRatio="xMinYMid meet">
+                            <defs>
+                              <clipPath id={`gb-ink-${i}`}>
+                                <rect x="0" y="-20" width="0" height="100" />
+                              </clipPath>
+                            </defs>
+                            <text x="6" y="44" clipPath={`url(#gb-ink-${i})`} className="wet" style={{ fontFamily: HANDS[i % HANDS.length].font, fontSize: `${HANDS[i % HANDS.length].size}px` }}>
+                              {p.name ?? "Guest"}
+                            </text>
+                          </svg>
+                          <span className="gb-when">{arrived(i)}</span>
+                        </div>
+                      ))}
+                      {Array.from({ length: Math.max(0, 6 - guests.length) }, (_, i) => (
+                        <div className="gb-row" key={`blank${i}`} />
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -333,26 +315,15 @@ export function GuestBook({ view, busy, onClose }: { view: View; busy: boolean; 
       </div>
       <div className="gb-foot">
         <Line
-          id={closedAt ? "book-2" : "book-1"}
-          text={closedAt ? "Everyone is here. The doors are locked, and the night begins." : "Before dinner, Lord Fenwick asks each guest to sign his visitors' book. Sign it on your phone."}
+          id={shut ? "book-2" : "book-1"}
+          text={shut ? "Everyone is here. The doors are locked, and the night begins." : "Before dinner, Lord Fenwick asks each guest to sign his visitors' book."}
         />
-        {!closedAt && signed.length > 0 && waiting.length > 0 && (
-          <button className="btn quiet" disabled={busy} onClick={onClose}>
-            Close the book without {waiting.length === 1 ? firstName(waiting[0]) : `${waiting.length} guests`}
-          </button>
-        )}
+        <button className="btn quiet" onClick={onSkip}>
+          Skip
+        </button>
       </div>
     </>
   );
-}
-
-// Signatures already in when the TV (re)loads go straight in, without the quill.
-function drawNow(svg: SVGSVGElement | undefined, strokes: Stroke[]) {
-  if (!svg) return;
-  svg.closest(".gb-row")?.classList.add("pinned", "done");
-  svg.innerHTML = strokes
-    .map((pts) => `<path d="${pts.map(([x, y], i) => `${i ? "L" : "M"}${(6 + x).toFixed(1)} ${(2 + y).toFixed(1)}`).join(" ")}"/>`)
-    .join("");
 }
 
 type Mote = { x: number; y: number; vx: number; vy: number; life: number; r: number };

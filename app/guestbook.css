@@ -82,13 +82,11 @@
 .gb-row.pinned .gb-pic { opacity: 1; transform: rotate(-3deg); }
 .gb-row.pinned:nth-child(odd) .gb-pic { transform: rotate(2deg); }
 .gb-sig { width: 100%; height: 60px; overflow: visible; }
-.gb-sig path { fill: none; stroke: #1d1630; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
-.gb-sig path.wet { animation: gb-dry 2.6s ease-out forwards; }
-@keyframes gb-dry { from { filter: drop-shadow(0 0 1.5px rgba(30, 20, 60, 0.8)); stroke: #1a1840; } to { filter: none; } }
+.gb-sig text { fill: #1d1630; }
+.gb-row.pinned .gb-sig text.wet { animation: gb-dry 3s ease-out forwards; }
+@keyframes gb-dry { from { filter: drop-shadow(0 0 1.5px rgba(30, 20, 60, 0.8)); fill: #1a1840; } to { filter: none; } }
 .gb-when { font: italic 400 13px var(--body); color: var(--brown-2); text-align: right; padding-bottom: 8px; opacity: 0; transition: opacity 0.5s; }
 .gb-row.done .gb-when { opacity: 1; }
-.gb-who { position: absolute; left: 54px; bottom: 3px; font: 500 9px var(--pixel); letter-spacing: 0.14em; color: rgba(90, 60, 30, 0.55); text-transform: uppercase; opacity: 0; transition: opacity 0.4s; }
-.gb-row.done .gb-who { opacity: 1; }
 .gb-ribbon { position: absolute; left: 432px; top: 470px; width: 14px; height: 70px; background: linear-gradient(90deg, #7d1a14, #a5281e 50%, #7d1a14); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 84%, 0 100%); transform: translateZ(1px) rotate(-6deg); transform-origin: top; transition: opacity 0.5s; }
 .gb-book.closed .gb-ribbon { opacity: 0; }
 
