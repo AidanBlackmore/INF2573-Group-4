@@ -9,7 +9,7 @@ import { deep, shake } from "@/lib/gathering/deep";
 import { nameOf, playerOf, type Player, type TbRepair, type View } from "@/lib/gathering/game";
 import { sound } from "@/lib/gathering/sound";
 import {
-  BRIEF_BEATS, COMPARTMENTS, CREW, PIPE_PATH, PIPE_TYPE, PLACE_NAME, TB_NARRATION, TB_TITLE, beatAt, bg, crewPic, fmtAir, type Place,
+  BRIEF_BEATS, COMPARTMENTS, PIPE_PATH, PIPE_TYPE, PLACE_NAME, SUB, TB_NARRATION, TB_TITLE, beatAt, bg, drillPairs, facePic, fmtAir, type Place,
 } from "@/lib/gathering/trapped";
 import { colorOf } from "../_ui/bits";
 
@@ -82,7 +82,7 @@ function Crew({ view, player, size = "md", note, dim }: { view: View; player: Pl
   return (
     <span className={`tb-mate ${size}${player.dead ? " dead" : ""}${dim ? " dim" : ""}`} style={{ "--pc": colorOf(view, player.id) } as CSSProperties}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={crewPic(player.portrait)} alt="" />
+      <img src={facePic(player)} alt="" />
       <b>{player.name}</b>
       {note && <small>{note}</small>}
     </span>
@@ -168,7 +168,7 @@ function Blueprint({ view, tour = false }: { view: View; tour?: boolean }) {
             </text>
             {here.slice(0, 4).map((id, j) => (
               <g key={id}>
-                <image href={crewPic(playerOf(view, id)?.portrait)} x={x + w - 50 - j * 48} y={y + h - 74} width="44" height="68" preserveAspectRatio="xMidYMid slice" />
+                <image href={facePic(playerOf(view, id))} x={x + w - 50 - j * 48} y={y + h - 74} width="44" height="68" preserveAspectRatio="xMidYMid slice" />
                 <rect className="tagbar" x={x + w - 50 - j * 48} y={y + h - 8} width="44" height="6" style={{ fill: colorOf(view, id) }} />
               </g>
             ))}
@@ -223,7 +223,7 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
           <div className="tb-onb">
             <div className={`tb-cold${beat > 0 ? " small" : ""}`} style={{ backgroundImage: `url(${bg("exterior")})` }}>
               <span className="tag">{TB_TITLE}</span>
-              <p>{TB_NARRATION["tb-brief-open"].replace("This is your captain. ", "")}</p>
+              <p>{beat === 0 ? TB_NARRATION["tb-brief-open"].replace("This is your captain. ", "") : `The ${SUB} is diving to bring home the black box of the Calypso, lost in this trench last year. Not everyone aboard wants it found.`}</p>
               <div className="row">
                 {view.players.map((p) => (
                   <Crew key={p.id} view={view} player={p} size="sm" />
@@ -231,27 +231,28 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
               </div>
             </div>
             <div className="tb-board">
-              {BRIEF_BEATS.slice(1, 5).map((b, i) => {
+              {BRIEF_BEATS.slice(1).map((b, i) => {
                 const shown = i + 1 <= beat;
                 const cls = !shown ? "empty" : i + 1 === beat ? "cur" : "done";
+                const [x, y] = [view.players[0]?.name ?? "Sam", view.players[1]?.name ?? "Maya"];
                 return (
                   <div className={`tb-tile ${cls}`} key={b.id}>
                     <span className="lbl">{b.title}</span>
-                    {shown && i === 0 && <Blueprint view={view} tour />}
-                    {shown && i === 1 && (
+                    {shown && b.id === "tb-brief-sub" && <Blueprint view={view} tour />}
+                    {shown && b.id === "tb-brief-air" && (
                       <span className="tb-tank big" aria-hidden="true">
                         <span className="glass">
                           <i className="drain" />
                         </span>
                       </span>
                     )}
-                    {shown && i === 2 && (
+                    {shown && b.id === "tb-brief-pair" && (
                       <div className="tb-bubbles">
-                        <span className="sb l">Maya, what&apos;s your favourite colour?</span>
-                        <span className="sb r">Blue!</span>
+                        <span className="sb l">{x}: {y}, what&apos;s your favourite colour?</span>
+                        <span className="sb r">{y}: Blue!</span>
                       </div>
                     )}
-                    {shown && i === 3 && (
+                    {shown && b.id === "tb-brief-sab2" && (
                       <div className="tb-sab">
                         {view.players.slice(0, 5).map((p) => (
                           <Crew key={p.id} view={view} player={p} size="sm" />
@@ -259,6 +260,7 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
                         <i className="scan" />
                       </div>
                     )}
+                    {shown && <p className="tick">{b.tick}</p>}
                   </div>
                 );
               })}
@@ -274,6 +276,9 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
       const slipped = tb.slip_at && age(tb.slip_at) < 2.5;
       const held = tb.holds.length;
       const n = view.players.length;
+      // Bolts sit around the wheel pair by pair, so drill partners are side by side.
+      const pairs = drillPairs(view.players);
+      const ring = pairs.flat().map((id) => playerOf(view, id)!).filter(Boolean);
       body = (
         <>
           <Plate>Seal the hatch</Plate>
@@ -283,7 +288,7 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
                 <circle cx="50" cy="50" r="46" pathLength="100" style={{ strokeDashoffset: 100 - (sealed ? 100 : sealing * 100) }} />
               </svg>
               <div className="wheel" />
-              {view.players.map((p, i) => {
+              {ring.map((p, i) => {
                 const a = (i / n) * Math.PI * 2 - Math.PI / 2;
                 return (
                   <span key={p.id} className={`bolt${tb.holds.includes(p.id) || sealed ? " on" : ""}`} style={{ left: `${50 + 47 * Math.cos(a)}%`, top: `${50 + 47 * Math.sin(a)}%` }}>
@@ -305,10 +310,25 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
                         ? `${held} of ${n} holding. Who's missing?`
                         : "All holding. Keep holding…"}
               </p>
-              <p className="tb-note">You can&apos;t fail this. Nothing is lost if a bolt slips.</p>
+              {!sealed && (
+                <div className="tb-panel tb-reps">
+                  {pairs.map((g, i) => (
+                    <div key={i} className={`rep${g.every((id) => tb.holds.includes(id)) ? " done" : ""}`}>
+                      <span className={`status${g.every((id) => tb.holds.includes(id)) ? " ok" : ""}`}>{g.length > 2 ? "Drill trio" : `Drill pair ${i + 1}`}</span>
+                      <span>
+                        <b>{g.map((id) => nameOf(view, id)).join(" & ")}</b>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="tb-note">
+                {sealed ? "" : "Down there, every watch pairs you up like this on the board: find your partner here, then check your phone. "}
+                You can&apos;t fail this. Nothing is lost if a bolt slips.
+              </p>
             </div>
           </div>
-          <Captain id={sealed ? "tb-hatch-sealed" : tb.slips >= 2 ? "tb-hatch-countin" : tb.skip.length === n ? "tb-skip" : "tb-brief-hatch"} />
+          <Captain id={sealed ? "tb-hatch-sealed" : tb.slips >= 2 ? "tb-hatch-countin" : tb.skip.length === n ? "tb-skip2" : "tb-brief-hatch2"} />
         </>
       );
     }
@@ -352,10 +372,12 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
       <>
         <Plate>Crew file</Plate>
         <span className="tag">412 m · before the first watch</span>
-        <p className="tb-narr">The sub logs everyone aboard. Answer on your phone. Your answers are how your crewmates will fix this ship, so tell the truth. Most of you will.</p>
+        <p className="tb-narr">
+          The {SUB}&apos;s systems are keyed to her crew, so she logs everyone aboard. Answer on your phone: your colour wires the panels, your number opens the locks, and your crewmates will be asked what you said. Nobody has their orders yet, so tell the truth.
+        </p>
         <div className="tb-crewrow">
           {view.players.map((p) => (
-            <Crew key={p.id} view={view} player={p} note={p.answered ? "Filed" : p.picked ? "Answering" : "Picking a portrait"} dim={!p.answered} />
+            <Crew key={p.id} view={view} player={p} note={p.answered ? "Filed" : "Answering"} dim={!p.answered} />
           ))}
         </div>
         <div className="row">
@@ -374,7 +396,7 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
         <h2 className="tb-chapter">{tb.saboteur_mode ? "Somebody aboard is cutting the lines." : "Four watches to the surface."}</h2>
         <p className="tb-narr">
           {tb.saboteur_mode
-            ? "Your orders are sealed behind the porthole on your phone. Most of you are crew. One of you is not. If the air runs out, nobody goes home."
+            ? "Your orders are sealed behind the porthole on your phone. Most of you are crew, here to bring the black box home. One of you has orders to keep it down here, and has wiped their own crew file. If the air runs out, nobody goes home."
             : "Three of you, no saboteur. Keep the sub running for four watches and you reach the surface. Run out of air and you don't."}
         </p>
         <div className="tb-crewrow">
@@ -402,6 +424,11 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
                 <RepairRow key={r.idx} view={view} r={r} />
               ))}
             </div>
+            {view.room.round === 1 && (
+              <p className="tb-note">
+                Find your name above, then check your phone. The panel has the wires and the lock; the manual says how to fix it, and it&apos;s all about the panel holder. Operators press the answer their guide describes. Every fix: more air, and up we go.
+              </p>
+            )}
             <button className="btn ghost" disabled={busy} onClick={next}>
               End the watch
             </button>
@@ -485,7 +512,7 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
         <Hud view={view} now={now} label="Crew meeting" />
         <div className="tb-meet">
           <div className="tb-col">
-            <span className="tag">Recovered logs</span>
+            <span className="tag">The saboteur&apos;s wiped file · restored</span>
             <div className="tb-panel tb-logs">
               {tb.logs.length ? (
                 tb.logs.map((l, i) => (
@@ -494,7 +521,7 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
                   </p>
                 ))
               ) : (
-                <p>No logs yet.</p>
+                <p>Nothing restored yet. Fix something next watch and a line comes back.</p>
               )}
             </div>
             {reveals.length > 0 && (
@@ -525,14 +552,16 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
             <p className="tb-note">
               {phase === "tb_vote"
                 ? `${(tb.voted ?? []).length} of ${voters.length} have voted. A wrong vote costs a minute of air.`
-                : "Does a log sound like someone? If it sounds like you, say why it isn't."}
+                : view.room.round === 1
+                  ? "These lines are the saboteur's own answers from the crew file. Does one match something a crewmate said in a repair? If it sounds like you, say why it isn't. Then vote: a wrong vote costs a minute of air, and that person is out of the votes (they still repair)."
+                  : "Does a line sound like someone? Did anyone's answers in a repair not match? If it sounds like you, say why it isn't."}
             </p>
             <button className="btn" disabled={busy} onClick={next}>
               {phase === "tb_talk" ? "Start the vote" : "Reveal the vote"}
             </button>
           </div>
         </div>
-        <Captain id={phase === "tb_vote" ? "tb-vote" : newLogs.length ? "tb-logs" : "tb-no-logs"} />
+        <Captain id={phase === "tb_vote" ? "tb-vote" : newLogs.length ? (tb.logs.length === newLogs.length ? "tb-logs-first" : "tb-logs") : "tb-no-logs"} />
       </>
     );
   } else if (phase === "tb_verdict") {
@@ -591,13 +620,14 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
         <p className="tb-narr">
           {tb.reason}
           {sab ? ` It was ${sab.name}.` : ""}
+          {won ? ` The Calypso's black box is coming home.` : ` The ${SUB} and the Calypso's black box stay on the trench floor.`}
         </p>
         <div className="tb-files">
           {(tb.files ?? []).map((f) => {
             const p = playerOf(view, f.player);
             return (
               <div key={f.player} className={`tb-file${f.player === tb.saboteur ? " sab" : ""}`}>
-                <Crew view={view} player={p} size="sm" note={f.player === tb.saboteur ? "Saboteur" : CREW[((p?.portrait ?? 1) - 1) % 6].name} />
+                <Crew view={view} player={p} size="sm" note={f.player === tb.saboteur ? "Saboteur" : "Crew"} />
                 <p>
                   Colour <b>{f.colour}</b> · number <b>{f.num}</b>
                   <br />

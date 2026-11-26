@@ -1665,30 +1665,37 @@ $$;
 -- Trapped Below (story 1): a submarine, a crew, and a saboteur.
 -- ===========================================================================
 --
+-- The story: the Meridian dives to bring home the black box of the Calypso,
+-- lost in the trench. One of the crew has orders to keep it down there.
+--
 -- How it works
--- - Onboarding (tb_brief): the captain explains the game on the TV while the
---   board fills in. Everyone tapping "We know how to play" skips to the hatch.
---   Then everyone holds their bolt on their phone at the same time for three
---   seconds to seal the hatch. A bolt that slips costs nothing.
+-- - Onboarding (tb_brief): the captain explains every part of the game on the
+--   TV while the board fills in: the mission, repairs in pairs, the air, the
+--   saboteur and the meetings. Everyone tapping "We know how to play" skips to
+--   the hatch. Then everyone holds their bolt on their phone at the same time
+--   for three seconds to seal the hatch (the TV groups the bolts in drill
+--   pairs, to show how repairs will work). A bolt that slips costs nothing.
 -- - Dim the lights (tb_dive): the host starts the dive; eight seconds later
---   everyone fills in their crew file (tb_crew): a portrait, a favourite wire
---   colour, a number from 1 to 9, what they'd bring if trapped underwater, and
---   one deeper question.
--- - Sealed orders (tb_orders): with 4 or more players, one is the saboteur.
---   With 3 it's co-op: reach the surface before the air runs out.
+--   everyone fills in their crew file (tb_crew): a favourite wire colour, a
+--   lucky number from 1 to 9, what they'd bring if trapped underwater, and one
+--   deeper question. Everyone plays as the portrait drawn when they joined.
+-- - Sealed orders (tb_orders): one player is always the saboteur (3 to 6
+--   players). Orders come after the crew file, so nobody can tailor answers.
 -- - Four watches (tb_watch). Each pair (a trio if odd) gets one repair:
---   wires (one phone has the panel, the other the riddles about the panel
---   holder) or "who said it?" (the guide has a question about the operator,
---   the operator has everyone's answers). Repairs add air; mistakes cost some.
+--   wires (one phone has the panel, the other the manual about the panel
+--   holder: cut their colour, enter their number) or "who said it?" (the guide
+--   has a question about the operator, the operator has the crew's answers;
+--   watches 1 and 2 ask what they'd bring, 3 and 4 their deeper answer).
+--   Repairs add air and bring the sub up; mistakes cost some.
 -- - After watches 1 to 3, an all-hands emergency (tb_hands): sonar Morse,
 --   ballast pipes, then a hull breach.
--- - With a saboteur, the crew meets (tb_talk), reads the logs (every fix
---   recovers a line about the saboteur, from their own answers) and votes
---   (tb_vote, tb_verdict). A wrong vote costs a minute of air.
+-- - The crew meets (tb_talk), reads the logs (the first fix of each watch
+--   restores a line of the saboteur's wiped crew file) and votes (tb_vote,
+--   tb_verdict). A wrong vote costs a minute of air.
 -- - The air clock runs from the first watch, and stops for meetings.
---   The crew wins by voting out the saboteur (or, in co-op, by surviving four
---   watches). The saboteur wins if the air runs out, if they reach the
---   surface undiscovered, or if only one crew member is left.
+--   The crew wins by voting out the saboteur. The saboteur wins if the air
+--   runs out, if they reach the surface undiscovered, or if only one crew
+--   member is left. (The code still copes with no saboteur, from before.)
 
 -- Secret: one row per Trapped Below game.
 create table public.tb_games (
@@ -1773,13 +1780,13 @@ alter table public.tb_crew enable row level security;
 alter table public.tb_repairs enable row level security;
 revoke all on public.tb_games, public.tb_crew, public.tb_repairs from anon, authenticated;
 
--- How long the captain's briefing lasts on the TV (the recorded lines plus pauses), in seconds.
+-- How long the captain's briefing lasts on the TV (the lines plus pauses), in seconds: BRIEF_SECS in lib/gathering/trapped.ts.
 create function private.tb_brief_secs()
 returns int
 language sql
 immutable
 set search_path = ''
-as $$ select 38 $$;
+as $$ select 72 $$;
 
 -- Air left right now, in seconds.
 create function private.tb_air(p_game public.tb_games)
@@ -1849,7 +1856,7 @@ begin
 end;
 $$;
 
--- The logs found so far: lines about the saboteur, from their own crew file.
+-- The logs found so far: lines of the crew file the saboteur wiped, restored one a watch.
 create function private.tb_logs(p_room_id uuid)
 returns jsonb
 language sql
@@ -1943,12 +1950,13 @@ begin
     v_lead := v_members[1];
     v_opts := null;
     if v_kind = 'guide' then
-      -- The operator's answer and up to three others, shuffled.
-      select jsonb_agg(jsonb_build_object('a', bring, 'owner', player_id) order by random()) into v_opts
+      -- The operator's answer and up to three others, shuffled. Watches 1 and 2 ask what they'd
+      -- bring; watches 3 and 4 their answer to the deeper question.
+      select jsonb_agg(jsonb_build_object('a', a, 'owner', player_id) order by random()) into v_opts
       from (
-        select c.bring, c.player_id from public.tb_crew c where c.player_id = v_lead
+        select case when v_watch <= 2 then c.bring else c.deep_a end as a, c.player_id from public.tb_crew c where c.player_id = v_lead
         union all
-        (select c.bring, c.player_id from public.tb_crew c
+        (select case when v_watch <= 2 then c.bring else c.deep_a end, c.player_id from public.tb_crew c
          where c.room_id = p_room_id and c.player_id <> v_lead order by random() limit 3)
       ) o;
     end if;
@@ -2202,35 +2210,6 @@ $$;
 -- Trapped Below: crew file and sealed orders
 -- ---------------------------------------------------------------------------
 
-create function public.tb_portrait(p_room_id uuid, p_portrait int)
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_room public.rooms := private.lock_room(p_room_id);
-  v_me public.players := private.me(p_room_id);
-  v_other uuid;
-begin
-  if v_me.id is null or v_room.phase <> 'tb_crew' then
-    raise exception 'The crew file is closed';
-  end if;
-  if p_portrait is null or p_portrait not between 1 and 6 then
-    raise exception 'Pick a portrait';
-  end if;
-  if exists (select 1 from public.players where room_id = p_room_id and id <> v_me.id and portrait = p_portrait and picked) then
-    raise exception 'Someone already picked that one';
-  end if;
-  -- Whoever had it (not yet confirmed) swaps to this player's old portrait.
-  select id into v_other from public.players where room_id = p_room_id and id <> v_me.id and portrait = p_portrait;
-  update public.players set portrait = null where id = v_other;
-  update public.players set portrait = p_portrait, picked = true where id = v_me.id;
-  update public.players set portrait = v_me.portrait where id = v_other;
-  perform private.touch(p_room_id);
-end;
-$$;
-
 create function public.tb_crew_file(p_room_id uuid, p_colour text, p_num int, p_bring text, p_deep_q text, p_deep_a text)
 returns void
 language plpgsql
@@ -2283,10 +2262,11 @@ begin
     return;
   end if;
   select count(*) into v_n from public.players where room_id = p_room_id;
-  if exists (select 1 from public.players where room_id = p_room_id and (not picked or not answered)) then
+  if exists (select 1 from public.players where room_id = p_room_id and not answered) then
     raise exception 'Waiting for everyone''s crew file';
   end if;
-  if v_n >= 4 then
+  -- Always one saboteur (3 to 6 players).
+  if v_n >= 3 then
     select id into v_saboteur from public.players where room_id = p_room_id order by random() limit 1;
   end if;
   delete from public.votes where room_id = p_room_id;
@@ -2388,7 +2368,6 @@ declare
   v_me public.players := private.me(p_room_id);
   v_rep public.tb_repairs := private.tb_my_repair(p_room_id);
   v_crew public.tb_crew;
-  v_word text;
   v_code text;
   v_right int := 0;
 begin
@@ -2396,8 +2375,8 @@ begin
     raise exception 'Only the panel holder can restart';
   end if;
   select * into v_crew from public.tb_crew where player_id = v_rep.lead;
-  v_word := (regexp_match(v_crew.deep_a, '[[:alpha:]]+'))[1];
-  v_code := v_crew.num::text || (char_length(coalesce(v_word, '')) % 10)::text;
+  -- The code is the panel holder's lucky number.
+  v_code := v_crew.num::text;
   if p_cut = v_crew.colour then v_right := v_right + 1; end if;
   if p_code = v_code then v_right := v_right + 1; end if;
   if v_right = 2 then
@@ -2775,8 +2754,7 @@ begin
       if v_game.dive_at is null or v_game.dive_at > now() - interval '8 seconds' then
         return false;
       end if;
-      -- Everyone keeps their portrait from the browser (or picks another) and fills in the crew file.
-      update public.players set picked = false where room_id = p_room_id and not answered;
+      -- Everyone plays as the portrait drawn when they joined, straight into the crew file.
       perform private.set_phase(p_room_id, 'tb_crew');
     when 'tb_watch' then
       if private.tb_out_of_air(p_room_id) then
@@ -2937,7 +2915,8 @@ begin
           'riddles', case when v_rep.kind = 'wires' and p_me.id <> v_rep.lead then
               case when v_n = 3 then to_jsonb(array[case when v_k = 2 then 'wire' else 'code' end])
                    else to_jsonb(array['wire', 'code']) end end,
-          'lead_q', case when v_rep.kind = 'wires' and p_me.id <> v_rep.lead then v_lead_q end,
+          -- The guide's question in watches 3 and 4 is the operator's deeper question.
+          'lead_q', case when v_rep.kind = 'guide' and p_me.id <> v_rep.lead and v_rep.watch > 2 then v_lead_q end,
           -- Guide: the operator sees the answers but not whose; the guide sees the question.
           'options', case when v_rep.kind = 'guide' and p_me.id = v_rep.lead then
               (select jsonb_agg(o -> 'a') from jsonb_array_elements(v_rep.options) o) end

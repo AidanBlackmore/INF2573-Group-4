@@ -11,7 +11,7 @@ import {
 import { track } from "@/lib/analytics";
 import { ensureSignedIn, errorMessage, supabase } from "@/lib/supabase";
 import { Art, Avatar, KnifeSvg, Ring, Tag, colorOf, since } from "../../_ui/bits";
-import { crewPic } from "@/lib/gathering/trapped";
+import { facePic } from "@/lib/gathering/trapped";
 import { TrappedPhone } from "./trapped";
 import { DRAWS, LOOK_MAX } from "@/lib/gathering/look";
 import { LookError, drawPortrait, type Drawn } from "@/lib/gathering/portrait";
@@ -297,7 +297,7 @@ function Phone({ view, reload, left, now }: { view: View; reload: () => Promise<
             <span className="me">
               {deepSea ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img className="tb-mini" src={crewPic(me.portrait)} alt="" style={{ "--pc": colorOf(view, me.id) } as CSSProperties} />
+                <img className="tb-mini" src={facePic(me)} alt="" style={{ "--pc": colorOf(view, me.id) } as CSSProperties} />
               ) : (
                 <Avatar view={view} player={me} size="xs" />
               )}

@@ -8,7 +8,7 @@ import { secondsSince, track } from "@/lib/analytics";
 import { buzz, deep, shake } from "@/lib/gathering/deep";
 import { nameOf, playerOf, type View } from "@/lib/gathering/game";
 import {
-  BOLT_PLACES, BRING_Q, CREW, DEEP_QUESTIONS, LEAK_JOB, MORSE, PIPE_TARGET, PLACE_BG, PLACE_NAME, WIRE_COLOURS, WIRE_HEX, bg, crewPic, fmtAir, type Place,
+  BOLT_PLACES, CREW_FILE, DEEP_QUESTIONS, LEAK_JOB, MORSE, PIPE_TARGET, PLACE_BG, PLACE_NAME, SUB, WIRE_COLOURS, WIRE_HEX, bg, drillPairs, fmtAir, type Place,
 } from "@/lib/gathering/trapped";
 import { PipeTile, airNow, lowAir, phoneFocus } from "../../host/trapped";
 
@@ -32,13 +32,13 @@ export function phonePlace(view: View, id: string | null, now: number): Place {
 }
 
 const LOOK: Record<string, string> = {
-  tb_brief: "The captain is explaining how to play.",
+  tb_brief: "The captain is explaining how to play. Everything you'll do is on the board.",
   tb_dive: "We're diving.",
   tb_crew: "Your crew file is in. Waiting for the others.",
   tb_orders: "Waiting for the others to read their orders.",
   tb_watch: "Your repair is done. Watch the others.",
   tb_hands: "Done. Watch the TV.",
-  tb_talk: "Read the logs on the TV and talk it through.",
+  tb_talk: "Compare the restored file on the TV with what everyone said in their repairs. Here's yours, to check.",
   tb_vote: "Vote's in. Watch the TV.",
   tb_verdict: "The airlock is opening.",
   tb_end: "Here's how it ended.",
@@ -274,10 +274,16 @@ function HatchBolt({ ctx }: { ctx: Ctx }) {
     };
   }, [down, send]);
   const others = view.players.filter((p) => p.id !== me);
+  const partners = (drillPairs(view.players).find((g) => g.includes(me)) ?? []).filter((id) => id !== me).map((id) => nameOf(view, id));
   return (
     <>
       <Head left="Seal the hatch" />
       <p className="tb-q">{sealed ? "Sealed. Nice work." : "Hold your bolt at the same time as everyone else."}</p>
+      {!sealed && partners.length > 0 && (
+        <p className="p-small">
+          Drill {partners.length > 1 ? "partners" : "partner"}: <b>{partners.join(" & ")}</b>. Down there, the TV pairs you up like this for every repair.
+        </p>
+      )}
       <button
         className={`tb-boltbtn${down || held || sealed ? " on" : ""}`}
         style={{ "--pc": `var(--player-${playerOf(view, me)?.color ?? 1})` } as CSSProperties}
@@ -307,7 +313,6 @@ function HatchBolt({ ctx }: { ctx: Ctx }) {
 
 function CrewFile({ ctx }: { ctx: Ctx }) {
   const { view, run, busy, error } = ctx;
-  const me = playerOf(view, view.me)!;
   const [step, setStep] = useState(0);
   const [colour, setColour] = useState<string | null>(null);
   const [num, setNum] = useState<number | null>(null);
@@ -317,32 +322,10 @@ function CrewFile({ ctx }: { ctx: Ctx }) {
   // For analytics: question shuffles and time on the file (never the answers).
   const shuffles = useRef(0);
   const [started] = useState(() => Date.now());
-  if (!me.picked) {
-    return (
-      <>
-        <Head left="Crew file" />
-        <p className="tb-q">Who are you aboard?</p>
-        <div className="tb-portraits">
-          {CREW.map((c, i) => {
-            const taken = view.players.find((p) => p.id !== me.id && p.picked && p.portrait === i + 1);
-            return (
-              <button key={c.key} disabled={busy || Boolean(taken)} className={me.portrait === i + 1 ? "on" : ""} onClick={() => void run("tb_portrait", { p_portrait: i + 1 })}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={crewPic(i + 1)} alt="" />
-                {taken ? taken.name : c.name}
-              </button>
-            );
-          })}
-        </div>
-        <p className="p-small">Just a look. Your real orders come later.</p>
-        {error && <div className="err">{error}</div>}
-      </>
-    );
-  }
   const steps = [
     {
-      q: "What's your favourite colour?",
-      note: "Pick one of the wire colours.",
+      q: CREW_FILE[0].q,
+      note: CREW_FILE[0].note,
       body: (
         <div className="tb-swatches">
           {WIRE_COLOURS.map((c) => (
@@ -353,8 +336,8 @@ function CrewFile({ ctx }: { ctx: Ctx }) {
       ok: Boolean(colour),
     },
     {
-      q: "Pick a number from 1 to 9.",
-      note: "Your lucky number.",
+      q: CREW_FILE[1].q,
+      note: CREW_FILE[1].note,
       body: (
         <div className="tb-nums">
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((k) => (
@@ -367,14 +350,14 @@ function CrewFile({ ctx }: { ctx: Ctx }) {
       ok: num !== null,
     },
     {
-      q: BRING_Q,
-      note: "Be honest. Someone will need this.",
+      q: CREW_FILE[2].q,
+      note: CREW_FILE[2].note,
       body: <textarea className="tb-text" rows={2} maxLength={80} value={bring} onChange={(e) => setBring(e.target.value)} placeholder="One thing" />,
       ok: bring.trim().length > 0,
     },
     {
       q: DEEP_QUESTIONS[qi],
-      note: "",
+      note: CREW_FILE[3].note,
       body: (
         <>
           <textarea className="tb-text" rows={3} maxLength={120} value={deepA} onChange={(e) => setDeepA(e.target.value)} placeholder="Your answer" />
@@ -390,6 +373,12 @@ function CrewFile({ ctx }: { ctx: Ctx }) {
   return (
     <>
       <Head left={`Crew file ${step + 1} of 4`} />
+      {step === 0 && (
+        <div className="tb-card small">
+          <span className="lbl">Why the {SUB} asks</span>
+          <p>Her systems are keyed to her crew, so your crewmates will need your answers to fix her. Nobody has their orders yet, not even the saboteur: tell the truth.</p>
+        </div>
+      )}
       <p className="tb-q">{s.q}</p>
       {s.note && <p className="p-small">{s.note}</p>}
       {s.body}
@@ -456,8 +445,8 @@ function Orders({ ctx }: { ctx: Ctx }) {
         <>
           <div className="tb-card secret pop">
             <span className="lbl">Saboteur</span>
-            <h3>Let the air run out.</h3>
-            <p>Nobody else knows. Act like crew.</p>
+            <h3>The black box stays down here.</h3>
+            <p>Keep the {SUB} below until the air runs out. Nobody else knows. Act like crew.</p>
           </div>
           <div className="tb-card">
             <span className="lbl">What you can do</span>
@@ -470,16 +459,16 @@ function Orders({ ctx }: { ctx: Ctx }) {
             <p>
               <b>Loosen a bolt.</b> Once a watch, pick a system to fail at the start of the next (−0:30).
             </p>
-            <p className="p-small">Careful: every watch with a fix recovers a log about you, from your real answers.</p>
+            <p className="p-small">You wiped your crew file, but every watch with a fix restores a line of it: your real answers, read out at the meeting. Don&apos;t contradict them too obviously.</p>
           </div>
         </>
       ) : (
         <div className="tb-card pop">
           <span className="lbl">Crew</span>
-          <h3>Keep everyone breathing.</h3>
+          <h3>Bring the black box home.</h3>
           <p>
             {view.tb?.saboteur_mode
-              ? "Fix what breaks and listen to your crewmates' answers. Someone aboard is lying about theirs. Vote them into the airlock before the air runs out."
+              ? "Fix what breaks and listen to your crewmates' answers. One of you is lying about theirs. At each meeting, compare what they said with the restored file, and vote them into the airlock before the air runs out."
               : "No saboteur this time. Fix what breaks and keep the air up for four watches to reach the surface."}
           </p>
         </div>
@@ -529,15 +518,15 @@ function WirePanel({ ctx }: { ctx: Ctx }) {
         ))}
       </div>
       <span className="lbl">Code lock</span>
-      <div className="tb-lcd">{(code + "__").slice(0, 2)}</div>
+      <div className="tb-lcd">{code || "_"}</div>
       <div className="tb-keys">
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((k) => (
-          <button key={k} onClick={() => setCode(code.length >= 2 ? String(k) : code + k)}>
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((k) => (
+          <button key={k} onClick={() => setCode(String(k))}>
             {k}
           </button>
         ))}
       </div>
-      <button className="p-btn" disabled={busy || !cut || code.length < 2} onClick={() => void run("tb_restart", { p_cut: cut, p_code: code }).then(() => setCode(""))}>
+      <button className="p-btn" disabled={busy || !cut || code.length < 1} onClick={() => void run("tb_restart", { p_cut: cut, p_code: code }).then(() => setCode(""))}>
         Restart engine
       </button>
       {rep.msg && <p className="p-small" style={{ color: "var(--bad)" }}>{rep.msg}. Something&apos;s still off. −0:10</p>}
@@ -560,11 +549,11 @@ function WireManual({ ctx }: { ctx: Ctx }) {
         )}
         {rep.riddles?.includes("code") && (
           <p className="riddle">
-            The code is <b>{who}&apos;s lucky number</b>, then the <b>number of letters in the first word</b> of {who}&apos;s answer to “{rep.lead_q}”. (Ten letters or more: use the last digit.)
+            The code is <b>{who}&apos;s lucky number</b>, from 1 to 9.
           </p>
         )}
       </div>
-      <p className="p-small">You can&apos;t see the panel. Ask {who}, or guess and check: a failed restart costs 10 seconds.</p>
+      <p className="p-small">You can&apos;t see the panel. Ask {who}, or say what you think you know about them. A failed restart costs 10 seconds, and tells {who} how many of the two were right.</p>
       {rep.riddles?.length === 1 && <p className="p-small">Your partner has the other half of the manual.</p>}
     </>
   );
@@ -577,7 +566,15 @@ function Guide({ ctx }: { ctx: Ctx }) {
       <div className="tb-card">
         <span className="lbl">Question about {rep.lead_name}</span>
         <p className="riddle">
-          Trapped underwater for a week, what one thing would <b>{rep.lead_name}</b> bring?
+          {rep.lead_q ? (
+            <>
+              Asked “{rep.lead_q}”, what did <b>{rep.lead_name}</b> answer?
+            </>
+          ) : (
+            <>
+              Trapped underwater for a week, what one thing would <b>{rep.lead_name}</b> bring?
+            </>
+          )}
         </p>
       </div>
       <p className="p-small">Say your guess out loud. {rep.lead_name} has everyone&apos;s answers, but not this question, and presses the closest one.</p>

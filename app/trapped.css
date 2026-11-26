@@ -93,7 +93,7 @@
 
 /* Crew portraits. */
 .tb-mate { display: inline-flex; flex-direction: column; align-items: center; gap: 0.25em; text-align: center; }
-.tb-mate img { width: 4.2em; aspect-ratio: 240 / 373; object-fit: cover; box-shadow: 0 0.35em 0 0 var(--pc), 0 0.6em 1em rgba(0, 0, 0, 0.6); }
+.tb-mate img { width: 4.2em; aspect-ratio: 240 / 373; object-fit: cover; object-position: top; box-shadow: 0 0.35em 0 0 var(--pc), 0 0.6em 1em rgba(0, 0, 0, 0.6); }
 .tb-mate.sm img { width: 2.8em; }
 .tb-mate b { font: 600 0.95em var(--pixel); color: var(--glow); }
 .tb-mate small { font: 500 0.72em var(--pixel); color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
@@ -132,7 +132,8 @@
 .tb-cold > * { position: relative; }
 .tb-cold p { font: 1.05em/1.45 var(--body); margin: 0; }
 .tb-cold.small p { font-size: 0.9em; opacity: 0.8; }
-.tb-board { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 0.8em; min-height: 0; }
+.tb-board { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 1fr; gap: 0.8em; min-height: 0; }
+.tb-tile p.tick { margin: 0; font: 0.78em/1.35 var(--body); text-align: center; color: var(--glow); }
 .tb-tile { border: 0.12em solid rgba(214, 232, 255, 0.25); background: rgba(3, 12, 16, 0.55); padding: 0.6em; display: flex; flex-direction: column; gap: 0.5em; align-items: center; justify-content: center; min-width: 0; overflow: hidden; }
 .tb-tile .lbl { align-self: flex-start; color: var(--glow); }
 .tb-tile.empty { opacity: 0.35; border-style: dashed; }
