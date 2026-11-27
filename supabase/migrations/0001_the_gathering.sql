@@ -1702,9 +1702,9 @@ $$;
 --   on the evidence board (tb_facts): checked against the crew file, so true.
 -- - After watches 1 to 3, an all-hands emergency (tb_hands):
 --   * Identity check (riddle): security has cleared one crew member (never
---     the saboteur) but kept only their crew file, not their name. Everyone
---     votes on their phone; a majority for the right name clears them and
---     puts their answers on the evidence board.
+--     the saboteur) but kept only their crew file, not their name. The owner
+--     keeps a straight face; everyone else votes on their phone, and a majority
+--     for the right name clears them and puts their answers on the board.
 --   * Ballast pipes: each phone shows one row of the route and turns the
 --     valves of another row; the TV shows the real pipes.
 --   * Hull breach: shake, blow, tilt, hold, until the water is at 0%.
@@ -1849,7 +1849,7 @@ returns int
 language sql
 immutable
 set search_path = ''
-as $$ select 92 $$;
+as $$ select 96 $$;
 
 -- Air left right now, in seconds.
 create function private.tb_air(p_game public.tb_games)
@@ -1973,6 +1973,30 @@ begin
 end;
 $$;
 
+-- Stock answers for oxygen bay, so every option answers the same question as the real one and the
+-- pair can't rule an option out because it's their own or because it answers another question.
+-- Keyed by the question text in DEEP_QUESTIONS (lib/gathering/trapped.ts); null is the "bring" question.
+create function private.tb_decoys(p_q text)
+returns text[]
+language sql
+immutable
+set search_path = ''
+as $$
+  select case p_q
+    when 'What''s your go-to comfort food?' then array['mac and cheese', 'pizza', 'ramen', 'chicken soup', 'chocolate', 'cheese on toast', 'curry', 'pasta', 'chips']
+    when 'Where would you go on your dream holiday?' then array['Japan', 'Italy', 'Iceland', 'New York', 'Bali', 'Greece', 'somewhere with a beach', 'the Alps']
+    when 'What''s a hobby you''d love to try?' then array['pottery', 'surfing', 'rock climbing', 'painting', 'salsa dancing', 'baking', 'skydiving', 'learning guitar']
+    when 'What''s your perfect way to spend a free Saturday?' then array['sleeping in', 'a long walk', 'brunch with friends', 'gaming', 'reading in bed', 'the cinema', 'a road trip', 'cooking something big']
+    when 'What song would you pick for karaoke?' then array['Bohemian Rhapsody', 'Don''t Stop Believin''', 'Dancing Queen', 'Wonderwall', 'Mr Brightside', 'I Will Survive', 'Sweet Caroline', 'Toxic']
+    when 'What''s your favourite film or TV show right now?' then array['Friends', 'The Office', 'Stranger Things', 'a Marvel film', 'Bake Off', 'Breaking Bad', 'Spirited Away', 'Harry Potter']
+    when 'If you could have any animal as a pet, what would it be?' then array['a dog', 'a cat', 'a penguin', 'a red panda', 'a horse', 'an owl', 'a sloth', 'a dragon']
+    when 'What''s your favourite snack?' then array['crisps', 'popcorn', 'chocolate', 'fruit', 'biscuits', 'nachos', 'gummy sweets', 'cheese and crackers']
+    when 'What superpower would you pick?' then array['flying', 'invisibility', 'teleporting', 'reading minds', 'time travel', 'super strength', 'talking to animals', 'never needing sleep']
+    when 'What''s your favourite season?' then array['summer', 'autumn', 'winter', 'spring', 'late summer', 'the first snow']
+    else array['a good book', 'headphones', 'a deck of cards', 'my pillow', 'loads of snacks', 'a guitar', 'a sketchbook', 'a football', 'my best friend', 'a camera', 'a warm blanket', 'board games', 'a journal', 'coffee', 'a puzzle book']
+  end;
+$$;
+
 -- A watch: fresh pairs (a trio if odd), each with a repair in a room of the sub, about a crewmate.
 create function private.tb_start_watch(p_room_id uuid)
 returns void
@@ -1997,6 +2021,7 @@ declare
   v_hint jsonb;
   v_crew public.tb_crew;
   v_watch int;
+  v_real text;
 begin
   select * into v_room from public.rooms where id = p_room_id;
   select * into v_game from public.tb_games where room_id = p_room_id;
@@ -2025,18 +2050,41 @@ begin
     v_struck := null;
     v_hint := null;
     if v_kind = 'guide' then
-      -- The target's answer and up to three others, shuffled. Watches 1 and 2 ask what they'd
-      -- bring; watches 3 and 4 their answer to the deeper question.
-      select jsonb_agg(jsonb_build_object('a', a, 'owner', player_id) order by random()) into v_opts
+      -- Watches 1 and 2 ask what they'd bring; watches 3 and 4 their answer to their last question.
+      -- Five options: the target's answer, then answers to the same question from crewmates outside
+      -- this repair (the pair knows its own answers, so those would give it away), topped up with
+      -- stock answers to that question. Shuffled.
+      v_real := btrim(case when v_watch <= 2 then v_crew.bring else v_crew.deep_a end);
+      select coalesce(jsonb_agg(jsonb_build_object('a', a, 'owner', player_id)), '[]') into v_opts
       from (
-        select case when v_watch <= 2 then c.bring else c.deep_a end as a, c.player_id from public.tb_crew c where c.player_id = v_target
-        union all
-        (select case when v_watch <= 2 then c.bring else c.deep_a end, c.player_id from public.tb_crew c
-         where c.room_id = p_room_id and c.player_id <> v_target order by random() limit 3)
+        select a, player_id from (
+          select distinct on (lower(a)) a, player_id
+          from (
+            select btrim(case when v_watch <= 2 then c.bring else c.deep_a end) as a, c.player_id
+            from public.tb_crew c
+            where c.room_id = p_room_id and c.player_id <> v_target and not c.player_id = any (v_members)
+              and (v_watch <= 2 or c.deep_q = v_crew.deep_q)
+          ) r
+          where lower(a) <> lower(v_real)
+          order by lower(a), random()
+        ) u
+        order by random()
+        limit 3
       ) o;
-      -- The log rules out one wrong answer.
+      select v_opts || coalesce(jsonb_agg(jsonb_build_object('a', d, 'owner', null)), '[]') into v_opts
+      from (
+        select d from unnest(private.tb_decoys(case when v_watch <= 2 then null else v_crew.deep_q end)) d
+        where lower(d) <> lower(v_real)
+          and lower(d) not in (select lower(o ->> 'a') from jsonb_array_elements(v_opts) o)
+        order by random()
+        limit 4 - jsonb_array_length(v_opts)
+      ) s;
+      select jsonb_agg(o order by random()) into v_opts
+      from jsonb_array_elements(v_opts || jsonb_build_array(jsonb_build_object('a', v_real, 'owner', v_target))) o;
+      -- The log rules out one wrong answer: a stock one if there is one.
       select i - 1 into v_struck from jsonb_array_elements(v_opts) with ordinality e(o, i)
-      where (o ->> 'owner')::uuid <> v_target order by random() limit 1;
+      where (o ->> 'owner') is distinct from v_target::text
+      order by (o ->> 'owner') is null desc, random() limit 1;
     else
       -- Two wire colours that aren't the target's, and whether their number is odd or even.
       select jsonb_build_object(
@@ -2067,14 +2115,17 @@ begin
 end;
 $$;
 
--- The air bonus for one repair: three minutes a watch, shared across the pairs.
+-- The air bonus for one repair: two minutes a watch, shared across the pairs (one minute at most per
+-- repair). A watch and its emergency take about three minutes, so a perfect watch roughly breaks even
+-- and every mistake, breakdown or wrong vote brings the end closer. (It was three minutes: in a
+-- 4-player test the air sat at the 10:00 cap all game, so it never felt like a clock.)
 create function private.tb_bonus(p_room_id uuid)
 returns int
 language sql
 stable
 set search_path = ''
 as $$
-  select least(90, 180 / greatest(1, (select count(*) from public.tb_repairs where room_id = p_room_id)::int));
+  select least(60, 120 / greatest(1, (select count(*) from public.tb_repairs where room_id = p_room_id)::int));
 $$;
 
 -- The watch is over (all fixed, or time's up): an emergency, a meeting, or the end.
@@ -2511,14 +2562,14 @@ begin
   if p_pick is null or p_pick < 0 or p_pick >= v_n or p_pick = any (v_rep.wrong) then
     raise exception 'Pick one';
   end if;
-  v_ok := (v_rep.options -> p_pick ->> 'owner')::uuid = v_rep.target;
+  v_ok := coalesce((v_rep.options -> p_pick ->> 'owner')::uuid = v_rep.target, false);
   if v_ok then
     update public.tb_repairs set solved = true, pick = p_pick, result = 'ok', tries = tries + 1, msg = '', solved_at = now()
     where room_id = p_room_id and watch = v_rep.watch and idx = v_rep.idx;
     perform private.tb_fixed(p_room_id, private.tb_bonus(p_room_id));
     perform private.tb_fact(p_room_id, v_rep.target, case when v_rep.watch <= 2 then 'bring' else 'deep' end, 'guide');
   else
-    v_fail := cardinality(v_rep.wrong) + 1 >= greatest(1, v_n - 2);
+    v_fail := cardinality(v_rep.wrong) + 1 >= least(2, greatest(1, v_n - 2));
     update public.tb_repairs set wrong = wrong || p_pick, tries = tries + 1, msg = 'Wrong answer',
       solved = v_fail, result = case when v_fail then 'fail' end, solved_at = case when v_fail then now() end
     where room_id = p_room_id and watch = v_rep.watch and idx = v_rep.idx;
@@ -2623,12 +2674,17 @@ begin
   if v_me.id is null or v_room.phase <> 'tb_hands' or v_game.hands_kind <> 'riddle' or v_game.hands_done then
     return;
   end if;
+  -- The file's owner doesn't guess: they keep a straight face while the others work it out.
+  if v_me.id = v_game.riddle_subject then
+    raise exception 'It''s your file: let the others work it out';
+  end if;
   if not exists (select 1 from public.players where id::text = p_target and room_id = p_room_id) then
     raise exception 'Pick someone aboard';
   end if;
   update public.tb_games set riddle_votes = riddle_votes || jsonb_build_object(v_me.id::text, p_target)
   where room_id = p_room_id returning * into v_game;
-  if not exists (select 1 from public.players p where p.room_id = p_room_id and not v_game.riddle_votes ? p.id::text) then
+  if not exists (select 1 from public.players p where p.room_id = p_room_id and p.id <> v_game.riddle_subject
+                 and not v_game.riddle_votes ? p.id::text) then
     perform private.tb_riddle_resolve(p_room_id);
   else
     perform private.touch(p_room_id);
@@ -3076,7 +3132,7 @@ begin
           'options', case when v_rep.kind = 'guide' and p_me.id = v_rep.lead then
               (select jsonb_agg(o -> 'a') from jsonb_array_elements(v_rep.options) o) end,
           'wrong', to_jsonb(v_rep.wrong),
-          'max_wrong', case when v_rep.kind = 'guide' then greatest(1, jsonb_array_length(v_rep.options) - 2) else 3 end,
+          'max_wrong', case when v_rep.kind = 'guide' then least(2, greatest(1, jsonb_array_length(v_rep.options) - 2)) else 3 end,
           'struck', case when v_rep.kind = 'guide' and p_me.id <> v_rep.lead then jsonb_build_object(
               'a', v_rep.options -> v_rep.struck ->> 'a',
               'owner', (select name from public.players where id = (v_rep.options -> v_rep.struck ->> 'owner')::uuid)) end
@@ -3087,6 +3143,7 @@ begin
       v_rows := private.tb_pipe_rows(p_room.id, p_me.id);
       v_mine := v_mine || jsonb_build_object(
         'guess', v_game.riddle_votes ->> p_me.id::text,
+        'riddle_me', v_game.hands_kind = 'riddle' and p_me.id = v_game.riddle_subject,
         'see', v_rows[1], 'turn', v_rows[2],
         'leak', private.tb_leak_role(p_room.id, p_me.id)
       );

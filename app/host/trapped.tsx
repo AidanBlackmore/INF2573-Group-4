@@ -583,17 +583,24 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
             </p>
           </div>
           <div className="tb-col">
-            <span className="tag">{h.done ? "Who said who" : `Guesses · ${guessed.size} of ${view.players.length}`}</span>
+            {/* The owner doesn't guess. Until the end only the count shows, so nobody can spot them as the one who never guessed. */}
+            <span className="tag">{h.done ? "Who said who" : `Guesses · ${guessed.size} of ${view.players.length - 1}`}</span>
             <div className="tb-crewrow">
               {view.players.map((p) => (
-                <Crew key={p.id} view={view} player={p} size="sm" note={h.done ? (h.guesses?.[p.id] ? `said ${nameOf(view, h.guesses[p.id])}` : "no guess") : guessed.has(p.id) ? "Guessed" : "Thinking"} dim={!h.done && !guessed.has(p.id)} />
+                <Crew
+                  key={p.id}
+                  view={view}
+                  player={p}
+                  size="sm"
+                  note={h.done ? (h.guesses?.[p.id] ? `said ${nameOf(view, h.guesses[p.id])}` : h.ok && p.id === h.subject ? "their file" : "no guess") : undefined}
+                />
               ))}
             </div>
             {!h.done && (
               <Steps
                 steps={[
                   ["tv", "Read the crew file on the left."],
-                  ["talk", "Whose answers are these? Talk it over."],
+                  ["talk", "Whose answers are these? Talk it over, but don't ask: the owner keeps a straight face."],
                   ["phone", "Look at your phone and tap a name. If most of you are right, they're cleared."],
                 ]}
               />

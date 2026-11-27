@@ -19,20 +19,46 @@ import { PHONE_FOR, marloweFocus } from "@/lib/gathering/focus";
 import { Weather, type WeatherHandle } from "../_ui/weather";
 import { TbBackdrop, TrappedTv, useTrappedTv } from "./trapped";
 
+// This tab's room, so a reload rejoins it. sessionStorage: per tab, kept across reloads.
+const TV_ROOM_KEY = "gathering:tv-room";
+function readTvRoom(): string | null {
+  try {
+    return sessionStorage.getItem(TV_ROOM_KEY);
+  } catch {
+    return null;
+  }
+}
+function keepTvRoom(id: string) {
+  try {
+    sessionStorage.setItem(TV_ROOM_KEY, id);
+  } catch {}
+}
+
 export default function TvScreen({ feedbackUrl }: { feedbackUrl: string | null }) {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [fatal, setFatal] = useState<string | null>(null);
 
-  // Sign in, then open a new room: every load of the TV gets a fresh code and lobby.
+  // Sign in, then open a room. A new tab gets a fresh code and lobby; a reload of the same tab (a
+  // refresh, a crashed or reopened tab) goes back to the room it had, so a game in progress isn't
+  // lost and the phones aren't stranded. "New game" is the way to start over.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         await ensureSignedIn();
         if (cancelled) return;
+        const kept = readTvRoom();
+        if (kept) {
+          const { data: v, error: e } = await supabase.rpc("get_view", { p_room_id: kept });
+          if (!e && v?.is_tv) {
+            if (!cancelled) setRoomId(kept);
+            return;
+          }
+        }
         const { data, error } = await supabase.rpc("create_room");
         if (error) throw error;
         track("room_created", { room_id: data.id });
+        keepTvRoom(data.id);
         if (!cancelled) setRoomId(data.id);
       } catch (e) {
         if (!cancelled) setFatal(errorMessage(e));
@@ -47,6 +73,7 @@ export default function TvScreen({ feedbackUrl }: { feedbackUrl: string | null }
     const { data, error } = await supabase.rpc("create_room");
     if (error) return setFatal(error.message);
     track("room_created", { room_id: data.id });
+    keepTvRoom(data.id);
     setRoomId(data.id);
   }, []);
 

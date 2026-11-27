@@ -100,7 +100,7 @@ export type TbView = {
       question: string | null; options: string[] | null; wrong: number[]; max_wrong: number;
       struck: { a: string; owner: string } | null;
     };
-    guess?: string | null; see?: number; turn?: number; leak?: string;
+    guess?: string | null; riddle_me?: boolean; see?: number; turn?: number; leak?: string;
   };
 };
 

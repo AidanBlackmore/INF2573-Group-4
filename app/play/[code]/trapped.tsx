@@ -139,6 +139,9 @@ export function TrappedPhone({ ctx, now }: { ctx: Ctx; now: () => number }) {
     if (air !== null && air > 30) warned30.current = false;
   }, [low, air, view.tb?.air_running]);
 
+  // Voted out (a ghost): still repairs, can't vote. Said on every screen until the end.
+  const ghost = Boolean(playerOf(view, me)?.dead) && view.room.phase !== "tb_end";
+
   return (
     <div
       ref={screen}
@@ -151,6 +154,11 @@ export function TrappedPhone({ ctx, now }: { ctx: Ctx; now: () => number }) {
           <span className="phicon" />
           Your turn: use this phone
         </div>
+      )}
+      {ghost && (
+        <p className="tb-ghost" role="status">
+          <b>You&apos;re out: the crew sent you to the airlock.</b> You still help with repairs and emergencies, but you can&apos;t vote.
+        </p>
       )}
       <PhoneBody ctx={ctx} now={now} focus={focus} />
     </div>
@@ -249,6 +257,7 @@ function PhoneBody({ ctx, now, focus }: { ctx: Ctx; now: () => number; focus: bo
       </LookUp>
     );
   }
+  if (phase === "tb_vote" && me.dead) return <LookUp text="You're out, so you don't vote. Watch the TV." />;
   return <LookUp text={LOOK[phase] ?? ""} />;
 }
 
@@ -615,7 +624,15 @@ function Guide({ ctx }: { ctx: Ctx }) {
         <div className="tb-card small">
           <span className="lbl">Your log</span>
           <p>
-            “{rep.struck.a}” is <b>{rep.struck.owner}</b>&apos;s answer, not {rep.target_name}&apos;s. Tell {rep.lead_name} to rule it out.
+            {rep.struck.owner ? (
+              <>
+                “{rep.struck.a}” is <b>{rep.struck.owner}</b>&apos;s answer, not {rep.target_name}&apos;s. Tell {rep.lead_name} to rule it out.
+              </>
+            ) : (
+              <>
+                “{rep.struck.a}” is a decoy: nobody wrote it. Tell {rep.lead_name} to rule it out.
+              </>
+            )}
           </p>
         </div>
       )}
@@ -637,7 +654,7 @@ function Operator({ ctx }: { ctx: Ctx }) {
         <p className="riddle">{rep.question}</p>
       </div>
       <p className="p-small">
-        These are real answers from the crew file. Only one is {rep.target_name}&apos;s. {guides.join(" & ")}&apos;s log rules one out: read these out and talk it through.
+        One of these is {rep.target_name}&apos;s real answer. The others are other crewmates&apos; answers or decoys. {guides.join(" & ")}&apos;s log rules one out: read these out and talk it through.
       </p>
       <div className="tb-opts">
         {(rep.options ?? []).map((o, i) => {
@@ -703,7 +720,9 @@ function Riddle({ ctx }: { ctx: Ctx }) {
   const { view, run, busy } = ctx;
   const h = view.tb!.hands!;
   const mine = view.tb!.mine?.guess ?? null;
-  const left = view.players.length - h.guessed.length;
+  const isMe = Boolean(view.tb!.mine?.riddle_me);
+  // The file's owner doesn't guess, so everyone else has to.
+  const left = view.players.length - 1 - h.guessed.length;
   return (
     <>
       <Head left="All hands · identity check" />
@@ -716,7 +735,18 @@ function Riddle({ ctx }: { ctx: Ctx }) {
         ))}
         <p>Who am I?</p>
       </div>
-      <p className="p-small">Security says whoever wrote this is not the saboteur. Pick who you think it is: if most of you are right, they&apos;re cleared on the evidence board.</p>
+      {isMe ? (
+        <>
+          <p className="tb-q">This is your file.</p>
+          <p className="p-small">
+            Keep a straight face and don&apos;t give it away: security only clears you if the others recognise you from your answers. You don&apos;t guess this time.
+          </p>
+        </>
+      ) : (
+        <>
+      <p className="p-small">
+        Security says whoever wrote this is not the saboteur. Who wrote it? Don&apos;t ask: work it out from what you know of each other. If most of you are right, they&apos;re cleared on the evidence board.
+      </p>
       <div className="tb-opts">
         {view.players.map((p) => (
           <button key={p.id} className={`p-btn2${mine === p.id ? " on" : ""}`} disabled={busy} onClick={() => void run("tb_riddle", { p_target: p.id })}>
@@ -725,6 +755,8 @@ function Riddle({ ctx }: { ctx: Ctx }) {
         ))}
       </div>
       <p className="p-small">{mine ? `You said ${nameOf(view, mine)}. You can change it until everyone has answered (${left} to go).` : "Tap a name."}</p>
+        </>
+      )}
     </>
   );
 }

@@ -94,7 +94,7 @@ export const TB_NARRATION: Record<string, string> = {
   "tb-brief-hands": "Sometimes something big breaks. Then it's all hands: everyone works on their own phone at once, and the TV shows how it's going.",
   "tb-brief-sab2": "One of you is a saboteur. They want the Meridian to sink. They'll lie, botch repairs, and loosen bolts so things break. Everyone gets secret orders on their phone after the crew file.",
   "tb-brief-vote": "Every fix also turns up a clue about the saboteur. After each watch we meet. Read the clues, talk, then everyone votes on their phone. Most votes goes in the airlock. Get it wrong, and it costs us a minute of air.",
-  "tb-brief-win": "Catch the saboteur, and we surface. Run out of air, and we sink.",
+  "tb-brief-win": "Catch the saboteur within four watches, and we surface safely. Run out of air, or surface with them still aboard, and the saboteur wins.",
   "tb-brief-hatch2": "Last thing before we dive. Seal the hatch. Look at your phone, and everyone hold your bolt at the same time. If one slips, just try again.",
   "tb-skip2": "Right. Straight to it, then. Seal the hatch: everyone hold your bolt, at the same time.",
   "tb-hatch-countin": "On three, crew. One. Two. Three.",
@@ -141,9 +141,9 @@ export const BRIEF_BEATS = [
   { id: "tb-brief-hands", at: 32.5, title: "All hands: everyone", tick: "Big breakdowns: everyone works on their own phone at once. The TV shows how it's going." },
   { id: "tb-brief-sab2", at: 45.5, title: "One of you is the saboteur", tick: "They want the sub to sink: they lie, botch repairs and loosen bolts. Orders come to your phone, in secret." },
   { id: "tb-brief-vote", at: 62.5, title: "Meet, then vote", tick: "Fixes turn up clues. After each watch: read them on the TV, talk, vote on your phone. Wrong vote: −1:00 of air." },
-  { id: "tb-brief-win", at: 84.5, title: "How it ends", tick: "Crew: vote out the saboteur. Saboteur: run the air out." },
+  { id: "tb-brief-win", at: 84.5, title: "How it ends", tick: "Crew: vote out the saboteur within 4 watches. Saboteur: run the air out, or stay hidden all 4." },
 ];
-export const BRIEF_SECS = 92;
+export const BRIEF_SECS = 96;
 export const beatAt = (secs: number) => BRIEF_BEATS.reduce((b, x, i) => (secs >= x.at ? i : b), 0);
 
 export const fmtAir = (secs: number) => `${Math.floor(Math.max(0, secs) / 60)}:${String(Math.max(0, secs) % 60).padStart(2, "0")}`;
