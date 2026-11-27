@@ -55,6 +55,8 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
   - **Views:** each screen reads its own slice through `get_view(room_id)`. The database is the source of truth, so screens reload on Realtime events, on waking up, and every 4 s.
 - **Vercel:** deploys the `claude/lucid-heisenberg-cgg0ll` branch.
 - **PostHog:** `posthog-js`, set up in `instrumentation-client.ts`. Only pageviews and our own events.
+- **Fonts:** Jersey 15 (labels and headings; replaced Pixelify Sans) is self-hosted in `app/fonts/` and loaded twice in `app/layout.tsx`: 118% for The Gathering and Marlowe, plain for Trapped Below (`--pixel` is redefined under `[data-world="deep"]`). Literata for body, Kalam for handwriting.
+- **Dark pages:** the viewport declares `colorScheme: "dark"` so phones' automatic dark mode doesn't recolour the site (it hid wire colours).
 
 ### Key files
 
@@ -86,6 +88,7 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
   - **Zero clicks:** set the TV laptop's browser to allow sound for the site once. The README's "Sound on the TV" section has the steps.
   - **Otherwise:** the first click or key press anywhere on the TV wakes the audio engine and starts every audio element once (Safari needs that). Lines blocked before then are read at that moment.
 - **Narrator:** reads every `[data-line]` on the TV screen once per screen.
+- **Captions:** every narrated line is captioned word by word (`Caption` in `app/_ui/bits.tsx`), TikTok style: the spoken word is highlighted, words still to come are dimmed. `sound().progress(id)` says how far through a line the narrator is (the recording's playback position, or the browser voice's word events).
 - **Music:** ducks under the narrator and during lock solving.
 - **Trapped Below:** its deep-water ambience (`public/audio/deep.mp3`) plays in the browser and all game. The narrator is the captain (`tb-*.mp3`) through a radio filter. Room sounds, creaks, the heartbeat and the phones' chime are made in the browser (`lib/gathering/deep.ts`).
 

@@ -43,12 +43,18 @@
 .eyebrow, .p-eyebrow, .note .lbl, .tone, .tv-head, .p-head, .tool, .hint {
   font-family: var(--label); font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; font-variant-ligatures: none;
 }
-.eyebrow { font-size: 0.8rem; color: var(--on-dark); }
+.eyebrow { font-size: 0.9rem; color: var(--on-dark); }
 .chapter { font: 700 clamp(1.6rem, 3.4vw, 2.4rem)/1.15 var(--pixel); color: var(--on-dark); text-shadow: 3px 3px 0 var(--ink); margin: 0; font-variant-ligatures: none; }
 .big { font: 600 clamp(1.3rem, 2.6vw, 2rem)/1.25 var(--pixel); color: var(--on-dark); text-shadow: 2px 2px 0 var(--ink); margin: 0; text-wrap: pretty; font-variant-ligatures: none; }
 .big.win { color: var(--good); }
 .big.lose { color: var(--bad); }
 .narration { font: clamp(1.05rem, 1.9vw, 1.35rem)/1.5 var(--body); color: var(--on-dark); text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8); margin: 0; max-width: 62ch; text-wrap: pretty; }
+/* Captions that follow the narrator, word by word: the spoken word lights up (Marlowe: candle-red
+   highlight on paper ink), words to come are dimmer. Trapped Below restyles them in trapped.css. */
+.cap .w { transition: opacity 0.15s, color 0.15s, background-color 0.15s, box-shadow 0.15s; border-radius: 0.15em; }
+.cap.live .w.next { opacity: 0.5; }
+.cap.live .w.past { opacity: 1; }
+.cap.live .w.now { color: var(--on-action); background: var(--action); box-shadow: 0 0 0 0.12em var(--action); text-shadow: none; }
 .todo { font: 0.95rem var(--body); color: var(--tv-muted); margin: 0; border-left: 3px solid var(--paper); padding-left: 12px; max-width: 62ch; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); }
 .todo b { color: var(--on-dark); }
 .muted { color: var(--tv-muted); font-family: var(--body); }
@@ -111,7 +117,7 @@
 .tv[data-scene="blackout"] { background-image: url("/figma/bg-blackout-ink.jpg"); }
 .tv[data-scene="meeting"], .tv[data-scene="tally"], .tv[data-scene="revealed"] { background-image: url("/figma/bg-vote-dining.jpg"); }
 .tv[data-scene="ended"] { background-image: url("/figma/bg-ending-dawn.jpg"); }
-.tv-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 0.85rem; z-index: 1; }
+.tv-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: clamp(0.95rem, 1.3vw, 1.3rem); z-index: 1; }
 .tv-head .code { color: var(--tv-muted); margin-right: 130px; }
 .tv-head .code b { color: var(--on-dark); letter-spacing: 0.12em; }
 .tv p { font-family: var(--body); }
@@ -168,7 +174,7 @@
 .avatars { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
 .av { display: inline-flex; flex-direction: column; background: var(--ink); padding: 3px; box-shadow: 4px 4px 0 var(--ink); position: relative; flex: none; vertical-align: middle; }
 .av img { display: block; object-fit: cover; background: var(--paper); }
-.av b { display: block; background: var(--pc); color: var(--ink); font: 500 0.62rem/1.3 var(--label); letter-spacing: 0.1em; text-transform: uppercase; text-align: center; padding: 3px 4px; font-variant-ligatures: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.av b { display: block; background: var(--pc); color: var(--ink); font: 500 0.72rem/1.3 var(--label); letter-spacing: 0.08em; text-transform: uppercase; text-align: center; padding: 3px 4px; font-variant-ligatures: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .av.md img { width: 76px; height: 95px; }
 .av.lg img { width: 112px; height: 140px; }
 .av.lg b { font-size: 0.8rem; padding: 5px; }
@@ -237,10 +243,10 @@
 .screen { flex: 1; width: calc(100% - 12px); max-width: 520px; align-self: center; padding: 18px 16px 22px; position: relative; display: flex; flex-direction: column; gap: 10px; font-family: var(--body); color: var(--ink); }
 .screen::before { content: ""; position: absolute; top: -18px; left: 50%; width: 110px; height: 30px; margin-left: -55px; background: url("/figma/tape.png") center / 100% 100% no-repeat; }
 .screen h2 { margin: 0; font: 600 1.35rem/1.25 var(--pixel); text-wrap: balance; font-variant-ligatures: none; }
-.p-head { display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem; color: var(--brown-2); }
+.p-head { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: var(--brown-2); }
 .p-head .me { display: inline-flex; align-items: center; margin-left: auto; text-transform: uppercase; }
 .p-head .me .av.xs { margin-right: 6px; }
-.p-small { font-size: 0.8rem; color: var(--brown-2); font-family: var(--body); }
+.p-small { font-size: 0.9rem; color: var(--brown-2); font-family: var(--body); }
 .p-eyebrow { font-size: 0.7rem; color: var(--brown); }
 .p-msg { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
 .err { color: var(--action); font-size: 0.85rem; font-family: var(--body); }
@@ -277,7 +283,7 @@
 .steps i { display: block; width: 10px; height: 10px; background: var(--paper-shade); }
 .steps i.past { background: var(--ink); }
 .steps i.on { width: 28px; background: var(--ink); }
-.ob-room { font: 500 0.7rem var(--label); letter-spacing: 0.1em; text-transform: uppercase; color: var(--brown); }
+.ob-room { font: 500 0.85rem var(--label); letter-spacing: 0.1em; text-transform: uppercase; color: var(--brown); }
 .ob h2 { font-size: 1.45rem; }
 .screen .code-boxes { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
 .screen .code-boxes input { min-width: 0; height: 64px; padding: 0; text-align: center; font: 700 2rem var(--body); text-transform: uppercase;
@@ -291,7 +297,7 @@
 .pick .av.sm img { width: 100%; height: auto; aspect-ratio: 4 / 5; }
 .pick.mine { border-color: var(--action); }
 .pick.taken { opacity: 0.5; filter: grayscale(1); }
-.pick .who { font: 500 0.6rem var(--label); letter-spacing: 0.1em; text-transform: uppercase; color: var(--action); min-height: 0.8rem; }
+.pick .who { font: 500 0.75rem var(--label); letter-spacing: 0.1em; text-transform: uppercase; color: var(--action); min-height: 0.8rem; }
 .pick.taken .who { color: var(--brown); }
 .picker.vote { grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .picker.vote .pick .av b { font-size: 0.62rem; }
@@ -441,7 +447,7 @@
 .phone-page[data-world="shell"], .home[data-world="shell"] { background: radial-gradient(70% 50% at 50% 30%, #24242b 0%, #131317 55%, #09090b 100%); }
 .phone-page[data-world="shell"] .screen::before, .home[data-world="shell"] .screen::before, .home[data-world="shell"]::before { display: none; }
 .phone-page[data-world="shell"] .p-head { color: var(--pencil); }
-.p-head .room { font: 500 .7rem var(--label); letter-spacing: .1em; text-transform: uppercase; color: #7a7a82; }
+.p-head .room { font: 500 .85rem var(--label); letter-spacing: .1em; text-transform: uppercase; color: #7a7a82; }
 .you-tag { display: flex; justify-content: center; }
 /* "Who's arriving?": the portrait drawn from what the player types. */
 .look-card { width: min(250px, 74%); aspect-ratio: 5 / 7; align-self: center; position: relative; display: grid; place-items: center; border: 2px dashed var(--brown); background: var(--paper-light); }

@@ -210,6 +210,21 @@ class Sound {
   // started it (Safari) then let it play each line.
   private voice: HTMLAudioElement;
   private blocked: [string, string[]] | null = null;
+  // What the narrator is saying right now, for the captions: a recording (its playback position),
+  // or the browser's voice (its word events, or an estimate from the time when there are none).
+  private live: { id: string; len: number; el?: HTMLAudioElement; base?: number; end?: number; at?: number; char?: number | null } | null = null;
+
+  // How far through line `id` the narrator is, from 0 to 1, or null when it isn't saying it.
+  progress(id: string): number | null {
+    const l = this.live;
+    if (!l || l.id !== id || !l.len) return null;
+    if (l.el) {
+      const d = l.el.duration;
+      return d && Number.isFinite(d) ? Math.min(1, l.el.currentTime / d) : 0;
+    }
+    const est = Math.min(l.end ?? l.len, (l.base ?? 0) + ((performance.now() - (l.at ?? 0)) / 1000) * 14);
+    return Math.min(1, (l.char ?? est) / l.len);
+  }
 
   // Reads a screen's lines once: the recording if there is one, otherwise the browser's voice.
   narrate(key: string, ids: string[]) {
@@ -228,16 +243,18 @@ class Sound {
       }
       const done = () => {
         this.radioOff();
+        this.live = null;
         setTimeout(() => next(i + 1), 400);
       };
       const v = this.voice;
       v.onplay = () => {
         this.speaking = true;
+        this.live = { id: ids[i], len: (LINES[ids[i]] ?? "").length, el: v };
         this.radioOn();
       };
       v.onended = done;
       v.onerror = () => {
-        if (run === this.run) this.speak(LINES[ids[i]] ?? "", run, done);
+        if (run === this.run) this.speak(ids[i], LINES[ids[i]] ?? "", run, done);
       };
       v.src = `/narration/${ids[i]}.mp3`;
       v.play().catch((e: Error) => {
@@ -345,20 +362,34 @@ class Sound {
     v.pause();
     window.speechSynthesis?.cancel();
     this.speaking = false;
+    this.live = null;
   }
 
   // Fallback: the browser's voice, a sentence at a time.
-  private speak(text: string, run: number, done: () => void) {
+  private speak(id: string, text: string, run: number, done: () => void) {
     const synth = window.speechSynthesis;
     if (!synth || !text) return done();
     const voice = britishMale(synth);
     const lines = (text.match(/[^.!?]+[.!?]+["”’]?/g) ?? [text]).map((l) => l.trim());
+    // Where each sentence starts in the whole line, so the captions can follow along.
+    let from = 0;
+    const starts = lines.map((l) => {
+      const at = Math.max(0, text.indexOf(l, from));
+      from = at + l.length;
+      return at;
+    });
     const say = (i: number) => {
       if (run !== this.run) return;
       if (i >= lines.length) return done();
       const u = Object.assign(new SpeechSynthesisUtterance(lines[i]), { lang: "en-GB", rate: 0.95, pitch: 1 });
       if (voice) u.voice = voice;
-      u.onstart = () => (this.speaking = true);
+      u.onstart = () => {
+        this.speaking = true;
+        this.live = { id, len: text.length, base: starts[i], end: starts[i] + lines[i].length, at: performance.now(), char: null };
+      };
+      u.onboundary = (e) => {
+        if (this.live?.id === id && e.name === "word") this.live.char = starts[i] + e.charIndex;
+      };
       u.onend = u.onerror = () => setTimeout(() => say(i + 1), /[?!]$/.test(lines[i]) ? 450 : 320);
       synth.speak(u);
     };

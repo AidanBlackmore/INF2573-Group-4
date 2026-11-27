@@ -9,7 +9,7 @@ import { deep, shake } from "@/lib/gathering/deep";
 import { nameOf, playerOf, type Player, type TbRepair, type View } from "@/lib/gathering/game";
 import { sound } from "@/lib/gathering/sound";
 import { BRIEF_BEATS, COMPARTMENTS, FIELDS, PIPE_PATH, PIPE_TYPE, PLACE_NAME, SUB, TB_NARRATION, TB_TITLE, beatAt, bg, drillPairs, facePic, fmtAir, type Place } from "@/lib/gathering/trapped";
-import { colorOf } from "../_ui/bits";
+import { Caption, colorOf } from "../_ui/bits";
 
 type Props = {
   view: View;
@@ -82,7 +82,8 @@ export function phoneFocus(view: View, id: string): boolean {
     case "tb_vote":
       return !me.dead && !(tb.voted ?? []).includes(id);
     case "tb_end":
-      return id === view.host_player;
+      // The TV has the same buttons as the host's phone, so nobody is sent to their phone here.
+      return false;
     default:
       return false;
   }
@@ -111,7 +112,9 @@ function Captain({ id }: { id: string }) {
   return (
     <p className="tb-intercom" data-line={id}>
       <span className="lbl">Captain · intercom</span>
-      <span>{TB_NARRATION[id]}</span>
+      <span>
+        <Caption id={id} text={TB_NARRATION[id]} />
+      </span>
     </p>
   );
 }
@@ -794,7 +797,7 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
               <div key={f.player} className={`tb-file${f.player === tb.saboteur ? " sab" : ""}`}>
                 <Crew view={view} player={p} size="sm" note={f.player === tb.saboteur ? "Saboteur" : "Crew"} />
                 <p>
-                  Colour <b>{f.colour}</b> · number <b>{f.num}</b>
+                  Colour <b>{f.colour}</b> · spice <b>{f.num}</b>/9
                   <br />
                   Would bring: <b>{f.bring}</b>
                   <br />

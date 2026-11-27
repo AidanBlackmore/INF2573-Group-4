@@ -40,7 +40,7 @@ At any moment each player has one place to look. When the TV matters, phones go 
 
 The story: the research sub *Meridian* creeps along the trench floor, 412 m down. One of the crew is a saboteur who wants her to sink. Every fix buys air and every breakdown or mistake costs some, so the air clock is the crew's time to work out who it is.
 
-The TV always says which device to use: numbered steps marked **Phone**, **TV** or **Talk** on every screen, and a big green **Look at your phone** banner naming who should. Phones that need their player show a green **Your turn: use this phone** bar; the rest say **Eyes on the TV**.
+Captions follow the captain word by word (the spoken word lights up). The TV always says which device to use: numbered steps marked **Phone**, **TV** or **Talk** on every screen, and a big green **Look at your phone** banner naming who should. Phones that need their player show a green **Your turn: use this phone** bar; the rest say **Eyes on the TV**.
 
 1. **How to play.** The captain explains the game one card at a time (with a checklist of what's been covered): air is the time limit, repairs in pairs (find your name on the TV, look at your phone, talk), all hands (everyone on their phone), one saboteur (secret orders after the crew file), meet and vote, and how it ends. Phones stay dark. If **all** players tap **We know how to play**, it skips ahead.
 2. **Seal the hatch.** Everyone presses and holds their bolt on their phone at the same time for 3 seconds. The TV groups the bolts in drill pairs (a trio if odd), the way the watches will pair people up. If anyone lets go early, the bolt clunks loose and they try again: nothing is lost. After two slips the captain counts them in.

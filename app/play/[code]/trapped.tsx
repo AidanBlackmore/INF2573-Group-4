@@ -47,13 +47,17 @@ const LOOK: Record<string, string> = {
 function LookUp({ text, children }: { text: string; children?: ReactNode }) {
   return (
     <div className="tb-lookup">
-      <span className="chev">
-        <i />
-        <i />
-        <i />
-      </span>
-      <b>Eyes on the TV</b>
-      <p>{text}</p>
+      <div className="tb-lookcard">
+        <span className="chev">
+          <i />
+          <i />
+          <i />
+        </span>
+        <b>
+          <span className="tvicon" /> Eyes on the TV
+        </b>
+        <p>{text}</p>
+      </div>
       {children}
     </div>
   );
@@ -225,7 +229,7 @@ function PhoneBody({ ctx, now, focus }: { ctx: Ctx; now: () => number; focus: bo
           <div className="tb-card small">
             <span className="lbl">Your crew file</span>
             <p>
-              Colour <b>{f.colour}</b> · number <b>{f.num}</b>
+              Colour <b>{f.colour}</b> · spice <b>{f.num}</b>/9
               <br />
               Would bring: <b>{f.bring}</b>
               <br />
@@ -330,7 +334,9 @@ function CrewFile({ ctx }: { ctx: Ctx }) {
       body: (
         <div className="tb-swatches">
           {WIRE_COLOURS.map((c) => (
-            <button key={c} aria-label={c} className={colour === c ? "on" : ""} style={{ background: WIRE_HEX[c] }} onClick={() => setColour(c)} />
+            <button key={c} aria-label={c} className={`${c}${colour === c ? " on" : ""}`} style={{ "--wc": WIRE_HEX[c] } as CSSProperties} onClick={() => setColour(c)}>
+              <span>{c}</span>
+            </button>
           ))}
         </div>
       ),
@@ -536,7 +542,9 @@ function WirePanel({ ctx }: { ctx: Ctx }) {
       <span className="lbl">Wires · tap one to cut it</span>
       <div className="tb-wires">
         {WIRE_COLOURS.map((c) => (
-          <button key={c} className={`wire${cut === c ? " cut" : ""}`} style={{ background: WIRE_HEX[c] }} aria-label={`${c} wire`} onClick={() => setCut(cut === c ? null : c)} />
+          <button key={c} className={`tb-wire ${c}${cut === c ? " cut" : ""}`} style={{ "--wc": WIRE_HEX[c] } as CSSProperties} aria-label={`${c} wire`} aria-pressed={cut === c} onClick={() => setCut(cut === c ? null : c)}>
+            <span>{cut === c ? `${c} · cut` : c}</span>
+          </button>
         ))}
       </div>
       <span className="lbl">Code lock · their spice level (1 to 9)</span>
@@ -625,7 +633,7 @@ function Operator({ ctx }: { ctx: Ctx }) {
         <p className="riddle">{rep.question}</p>
       </div>
       <p className="p-small">
-        These are real answers from the crew file. Only one is {rep.target_name}&apos;s. {guides.join(" & ")}&apos;s log rules one out: read them these and talk it through.
+        These are real answers from the crew file. Only one is {rep.target_name}&apos;s. {guides.join(" & ")}&apos;s log rules one out: read these out and talk it through.
       </p>
       <div className="tb-opts">
         {(rep.options ?? []).map((o, i) => {

@@ -4,6 +4,8 @@
    TV sizes scale with the TV's width (container units), so a small monitor shows the same layout, smaller. */
 
 [data-world="deep"] {
+  --pixel: var(--font-pixel-plain), "Jersey 15", system-ui, sans-serif;
+  --label: var(--pixel);
   --abyss: #051116;
   --deep: #0a2129;
   --sea: #12404a;
@@ -67,6 +69,10 @@
 /* The captain's subtitle band. */
 .tb-intercom { position: absolute; left: 1.8em; right: 1.8em; bottom: 0.8em; margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 0 0.9em; align-items: center; background: rgba(3, 12, 16, 0.88); border: 0.1em solid rgba(214, 232, 255, 0.3); padding: 0.4em 0.9em 0.5em; font: 1.05em/1.35 var(--body); color: var(--glow); z-index: 4; }
 .tb-intercom .lbl { font-size: 0.9em; }
+/* The captain's captions, word by word: the spoken word in a brass highlight, words to come dimmed. */
+.tb-intercom > span:last-child { font-size: 1.15em; font-weight: 600; line-height: 1.4; }
+.tb-intercom .cap.live .w.next { opacity: 0.45; }
+.tb-intercom .cap.live .w.now { color: #1d1103; background: var(--alarm); box-shadow: 0 0 0 0.12em var(--alarm); }
 .tb-focus { position: absolute; right: 1.4em; top: 1em; z-index: 6; display: flex; align-items: center; gap: 0.7em; background: var(--good); color: #071013; padding: 0.4em 0.9em 0.45em; font: 400 1.15em/1.1 var(--pixel); letter-spacing: 0.03em; box-shadow: 0 0 0 0.2em #071013, 0 0.4em 1.2em rgba(0, 0, 0, 0.6); animation: tb-fpop 1.2s ease-out, tb-fglow 2.4s 1.2s ease-in-out infinite; }
 .tb-focus b { font-size: 1.25em; text-transform: uppercase; }
 @keyframes tb-fglow { 50% { box-shadow: 0 0 0 0.2em #071013, 0 0 1.4em 0.3em rgba(143, 209, 158, 0.75); } }
@@ -297,8 +303,14 @@
 .tb-phone .lbl { font: 400 1rem var(--pixel); letter-spacing: 0.08em; text-transform: uppercase; color: var(--alarm); }
 .tb-phone .spacer { flex: 1; }
 .tb-lookup { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; }
+.tb-lookcard { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; padding: 22px 16px 24px; border-radius: 14px; background: linear-gradient(180deg, rgba(18, 64, 74, 0.92), rgba(8, 33, 41, 0.95)); box-shadow: 0 0 0 2px rgba(216, 236, 233, 0.35), 0 10px 30px rgba(0, 0, 0, 0.6); }
+.tb-lookcard > b { display: inline-flex; align-items: center; gap: 10px; }
+.tb-lookcard .tvicon { font-size: 0.6em; color: var(--glow); }
+.tb-lookup > .p-btn, .tb-lookup > .p-btn2 { align-self: center; }
+.tb-lookup > .tb-card { width: 100%; }
 .tb-lookup b { font: 400 2rem var(--pixel); color: var(--glow); }
-.tb-lookup p { color: var(--muted); font-size: 1.15rem; line-height: 1.45; max-width: 24ch; margin: 0; }
+.tb-lookup p { color: var(--glow); font-size: 1.15rem; line-height: 1.45; max-width: 26ch; margin: 0; }
+.tb-lookup > p { color: var(--muted); }
 .chev { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-bottom: 6px; }
 .chev i { width: 34px; height: 34px; border-left: 6px solid var(--glow); border-top: 6px solid var(--glow); transform: rotate(45deg); opacity: 0.25; animation: tb-chev 1.4s infinite; }
 .chev i:nth-child(1) { animation-delay: 0.3s; } .chev i:nth-child(2) { animation-delay: 0.15s; }
@@ -328,6 +340,9 @@
 @keyframes tb-pop { from { transform: scale(0.4); opacity: 0; } }
 .tb-card .riddle { font: 1.3rem/1.4 var(--hand); }
 .tb-opts { display: flex; flex-direction: column; gap: 8px; }
+/* Answer and name buttons fill the width (easy to hit, all the same size); lone secondary buttons sit centred. */
+.tb-opts:not(.row) > .p-btn2 { align-self: stretch; }
+.tb-phone > .p-btn2 { align-self: center; min-width: 50%; }
 .tb-opts.row { flex-direction: row; flex-wrap: wrap; }
 .tb-text { width: 100%; background: none !important; border: solid transparent !important; border-width: 8px 16px !important; border-image: var(--kit-bar) 30 50 fill / 8px 16px stretch !important; box-shadow: none !important; color: var(--glow) !important; font: 1.25rem var(--hand) !important; padding: 4px !important; color-scheme: dark !important; }
 .tb-word { text-align: center; font: 700 1.6rem var(--pixel) !important; letter-spacing: 0.4em; text-transform: uppercase; }
@@ -337,16 +352,22 @@
 .tb-portraits button:disabled { opacity: 0.35; }
 .tb-portraits button.on img { outline: 3px solid var(--alarm); }
 .tb-swatches { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.tb-swatches button { height: 60px; border: 0; box-shadow: 0 0 0 3px #071013, 0 0 0 4px rgba(216, 236, 233, 0.35); }
-.tb-swatches button.on { box-shadow: 0 0 0 3px #071013, 0 0 0 6px var(--glow); }
+.tb-swatches button { height: 64px; border: 0; padding: 0; display: flex; align-items: flex-end; justify-content: center; background: var(--wc); box-shadow: 0 0 0 3px #071013, 0 0 0 5px rgba(216, 236, 233, 0.55); forced-color-adjust: none; }
+.tb-swatches button span { font: 400 1.05rem var(--pixel); text-transform: uppercase; letter-spacing: 0.06em; color: #071013; background: rgba(255, 255, 255, 0.75); padding: 0 6px; margin-bottom: 4px; }
+.tb-swatches button.black span, .tb-swatches button.blue span { color: #fff; background: rgba(0, 0, 0, 0.45); }
+.tb-swatches button.on { box-shadow: 0 0 0 3px #071013, 0 0 0 7px var(--alarm); }
 .tb-nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .tb-nums button, .tb-keys button { background: var(--steel); color: #071013; border: 0; font: 400 1.6rem var(--pixel); padding: 10px 0; box-shadow: inset -3px -3px 0 #a3b9b9, 0 0 0 2px #071013; }
 .tb-nums button.on, .tb-keys button.on { background: var(--alarm); }
-.tb-wires { display: flex; flex-direction: column; gap: 9px; padding: 10px 8px; background: #1b2a2e; box-shadow: 0 0 0 3px #071013; }
-.tb-wires .wire { height: 18px; border: 0; padding: 0; margin: 0; position: relative; box-shadow: 0 0 0 1px rgba(216, 236, 233, 0.35), 0 2px 0 rgba(0, 0, 0, 0.5); filter: none; }
-.tb-wires .wire::before, .tb-wires .wire::after { content: ""; position: absolute; top: -3px; width: 10px; height: 24px; background: #8a9a9a; box-shadow: 0 0 0 2px #071013; }
-.tb-wires .wire::before { left: -4px; } .tb-wires .wire::after { right: -4px; }
-.tb-wires .wire.cut { background-image: linear-gradient(90deg, transparent 45%, #1b2a2e 45%, #1b2a2e 55%, transparent 55%) !important; }
+/* The wire panel: a lighter steel back so the black wire shows, a light outline on every wire, and
+   each wire's colour written on it, so it reads even on screens that render colours oddly. */
+.tb-wires { display: flex; flex-direction: column; gap: 10px; padding: 12px 10px; background: #4a5a5e; box-shadow: 0 0 0 3px #071013, inset 0 0 0 2px rgba(216, 236, 233, 0.2); }
+.tb-wire { height: 34px; border: 0; padding: 0 0 0 12px; margin: 0; position: relative; display: flex; align-items: center; background: var(--wc); box-shadow: 0 0 0 2px rgba(240, 248, 248, 0.75), 0 3px 0 rgba(0, 0, 0, 0.5); forced-color-adjust: none; cursor: pointer; }
+.tb-wire span { font: 400 1.1rem var(--pixel); text-transform: uppercase; letter-spacing: 0.08em; color: #071013; background: rgba(255, 255, 255, 0.7); padding: 0 6px; }
+.tb-wire.black span, .tb-wire.blue span { color: #fff; background: rgba(0, 0, 0, 0.45); }
+.tb-wire::before, .tb-wire::after { content: ""; position: absolute; top: -3px; width: 12px; height: 40px; background: #a7b5b5; box-shadow: 0 0 0 2px #071013; }
+.tb-wire::before { left: -6px; } .tb-wire::after { right: -6px; }
+.tb-wire.cut { background: linear-gradient(90deg, var(--wc) 44%, #4a5a5e 44%, #4a5a5e 56%, var(--wc) 56%); box-shadow: 0 0 0 3px var(--alarm), 0 3px 0 rgba(0, 0, 0, 0.5); }
 .tb-lcd { background: #0b2b1d; color: var(--good); font: 400 2rem var(--pixel); letter-spacing: 0.4em; text-align: center; padding: 4px; box-shadow: 0 0 0 3px #071013; font-variant-numeric: tabular-nums; }
 .tb-keys { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
 .tb-porthole, .tb-listen { width: 170px; aspect-ratio: 222 / 228; align-self: center; border: 0; background: var(--kit-port) center / contain no-repeat; color: var(--glow); font: 400 1.3rem var(--pixel); letter-spacing: 0.08em; text-transform: uppercase; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.6)); }

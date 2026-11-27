@@ -1,8 +1,9 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { fmt } from "@/lib/gathering/content";
 import type { Player, View } from "@/lib/gathering/game";
+import { sound } from "@/lib/gathering/sound";
 
 // Each player's colour is the one they picked in the lobby (join order until they pick).
 export function colorOf(view: View, id: string | null | undefined) {
@@ -62,8 +63,44 @@ export function Ring({ left, total, big = false }: { left: number; total: number
 export function Line({ id, text }: { id: string; text: string }) {
   return (
     <p className="narration" data-line={id}>
-      {text}
+      <Caption id={id} text={text} />
     </p>
+  );
+}
+
+// Captions that follow the narrator, word by word (like TikTok captions): the word being spoken
+// is lit up, the words already said stay bright, the ones still to come are dimmer. When the
+// narrator isn't saying this line (narrator off, finished, or not started), every word is plain.
+export function Caption({ id, text }: { id: string; text: string }) {
+  const words = text.split(/\s+/).filter(Boolean);
+  const [at, setAt] = useState(-1);
+  useEffect(() => {
+    let raf = 0;
+    // Where each word ends, as a share of the line.
+    const ends: number[] = [];
+    let n = 0;
+    for (const w of words) {
+      n += w.length + 1;
+      ends.push(n / Math.max(1, text.length));
+    }
+    const tick = () => {
+      const p = sound().progress(id);
+      const i = p === null ? -1 : Math.min(words.length - 1, Math.max(0, ends.findIndex((e) => e > p)));
+      setAt((old) => (old === i ? old : i));
+      raf = requestAnimationFrame(tick);
+    };
+    tick();
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, text]);
+  return (
+    <span className={`cap${at >= 0 ? " live" : ""}`}>
+      {words.map((w, i) => (
+        <span key={i} className={at < 0 ? "w" : i < at ? "w past" : i === at ? "w now" : "w next"}>
+          {w}{" "}
+        </span>
+      ))}
+    </span>
   );
 }
 
