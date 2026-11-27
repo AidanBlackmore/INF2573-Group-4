@@ -14,7 +14,7 @@ A short brief for anyone (or any AI session) picking up this project, so the bac
 ### Stories
 
 1. **Murder at Marlowe Manor** (playable). 1891, a storm, Lord Fenwick face-down in the trifle. One player is secretly the murderer. Rain, lightning, the manor music and a recorded narrator. 3–6 players, about 25 minutes.
-2. **Trapped Below** (playable; was "Sabotage on Station Zero", and its story key is still `station`). A research submarine 412 m down, a saboteur aboard, an air clock running out. Always one saboteur, 3 to 6 players. The story: the sub *Meridian* is after the *Calypso*'s black box, and the saboteur wiped their own crew file. Prototyped first as a Claude artifact (https://claude.ai/artifact/Ljifein59CEf6rEGJMrbGC).
+2. **Trapped Below** (playable; was "Sabotage on Station Zero", and its story key is still `station`). A research submarine 412 m down, a saboteur aboard, an air clock running out. Always one saboteur, 3 to 6 players. The sub is the *Meridian*; the saboteur wants her to sink, and the air clock (fixes add air, breakdowns cost it) is the crew's time to find them. Prototyped first as a Claude artifact (https://claude.ai/artifact/Ljifein59CEf6rEGJMrbGC).
 3. Two "Coming soon" placeholder cards.
 
 The story list lives in `STORIES` in `lib/gathering/content.ts`. Its order matches `rooms.focus` in the database.
@@ -25,6 +25,7 @@ The story list lives in `STORIES` in `lib/gathering/content.ts`. Its order match
 - **The TV is the stage, phones are private.** Secrets (roles, notes, lock answers) only ever appear on the phone they belong to.
 - **Atmosphere matters:** music per story, narration, weather, animated transitions between stories, following the Figma design closely.
 - **More stories over time.** Marlowe Manor and Trapped Below are playable, and story-viewing analytics are there to show which story to build next.
+- **Say which device.** Every TV screen lists numbered steps marked Phone, TV or Talk, and a big banner says who should look at their phone. Explain each mechanic when it first appears (progressive disclosure), not all at once.
 - **One place to look.** At any moment each player looks at either the TV or their phone, never both. Idle phones go dark and point up; phones that need you chime and glow ("Your move").
 - **Measure what matters** with PostHog (below): can groups get in, which stories they want, whether the game is balanced and the right length, where groups give up, and whether they play again.
 
@@ -42,7 +43,7 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
    - **`discuss` / `meeting` / `tally` / `revealed`:** discussion and a vote when a clue or a body turned up; otherwise a `quiet` round.
    - **Ghosts** (killed or voted out) still open locks but can't vote.
    - **`ended`:** detectives win by voting out the murderer; the murderer wins when one detective is left.
-4. **Trapped Below** (phases `tb_*`): how to play (the captain explains, all can skip), seal the hatch together (hold on every phone for 3 s, safe to fail), dim the lights and dive, crew file (four questions, each saying what it's for; everyone keeps their joining portrait), sealed orders (always one saboteur), four watches of repairs about a crewmate outside the pair (wires: cut their colour, enter their number; oxygen bay: pick their real answer) with an air clock, all-hands emergencies (identity check riddle that clears someone, ballast pipes, hull breach with phone sensors), meetings at the evidence board (the saboteur's restored file against every checked answer) and a vote, then the ending with everyone's crew file.
+4. **Trapped Below** (phases `tb_*`): how to play (the captain explains, all can skip), seal the hatch together (hold on every phone for 3 s, safe to fail), dim the lights and dive, crew file (four light get-to-know questions, each saying what it's for; everyone keeps their joining portrait), sealed orders (always one saboteur), four watches of repairs about a crewmate outside the pair (wires: cut their colour, enter their number; oxygen bay: pick their real answer) with an air clock, all-hands emergencies (identity check riddle that clears someone, ballast pipes, hull breach with phone sensors), meetings at the evidence board (clues about the saboteur against every checked answer) and a vote, then the ending with everyone's crew file.
 5. **Ending:** **Play again** keeps the same story; **Choose another story** goes back to the browser with the same group.
 
 ## Tech
@@ -131,7 +132,7 @@ Things to know when testing:
 
 ## Open items
 
-- **Trapped Below narration:** new captain lines have no recordings yet, so the browser's voice reads them: `tb-brief-mission`, `tb-brief-sab2`, `tb-brief-vote`, `tb-brief-hatch2`, `tb-skip2`, `tb-logs-first`, `tb-riddle`. Record them (ElevenLabs) into `public/narration/`. If a recording's length changes, update `BRIEF_BEATS`/`BRIEF_SECS` and `tb_brief_secs()` together.
+- **Trapped Below narration:** new captain lines have no recordings yet, so the browser's voice reads them: `tb-brief-pairs`, `tb-brief-hands`, `tb-brief-sab2`, `tb-brief-vote`, `tb-brief-win`, `tb-brief-hatch2`, `tb-skip2`, `tb-logs-first`, `tb-riddle`. Record them (ElevenLabs) into `public/narration/`. If a recording's length changes, update `BRIEF_BEATS`/`BRIEF_SECS` and `tb_brief_secs()` together.
 - **Trapped Below with 3 players:** everyone is in the one trio, so each repair is about someone in it (a partner of the lead). Those repairs test honesty more than friendship.
 - **Trapped Below:** the air numbers (8:00 start, bonuses) need tuning from real games (see the Trapped Below dashboard: `trapped_game_ended` and `trapped_round_ended`).
 - **Old PostHog events:** hide them (see Analytics).

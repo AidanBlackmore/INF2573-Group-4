@@ -1205,7 +1205,7 @@ function HostPanel({ ctx }: { ctx: Ctx }) {
       {label}
     </button>
   );
-  const tbAllIn = view.players.every((p) => p.picked && p.answered);
+  const tbAllIn = view.players.every((p) => p.answered);
   Object.assign(buttons, {
     tb_crew: (
       <button disabled={busy || !tbAllIn} onClick={() => void run("tb_start")}>

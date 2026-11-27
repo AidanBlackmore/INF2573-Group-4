@@ -41,7 +41,7 @@ export const STORIES: Story[] = [
   {
     // The key is from when it was called Station Zero; analytics keep counting it as the same story.
     key: "station", short: "Trapped Below", title: "Trapped Below", tag: "Timeline 02 · 2187 · 412 m down", line: "One of you is the saboteur.",
-    desc: "The Meridian dives into the trench to bring home the black box of a lost submarine. Systems keep failing, the air is running out, and someone aboard wants it that way.",
+    desc: "The research sub Meridian creeps along the trench floor. Systems keep failing, the air is running out, and someone aboard wants it that way.",
     chips: ["3–6 players", "25 min", "1 saboteur"], bg: "/trapped/bg/exterior.webp", thumb: "/trapped/bg/exterior.webp",
     hue: "#e8833a", ink: "#d8ece9", tile: "#d5e0e0", sky: "bubbles", music: "deep", open: true,
   },

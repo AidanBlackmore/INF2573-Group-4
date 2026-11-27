@@ -1,12 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { Kalam, Literata, Pixelify_Sans } from "next/font/google";
+import { Jersey_15, Kalam, Literata } from "next/font/google";
 import "./globals.css";
 import "./gathering.css";
 import "./trapped.css";
 
-// The design system's three typefaces: Pixelify Sans (display and labels),
-// Literata (body and buttons) and Kalam (handwriting).
-const pixelify = Pixelify_Sans({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-pixelify" });
+// The design system's three typefaces: Jersey 15 (display and labels; it replaced Pixelify Sans,
+// which was hard to read on phones), Literata (body and buttons) and Kalam (handwriting).
+const pixel = Jersey_15({ subsets: ["latin"], weight: "400", variable: "--font-pixel" });
 const literata = Literata({ subsets: ["latin"], style: ["normal", "italic"], variable: "--font-literata" });
 const kalam = Kalam({ subsets: ["latin"], weight: ["400"], variable: "--font-kalam" });
 
@@ -23,7 +23,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${pixelify.variable} ${literata.variable} ${kalam.variable}`}>
+    <html lang="en" className={`${pixel.variable} ${literata.variable} ${kalam.variable}`}>
       <body>{children}</body>
     </html>
   );

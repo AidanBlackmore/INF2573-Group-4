@@ -70,7 +70,7 @@ export type TbRepair = {
   // Who it was about, once it's done.
   target: string | null;
 };
-// A crew file field: favourite colour, lucky number, what they'd bring, the deeper answer.
+// A crew file field: favourite colour, spice level (num), what they'd bring, the last answer.
 export type TbField = "colour" | "num" | "bring" | "deep";
 export type TbView = {
   stage: "talk" | "hatch" | "sealed"; brief_secs: number; skip: string[]; holds: string[];

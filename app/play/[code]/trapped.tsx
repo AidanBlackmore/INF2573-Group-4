@@ -142,10 +142,11 @@ export function TrappedPhone({ ctx, now }: { ctx: Ctx; now: () => number }) {
       style={{ "--room": `url(${bg(place)})` } as CSSProperties}
       data-place={place}
     >
-      {wake > 0 && focus && (
-        <span className="tb-ymove" key={wake}>
-          Your move
-        </span>
+      {focus && (
+        <div className="tb-useph" key={wake}>
+          <span className="phicon" />
+          Your turn: use this phone
+        </div>
       )}
       <PhoneBody ctx={ctx} now={now} focus={focus} />
     </div>
@@ -375,8 +376,8 @@ function CrewFile({ ctx }: { ctx: Ctx }) {
       <Head left={`Crew file ${step + 1} of 4`} />
       {step === 0 && (
         <div className="tb-card small">
-          <span className="lbl">Why the {SUB} asks</span>
-          <p>Her systems are keyed to her crew, so your crewmates will need your answers to fix her. Nobody has their orders yet, not even the saboteur: tell the truth.</p>
+          <span className="lbl">Why these questions</span>
+          <p>Four quick questions about you. In repairs, your crewmates will need to know your answers, so answer honestly. Nobody knows who the saboteur is yet, not even the saboteur.</p>
         </div>
       )}
       <p className="tb-q">{s.q}</p>
@@ -445,8 +446,8 @@ function Orders({ ctx }: { ctx: Ctx }) {
         <>
           <div className="tb-card secret pop">
             <span className="lbl">Saboteur</span>
-            <h3>The black box stays down here.</h3>
-            <p>Keep the {SUB} below until the air runs out. Nobody else knows. Act like crew.</p>
+            <h3>Sink the {SUB}.</h3>
+            <p>Let the air run out without getting caught. Nobody else knows. Act like crew.</p>
           </div>
           <div className="tb-card">
             <span className="lbl">What you can do</span>
@@ -459,16 +460,16 @@ function Orders({ ctx }: { ctx: Ctx }) {
             <p>
               <b>Loosen a bolt.</b> Once a watch, pick a system to fail at the start of the next (−0:30).
             </p>
-            <p className="p-small">You wiped your crew file, but every watch with a fix restores a line of it: your real answers, read out at the meeting. Don&apos;t contradict them too obviously.</p>
+            <p className="p-small">Careful: every watch with a fix turns up a clue about you (one of your real crew file answers), shown at the meeting.</p>
           </div>
         </>
       ) : (
         <div className="tb-card pop">
           <span className="lbl">Crew</span>
-          <h3>Bring the black box home.</h3>
+          <h3>Keep the {SUB} afloat.</h3>
           <p>
             {view.tb?.saboteur_mode
-              ? "Fix what breaks and listen to your crewmates' answers. One of you is lying about theirs. At each meeting, compare what they said with the restored file, and vote them into the airlock before the air runs out."
+              ? "Fix what breaks, and find the saboteur before the air runs out. Each fix turns up a clue about them. At each meeting, check the clues against what you know about each other, then vote."
               : "No saboteur this time. Fix what breaks and keep the air up for four watches to reach the surface."}
           </p>
         </div>
@@ -529,7 +530,7 @@ function WirePanel({ ctx }: { ctx: Ctx }) {
       <div className="tb-card small">
         <span className="lbl">Your job</span>
         <p>
-          These wires are keyed to one crewmate. <b>{readers.join(" & ")}</b> {readers.length > 1 ? "have" : "has"} the manual: ask who. Then cut <b>that crewmate&apos;s favourite colour</b> and enter <b>their lucky number</b>.
+          These wires are keyed to one crewmate. <b>{readers.join(" & ")}</b> {readers.length > 1 ? "have" : "has"} the manual: ask who. Then cut <b>that crewmate&apos;s favourite colour</b> and type <b>their spice level</b> (how spicy they like food, 1 to 9).
         </p>
       </div>
       <span className="lbl">Wires · tap one to cut it</span>
@@ -538,7 +539,7 @@ function WirePanel({ ctx }: { ctx: Ctx }) {
           <button key={c} className={`wire${cut === c ? " cut" : ""}`} style={{ background: WIRE_HEX[c] }} aria-label={`${c} wire`} onClick={() => setCut(cut === c ? null : c)} />
         ))}
       </div>
-      <span className="lbl">Code lock · their lucky number</span>
+      <span className="lbl">Code lock · their spice level (1 to 9)</span>
       <div className="tb-lcd">{code || "_"}</div>
       <div className="tb-keys">
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((k) => (
@@ -572,7 +573,7 @@ function WireManual({ ctx }: { ctx: Ctx }) {
         <p className="riddle">
           1. Cut the wire in <b>{mine ? "your" : `${who}'s`} favourite colour</b>.
           <br />
-          2. The code is <b>{mine ? "your" : `${who}'s`} lucky number</b> (1 to 9).
+          2. The code is <b>{mine ? "your" : `${who}'s`} spice level</b>: how spicy {mine ? "you like" : "they like"} food, 1 to 9.
         </p>
         {rep.hint && (
           <p>
@@ -685,7 +686,7 @@ function Hands({ ctx, now }: { ctx: Ctx; now: () => number }) {
   return <Leak ctx={ctx} now={now} />;
 }
 
-// Identity check: an intact crew file with the name gone. Whose is it?
+// Identity check: security cleared someone but only kept their crew file. Whose is it?
 function Riddle({ ctx }: { ctx: Ctx }) {
   const { view, run, busy } = ctx;
   const h = view.tb!.hands!;
@@ -695,7 +696,7 @@ function Riddle({ ctx }: { ctx: Ctx }) {
     <>
       <Head left="All hands · identity check" />
       <div className="tb-card">
-        <span className="lbl">Intact crew file · name missing</span>
+        <span className="lbl">Cleared crew file · name scrambled</span>
         {(h.riddle ?? []).map((l, i) => (
           <p key={i} className="riddle">
             {l}
@@ -703,7 +704,7 @@ function Riddle({ ctx }: { ctx: Ctx }) {
         ))}
         <p>Who am I?</p>
       </div>
-      <p className="p-small">Only the saboteur wiped their file, so whoever wrote this is not the saboteur. If most of you name the right person, they&apos;re cleared.</p>
+      <p className="p-small">Security says whoever wrote this is not the saboteur. Pick who you think it is: if most of you are right, they&apos;re cleared on the evidence board.</p>
       <div className="tb-opts">
         {view.players.map((p) => (
           <button key={p.id} className={`p-btn2${mine === p.id ? " on" : ""}`} disabled={busy} onClick={() => void run("tb_riddle", { p_target: p.id })}>
@@ -953,6 +954,7 @@ function Vote({ ctx }: { ctx: Ctx }) {
     <>
       <Head left="Vote" />
       <p className="tb-q">Who goes in the airlock?</p>
+      <p className="p-small">Pick who you think is the saboteur, or Nobody yet. Most votes goes in; a tie means nobody. The wrong person costs everyone a minute of air.</p>
       <div className="tb-opts">
         {others.map((p) => (
           <button key={p.id} className={`p-btn2${pick === p.id ? " on" : ""}`} onClick={() => setPick(p.id)}>

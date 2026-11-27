@@ -1667,20 +1667,23 @@ $$;
 -- Trapped Below (story 1): a submarine, a crew, and a saboteur.
 -- ===========================================================================
 --
--- The story: the Meridian dives to bring home the black box of the Calypso,
--- lost in the trench. One of the crew has orders to keep it down there.
+-- The story: the research sub Meridian creeps along the trench floor. One of
+-- the crew is a saboteur who wants her to sink. Fixes buy air, breakdowns and
+-- mistakes cost it: the air clock is the crew's time to find the saboteur.
 --
 -- How it works
 -- - Onboarding (tb_brief): the captain explains every part of the game on the
---   TV while the board fills in: the mission, repairs in pairs, the air, the
---   saboteur and the meetings. Everyone tapping "We know how to play" skips to
+--   TV, one card at a time: the air, repairs in pairs, all hands, the
+--   saboteur, the meetings and vote, and how it ends. Everyone tapping "We know how to play" skips to
 --   the hatch. Then everyone holds their bolt on their phone at the same time
 --   for three seconds to seal the hatch (the TV groups the bolts in drill
 --   pairs, to show how repairs will work). A bolt that slips costs nothing.
 -- - Dim the lights (tb_dive): the host starts the dive; eight seconds later
---   everyone fills in their crew file (tb_crew): a favourite wire colour, a
---   lucky number from 1 to 9, what they'd bring if trapped underwater, and one
---   deeper question. Everyone plays as the portrait drawn when they joined.
+--   everyone fills in their crew file (tb_crew): four light get-to-know
+--   questions (favourite colour, how spicy they like food from 1 to 9, what
+--   they'd bring on a sub for a week, and one picked from a bank). Everyone
+--   plays as the portrait drawn when they joined. (The spice level is stored
+--   in the num column.)
 -- - Sealed orders (tb_orders): one player is always the saboteur (3 to 6
 --   players). Orders come after the crew file, so nobody can tailor answers.
 -- - Four watches (tb_watch). Each pair (a trio if odd) gets one repair:
@@ -1688,26 +1691,26 @@ $$;
 --   is one (the "target"), so it tests how well you know each other:
 --   * Wires (engine, control, sonar): the manual (one phone) names the target
 --     and gives two hints; the panel (the other phone) has six wires and a
---     keypad. Cut the target's favourite colour and enter their lucky number.
+--     keypad. Cut the target's favourite colour and enter their spice level.
 --     Three tries, each wrong one costs 0:10, then the repair fails.
 --   * Oxygen bay (also galley, quarters): the operator's phone asks a question
 --     about the target with up to four answers from the crew file; the log
 --     (the other phone) shows the question and rules out one answer. Wrong
 --     picks cost 0:15 and are crossed out; too many and the repair fails.
---     Watches 1 and 2 ask what they'd bring, 3 and 4 their deeper answer.
+--     Watches 1 and 2 ask what they'd bring, 3 and 4 their last answer.
 --   A fixed repair adds air, brings the sub up and puts the target's answers
 --   on the evidence board (tb_facts): checked against the crew file, so true.
 -- - After watches 1 to 3, an all-hands emergency (tb_hands):
---   * Identity check (riddle): the TV reads an intact crew file without the
---     name. Only the saboteur wiped theirs, so whoever it belongs to is not
---     the saboteur. Everyone votes on their phone; a majority for the right
---     name clears them and puts their answers on the evidence board.
+--   * Identity check (riddle): security has cleared one crew member (never
+--     the saboteur) but kept only their crew file, not their name. Everyone
+--     votes on their phone; a majority for the right name clears them and
+--     puts their answers on the evidence board.
 --   * Ballast pipes: each phone shows one row of the route and turns the
 --     valves of another row; the TV shows the real pipes.
 --   * Hull breach: shake, blow, tilt, hold, until the water is at 0%.
--- - The crew meets (tb_talk) at the evidence board: the saboteur's wiped
---   file (the first fix of each watch restores one answer) next to every
---   answer checked so far. A checked answer that doesn't match the
+-- - The crew meets (tb_talk) at the evidence board: clues about the
+--   saboteur (the first fix of each watch turns up one of their answers) next
+--   to every answer checked so far. A checked answer that doesn't match the
 --   saboteur's rules that person out. Then they vote (tb_vote, tb_verdict).
 --   A wrong vote costs a minute of air.
 -- - The air clock runs from the first watch, and stops for meetings.
@@ -1738,7 +1741,7 @@ create table public.tb_games (
   hands_done boolean not null default false,
   hands_ok boolean,
   hands_tries int not null default 0,
-  -- Identity check: whose intact file is read out, and each phone's guess {player: target}.
+  -- Identity check: whose crew file is read out, and each phone's guess {player: target}.
   riddle_subject uuid,
   riddle_votes jsonb not null default '{}',
   -- Cleared by an identity check: not the saboteur.
@@ -1846,7 +1849,7 @@ returns int
 language sql
 immutable
 set search_path = ''
-as $$ select 72 $$;
+as $$ select 92 $$;
 
 -- Air left right now, in seconds.
 create function private.tb_air(p_game public.tb_games)
@@ -1916,7 +1919,7 @@ begin
 end;
 $$;
 
--- The logs found so far: lines of the crew file the saboteur wiped, restored one a watch.
+-- The clues found so far: the saboteur's own answers, one a watch with a fix.
 create function private.tb_logs(p_room_id uuid)
 returns jsonb
 language sql
@@ -1929,8 +1932,8 @@ as $$
   cross join lateral (
     select * from (values
       (1, 'The saboteur''s favourite colour is ' || c.colour || '.', 'colour', c.colour),
-      (2, 'The saboteur''s lucky number is ' || c.num || '.', 'num', c.num::text),
-      (3, 'Trapped underwater, the saboteur would bring: ' || c.bring || '.', 'bring', c.bring),
+      (2, 'The saboteur likes their food ' || c.num || ' out of 9 spicy.', 'num', c.num::text),
+      (3, 'Stuck on a sub for a week, the saboteur would bring: ' || c.bring || '.', 'bring', c.bring),
       (4, 'Asked “' || c.deep_q || '”, the saboteur answered: ' || c.deep_a || '.', 'deep', c.deep_a)
     ) v(i, t, f, v)
   ) l
@@ -2094,7 +2097,7 @@ begin
   end if;
   v_kind := (array['riddle', 'pipes', 'leak'])[v_room.round];
   if v_kind = 'riddle' then
-    -- An intact crew file: anyone but the saboteur, not already cleared.
+    -- Someone security has cleared: anyone but the saboteur, not already cleared.
     select p.id into v_subject from public.players p join public.tb_crew c on c.player_id = p.id
     where p.room_id = p_room_id and p.id is distinct from v_game.saboteur_id and not p.id = any (v_game.cleared)
     order by random() limit 1;
@@ -2446,7 +2449,7 @@ end;
 $$;
 
 -- Wires: the panel holder restarts the engine with the wire they cut and the code they set:
--- the target's favourite colour and lucky number. Three tries.
+-- the target's favourite colour and spice level. Three tries.
 create function public.tb_restart(p_room_id uuid, p_cut text, p_code text)
 returns boolean
 language plpgsql
@@ -2575,7 +2578,7 @@ end;
 $$;
 
 -- Identity check: settle it with the guesses so far. A majority of the guesses for the right
--- name clears that crewmate (not the saboteur) and puts their whole file on the evidence board.
+-- name clears that crewmate (never the saboteur) and puts their whole file on the evidence board.
 create function private.tb_riddle_resolve(p_room_id uuid)
 returns void
 language plpgsql
@@ -3007,12 +3010,12 @@ begin
   if p_room.phase = 'tb_hands' then
     v_out := v_out || jsonb_build_object('hands', jsonb_build_object(
       'kind', v_game.hands_kind, 'done', v_game.hands_done, 'ok', v_game.hands_ok, 'tries', v_game.hands_tries,
-      -- Identity check: the intact file without its name, who has guessed, and (once done) whose it was.
+      -- Identity check: the crew file without its name, who has guessed, and (once done) whose it was.
       'riddle', case when v_game.hands_kind = 'riddle' then (
         select jsonb_build_array(
           'My favourite colour is ' || c.colour || '.',
-          'My lucky number is ' || c.num || '.',
-          'Trapped underwater for a week, I''d bring: ' || c.bring || '.',
+          'I like my food ' || c.num || ' out of 9 spicy.',
+          'Stuck on a sub for a week, I''d bring: ' || c.bring || '.',
           'Asked “' || c.deep_q || '”, I said: ' || c.deep_a || '.')
         from public.tb_crew c where c.player_id = v_game.riddle_subject) end,
       'guessed', (select coalesce(jsonb_agg(k), '[]') from jsonb_object_keys(v_game.riddle_votes) k),
@@ -3058,7 +3061,7 @@ begin
         select deep_q into v_lead_q from public.tb_crew where player_id = v_rep.target;
         v_n := array_length(v_rep.members, 1);
         v_k := array_position(v_rep.members, p_me.id);
-        v_question := case when v_rep.watch <= 2 then 'Trapped underwater for a week, what one thing would ' || v_target_name || ' bring?'
+        v_question := case when v_rep.watch <= 2 then 'Stuck on a sub for a week, what one thing would ' || v_target_name || ' bring?'
                            else v_target_name || ' was asked “' || v_lead_q || '” What did they answer?' end;
         v_mine := v_mine || jsonb_build_object('repair', jsonb_build_object(
           'kind', v_rep.kind, 'place', v_rep.place, 'members', to_jsonb(v_rep.members), 'lead', v_rep.lead,

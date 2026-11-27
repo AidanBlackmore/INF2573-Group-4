@@ -1,5 +1,5 @@
 /* The Gathering: the Figma design system (silhouette world, detective paper).
-   Pixelify Sans for display and labels, Literata for body and buttons, Kalam for handwriting.
+   Jersey 15 for display and labels, Literata for body and buttons, Kalam for handwriting.
    Images are in /public/figma. */
 
 :root {
@@ -25,14 +25,14 @@
   --player-4: #d7678f;
   --player-5: #8c6bc8;
   --player-6: #3fa7a3;
-  --pixel: var(--font-pixelify), "Pixelify Sans", system-ui, sans-serif;
+  --pixel: var(--font-pixel), "Jersey 15", system-ui, sans-serif;
   --label: var(--pixel);
   --body: var(--font-literata), "Literata", Georgia, serif;
   --hand: var(--font-kalam), "Kalam", cursive;
 }
 
 .gathering, .gathering * { box-sizing: border-box; }
-.gathering { font: 15px/1.45 var(--body); color: var(--on-dark); background: var(--room); min-height: 100dvh; -webkit-tap-highlight-color: transparent; }
+.gathering { font: 15px/1.45 var(--body); font-synthesis-weight: none; color: var(--on-dark); background: var(--room); min-height: 100dvh; -webkit-tap-highlight-color: transparent; }
 .gathering button { font: inherit; cursor: pointer; }
 .gathering button:disabled { cursor: not-allowed; }
 .gathering :focus-visible { outline: 3px solid var(--paper); outline-offset: 2px; }

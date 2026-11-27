@@ -2,43 +2,45 @@
 // The rules and anything secret (the saboteur, the crew files, the answers) live in the
 // database; see the Trapped Below section of supabase/migrations/0001_the_gathering.sql.
 //
-// The story, in one breath: the research sub Meridian dives into the trench to bring home the
-// black box of the Calypso, a sub that never came back. Her systems are keyed to her crew, which is
-// why she asks about you before the first watch. One of you has orders to make sure the box never
-// surfaces: they wiped their own crew file, and they break what the others fix. Every repair buys
-// air, brings the sub up, and restores a piece of the wiped file. After each watch the crew meets,
-// reads what came back, and votes someone into the airlock.
+// The story: the research sub Meridian creeps along the trench floor, 412 m down. One of the crew
+// is a saboteur who wants her to sink. Every repair buys air and every breakdown or mistake costs
+// some, so the air clock is the time the crew has to work out who is doing it. Each fix also turns
+// up a clue about the saboteur (from their crew file), and after each watch the crew meets and
+// votes someone into the airlock.
 
 export const TB_TITLE = "Trapped Below";
 export const SUB = "Meridian";
 
 // ---------- the crew file ----------
-// Four questions, each used later, and the phone says where. The two "panel" questions have fixed
-// choices so the game can check them: the colour is the wire to cut, the number is the code. "Who
-// said it?" asks about the "bring" answer in watches 1 and 2 and the deeper answer in watches 3 and
-// 4. All four come back, one a meeting, as the clues about the saboteur.
+// Four light get-to-know questions, each used later (the phone says where). Nothing personal or
+// painful: tastes and choices friends can guess about each other. The first two have fixed choices
+// so the game can check them: the colour is the wire to cut, the spice level is the code. Oxygen
+// bay asks about the "bring" answer in watches 1 and 2 and the last answer in watches 3 and 4.
+// All four can turn up as clues about the saboteur.
 // Roles are dealt after the file, so nobody (not even the saboteur) can tailor their answers.
 export const WIRE_COLOURS = ["red", "blue", "yellow", "green", "white", "black"] as const;
 export type WireColour = (typeof WIRE_COLOURS)[number];
 export const WIRE_HEX: Record<WireColour, string> = { red: "#d64532", blue: "#3f78d6", yellow: "#e6c13b", green: "#4ea36a", white: "#eef3f3", black: "#1b2124" };
-export const BRING_Q = "Trapped underwater for a week: what one thing do you bring?";
+export const BRING_Q = "Stuck on a submarine for a week: what one thing would you bring?";
+// The last question: pick one (shuffle for another). Short, light, and guessable by friends.
 export const DEEP_QUESTIONS = [
-  "What's your biggest fear?",
-  "What do you miss most when you're far from home?",
-  "What did you want to be when you were little?",
-  "What did you have for breakfast today?",
-  "Lost in the dark: what sound would you want to hear?",
-  "What would you name a creature nobody has ever seen?",
-  "Where does your mind go when you can't sleep?",
-  "Who would you call from the bottom of the ocean?",
-  "What's something small that makes you feel safe?",
+  "What's your go-to comfort food?",
+  "Where would you go on your dream holiday?",
+  "What's a hobby you'd love to try?",
+  "What's your perfect way to spend a free Saturday?",
+  "What song would you pick for karaoke?",
+  "What's your favourite film or TV show right now?",
+  "If you could have any animal as a pet, what would it be?",
+  "What's your favourite snack?",
+  "What superpower would you pick?",
+  "What's your favourite season?",
 ];
 
 export const CREW_FILE = [
-  { q: "What's your favourite colour?", note: "Pick one of the wire colours. The engine panels are wired by crew colour: a crewmate will have to cut yours." },
-  { q: "Pick a lucky number from 1 to 9.", note: "This is your access code. A crewmate will have to punch it in." },
-  { q: BRING_Q, note: "In a repair, a crewmate will have to guess this." },
-  { q: "", note: "Later repairs ask about this one. Shuffle for another question." },
+  { q: "What's your favourite colour?", note: "Pick the closest wire colour. In a repair, a crewmate may have to cut the wire in your colour." },
+  { q: "How spicy do you like your food?", note: "1 = no spice at all, 9 = bring the fire. In a repair, a crewmate may have to type your number." },
+  { q: BRING_Q, note: "In a repair, a crewmate may have to pick your answer out of several." },
+  { q: "", note: "Pick a question you like (shuffle for another). Later repairs ask about it." },
 ];
 
 // Everyone plays as the portrait drawn when they joined. The old crew portraits are only a
@@ -87,13 +89,13 @@ export const LEAK_JOB: Record<string, { title: string; how: string; fallback: st
 export const TB_NARRATION: Record<string, string> = {
   "tb-title": "Trapped Below. A submarine, four hundred metres down. Not everyone aboard wants to come back up.",
   "tb-brief-open": "This is your captain. Welcome aboard. We're heading for the bottom of the trench, and I'll be honest with you: not everyone on this boat wants to come back up.",
-  "tb-brief-mission": "We came for the black box of the Calypso. She went down in this trench last year, and somebody aboard would rather nobody found out why.",
-  "tb-brief-sub": "This is our sub. Down there, things break. The TV will show you what.",
-  "tb-brief-pair": "Repairs take two of you, and only your partner knows how. So talk.",
   "tb-brief-air": "We have eight minutes of air. Every repair buys more. Every mistake costs a little.",
-  "tb-brief-sab2": "One of you has orders to keep that black box down here. They'll lie about their answers and break what you fix. Orders come after the crew file, so right now, not even they know who it is.",
-  "tb-brief-vote": "Every fix restores a piece of the saboteur's crew file. After each watch we meet: read it, talk, and vote someone into the airlock. Choose wrong, and it costs us a minute of air.",
-  "tb-brief-hatch2": "Last thing before we dive. Seal the hatch, in pairs, the way you'll work down there. Everyone holds their bolt at the same time. If one slips, just try again.",
+  "tb-brief-pairs": "Things will break. Each watch, the TV splits you into pairs. Find your name on the board, then look at your phone. Each of you has half of the job, so talk it through.",
+  "tb-brief-hands": "Sometimes something big breaks. Then it's all hands: everyone works on their own phone at once, and the TV shows how it's going.",
+  "tb-brief-sab2": "One of you is a saboteur. They want the Meridian to sink. They'll lie, botch repairs, and loosen bolts so things break. Everyone gets secret orders on their phone after the crew file.",
+  "tb-brief-vote": "Every fix also turns up a clue about the saboteur. After each watch we meet. Read the clues, talk, then everyone votes on their phone. Most votes goes in the airlock. Get it wrong, and it costs us a minute of air.",
+  "tb-brief-win": "Catch the saboteur, and we surface. Run out of air, and we sink.",
+  "tb-brief-hatch2": "Last thing before we dive. Seal the hatch. Look at your phone, and everyone hold your bolt at the same time. If one slips, just try again.",
   "tb-skip2": "Right. Straight to it, then. Seal the hatch: everyone hold your bolt, at the same time.",
   "tb-hatch-countin": "On three, crew. One. Two. Three.",
   "tb-hatch-sealed": "Hatch sealed. Good work, crew.",
@@ -108,10 +110,10 @@ export const TB_NARRATION: Record<string, string> = {
   "tb-watch-4": "Last watch. Hold her together a little longer.",
   "tb-engine": "Engine room, report. Talk to each other.",
   "tb-oxygen": "Oxygen bay. Say your guess out loud.",
-  "tb-riddle": "All hands. Identity check. The computer found a crew file the saboteur didn't touch, but the name is gone. Whose is it? Get it right, and that one is cleared.",
+  "tb-riddle": "All hands. Identity check. Security has cleared one of you, but the name got scrambled. All it kept is their crew file. Whose is it? Get it right, and that one is in the clear.",
   "tb-ballast": "All hands. We're taking on water. Route it to the ballast tank.",
   "tb-breach": "Hull breach! Pump, clear the intake, keep her level, and hold that hatch!",
-  "tb-logs-first": "Crew meeting. Every system we fixed brought back a piece of the file the saboteur wiped. Read it. Does it sound like anyone? Then vote.",
+  "tb-logs-first": "Crew meeting. Every system we fixed turned up a clue about the saboteur. Check the board. Does it sound like anyone? Then vote.",
   "tb-meeting": "Crew meeting. Read the logs. Then decide who goes in the airlock.",
   "tb-logs": "We recovered something from the logs. Read it carefully.",
   "tb-no-logs": "No logs this time. You'll have to trust your instincts.",
@@ -129,19 +131,19 @@ export const TB_NARRATION: Record<string, string> = {
   "tb-air-30": "Thirty seconds of air. Whatever you're doing, do it now.",
 };
 
-// The briefing: the board fills in as the captain talks, one tile per thing to know. Each beat starts
-// this many seconds in (the recording's length, or a generous guess for the lines the browser's voice
-// reads, plus a short pause). The last beat ends at tb_brief_secs() in the database.
+// The briefing, one thing at a time: the TV shows one big card per line, with a checklist of what's
+// been covered. Each beat starts this many seconds in (the recording's length, or a generous guess
+// for lines the browser's voice reads, plus a pause). BRIEF_SECS matches tb_brief_secs() in the database.
 export const BRIEF_BEATS = [
-  { id: "tb-brief-open", at: 0, title: "Welcome aboard", tick: "" },
-  { id: "tb-brief-mission", at: 9.2, title: "The mission", tick: "Bring home the Calypso's black box." },
-  { id: "tb-brief-sub", at: 22, title: "Things break", tick: "The TV shows what, and who goes where." },
-  { id: "tb-brief-pair", at: 27.8, title: "Fix it in pairs", tick: "One phone has the panel. The other has the manual, all about their partner." },
-  { id: "tb-brief-air", at: 33, title: "Air runs out", tick: "Repairs buy air and bring us up. Mistakes cost air. Big breakdowns need every phone at once." },
-  { id: "tb-brief-sab2", at: 39.2, title: "One saboteur", tick: "Lies about their answers and breaks what you fix. Dealt after the crew file." },
-  { id: "tb-brief-vote", at: 57, title: "Meet and vote", tick: "Fixes bring back the saboteur's answers. Vote someone into the airlock. Wrong: −1:00." },
+  { id: "tb-brief-open", at: 0, title: "Welcome aboard the Meridian", tick: "A research sub, 412 m down. Not everyone aboard wants to come back up." },
+  { id: "tb-brief-air", at: 9.2, title: "Air is your time limit", tick: "Every fix adds air. Every breakdown or mistake takes some away." },
+  { id: "tb-brief-pairs", at: 15.4, title: "Repairs: in pairs", tick: "1. Find your name on the TV. 2. Look at your phone. 3. Talk to your partner: you each have half the job." },
+  { id: "tb-brief-hands", at: 32.5, title: "All hands: everyone", tick: "Big breakdowns: everyone works on their own phone at once. The TV shows how it's going." },
+  { id: "tb-brief-sab2", at: 45.5, title: "One of you is the saboteur", tick: "They want the sub to sink: they lie, botch repairs and loosen bolts. Orders come to your phone, in secret." },
+  { id: "tb-brief-vote", at: 62.5, title: "Meet, then vote", tick: "Fixes turn up clues. After each watch: read them on the TV, talk, vote on your phone. Wrong vote: −1:00 of air." },
+  { id: "tb-brief-win", at: 84.5, title: "How it ends", tick: "Crew: vote out the saboteur. Saboteur: run the air out." },
 ];
-export const BRIEF_SECS = 72;
+export const BRIEF_SECS = 92;
 export const beatAt = (secs: number) => BRIEF_BEATS.reduce((b, x, i) => (secs >= x.at ? i : b), 0);
 
 export const fmtAir = (secs: number) => `${Math.floor(Math.max(0, secs) / 60)}:${String(Math.max(0, secs) % 60).padStart(2, "0")}`;
@@ -162,7 +164,7 @@ export function drillPairs(players: { id: string }[]): string[][] {
 // The evidence board's columns: the four crew file answers.
 export const FIELDS = [
   { key: "colour", label: "Colour" },
-  { key: "num", label: "Number" },
+  { key: "num", label: "Spice" },
   { key: "bring", label: "Would bring" },
-  { key: "deep", label: "Deeper answer" },
+  { key: "deep", label: "Last answer" },
 ] as const;
