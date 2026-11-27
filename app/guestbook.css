@@ -1,0 +1,107 @@
+/* Marlowe Manor's guest book on the TV (app/host/guestbook.tsx). A fixed 1000 × 600 scene, scaled to fit. */
+.gb-box { flex: 1; min-height: 320px; position: relative; }
+.gb-scene { position: absolute; left: 50%; top: 50%; width: 1000px; height: 600px; transform-origin: 50% 50%; --T: 16px; --cover: #bfa06c; --cover-2: #cfb383; }
+.gb-scene.shake .gb-desk { animation: gb-thud 0.35s; }
+@keyframes gb-thud { 0%, 100% { transform: none; } 30% { transform: translateY(5px); } 60% { transform: translateY(-2px); } }
+.gb-desk { position: absolute; inset: 0; perspective: 2400px; perspective-origin: 50% 20%; }
+.gb-book { position: absolute; left: 60px; top: 40px; width: 880px; height: 500px; transform-style: preserve-3d; transform: rotateX(16deg); transition: transform 1.1s cubic-bezier(0.5, 0, 0.2, 1); }
+.gb-book.centred { transform: rotateX(8deg) translateX(-220px) translateY(-14px) scale(0.94); }
+.gb-book.instant, .gb-book.instant .gb-leaf, .gb-book.instant .gb-shadow { transition: none !important; }
+.gb-shadow { position: absolute; left: -26px; right: -26px; top: 18px; bottom: -34px; background: rgba(0, 0, 0, 0.55); filter: blur(22px); transform: translateZ(calc(-1 * var(--T) - 2px)); border-radius: 20px; transition: left 1.6s ease; }
+.gb-book.closed .gb-shadow { left: 420px; }
+
+/* Covers: tan boards, pen-and-ink cross-hatching, a chunky ink outline, rounded outer corners. */
+.gb-skin { position: absolute; inset: 0; background: radial-gradient(ellipse at 45% 40%, var(--cover-2), var(--cover) 70%); border: 4px solid var(--ink); box-shadow: inset 0 0 0 3px rgba(255, 240, 205, 0.35), inset 0 -6px 10px rgba(60, 35, 10, 0.25); overflow: hidden; }
+.gb-skin::before, .gb-skin::after { content: ""; position: absolute; inset: 0; pointer-events: none; }
+.gb-skin::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='7' height='7'%3E%3Cpath d='M-1 8 L8 -1' stroke='%23141414' stroke-width='.9' opacity='.6'/%3E%3C/svg%3E"); -webkit-mask-image: radial-gradient(ellipse 75% 70% at 50% 48%, transparent 40%, #000 92%); mask-image: radial-gradient(ellipse 75% 70% at 50% 48%, transparent 40%, #000 92%); }
+.gb-skin::after { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='6'%3E%3Cpath d='M-1 -1 L7 7' stroke='%23141414' stroke-width='.8' opacity='.55'/%3E%3C/svg%3E"); -webkit-mask-image: radial-gradient(ellipse 80% 78% at 50% 48%, transparent 62%, #000 100%); mask-image: radial-gradient(ellipse 80% 78% at 50% 48%, transparent 62%, #000 100%); }
+.gb-right { position: absolute; left: 440px; top: 0; width: 440px; height: 500px; transform-style: preserve-3d; }
+.gb-base { left: -2px; right: -14px; top: -12px; bottom: -12px; border-radius: 4px 22px 22px 4px; transform: translateZ(calc(-1 * var(--T))); }
+.gb-inner { left: -14px; right: -2px; top: -12px; bottom: -12px; border-radius: 22px 4px 4px 22px; transform: translateZ(calc(-1 * var(--T))); backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+/* The page blocks' edges, so the book has thickness. */
+.gb-blk { position: absolute; display: block; }
+.gb-blk.bot { top: 500px; height: var(--T); width: 436px; transform-origin: 50% 0; transform: rotateX(-90deg); background: linear-gradient(rgba(60, 35, 10, 0), rgba(60, 35, 10, 0.25)), repeating-linear-gradient(to bottom, #f4ead2 0 1.3px, #c7b088 1.3px 2.2px); }
+.gb-blk.fore { top: 0; height: 500px; width: var(--T); background: linear-gradient(90deg, rgba(60, 35, 10, 0.05), rgba(60, 35, 10, 0.3)), repeating-linear-gradient(to right, #f4ead2 0 1.3px, #c7b088 1.3px 2.2px); }
+.gb-right .gb-blk.bot { left: 0; }
+.gb-right .gb-blk.fore { left: 436px; transform-origin: 0 50%; transform: rotateY(90deg); }
+.gb-leaf .gb-blk.bot { left: 4px; }
+.gb-leaf .gb-blk.fore { left: calc(4px - var(--T)); transform-origin: 100% 50%; transform: rotateY(-90deg); }
+
+.gb-pages { position: absolute; background: linear-gradient(90deg, #d8c59c 0, var(--paper-light) 7%, var(--paper) 70%, #e2d2ad); }
+.gb-right .gb-pages { left: 0; right: 4px; top: 0; bottom: 0; box-shadow: inset 14px 0 18px -10px rgba(70, 40, 10, 0.45); border-radius: 0 3px 3px 0; }
+.gb-tex { position: absolute; inset: 0; opacity: 0.5; background-image: radial-gradient(rgba(120, 85, 40, 0.1) 1px, transparent 1.5px), radial-gradient(rgba(120, 85, 40, 0.07) 1px, transparent 1.5px); background-size: 7px 7px, 11px 13px; background-position: 0 0, 3px 5px; pointer-events: none; }
+.gb-spine { position: absolute; top: 0; bottom: 0; width: 46px; pointer-events: none; }
+.gb-right .gb-spine { left: 0; background: linear-gradient(90deg, rgba(60, 35, 10, 0.35), transparent); }
+
+/* The front cover with the title page on it swings on the spine to close the book. */
+.gb-leaf { position: absolute; left: 0; top: 0; width: 440px; height: 500px; transform-origin: 100% 50%; transform-style: preserve-3d; transition: transform 1.5s cubic-bezier(0.55, 0.05, 0.25, 1); }
+.gb-book.closed .gb-leaf { transform: rotateY(180deg) translateZ(-1px); }
+.gb-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.gb-face.front .gb-pages { left: 4px; right: 0; top: 0; bottom: 0; box-shadow: inset -14px 0 18px -10px rgba(70, 40, 10, 0.45); border-radius: 3px 0 0 3px; }
+.gb-face.front .gb-spine { right: 0; background: linear-gradient(-90deg, rgba(60, 35, 10, 0.35), transparent); }
+.gb-face.back { transform: translateZ(calc(-1 * var(--T))) rotateY(180deg); }
+.gb-face.back .gb-skin { left: -14px; right: -2px; top: -12px; bottom: -12px; border-radius: 22px 4px 4px 22px; }
+
+.gb-cover { position: absolute; inset: -12px -2px -12px -14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--ink); text-align: center; }
+.gb-frame { position: absolute; inset: 26px; border: 3px solid var(--ink); outline: 1.5px solid var(--ink); outline-offset: 5px; border-radius: 10px 3px 3px 10px; }
+.gb-corner { position: absolute; width: 64px; height: 64px; }
+.gb-corner.tl { left: 14px; top: 14px; } .gb-corner.tr { right: 14px; top: 14px; transform: scaleX(-1); }
+.gb-corner.bl { left: 14px; bottom: 14px; transform: scaleY(-1); } .gb-corner.br { right: 14px; bottom: 14px; transform: scale(-1); }
+.gb-emblem { width: 250px; height: 150px; object-fit: cover; object-position: 38% 50%; mix-blend-mode: multiply; filter: grayscale(0.55) contrast(1.45) brightness(1.04); -webkit-mask-image: radial-gradient(ellipse 46% 50% at 50% 52%, #000 40%, transparent 85%); mask-image: radial-gradient(ellipse 46% 50% at 50% 52%, #000 40%, transparent 85%); margin-bottom: -6px; }
+.gb-label { position: relative; background: var(--paper-light); padding: 14px 30px 16px; transform: rotate(-1.5deg); box-shadow: 0 -4px 0 var(--ink), 0 4px 0 var(--ink), -4px 0 0 var(--ink), 4px 0 0 var(--ink), 6px 7px 0 4px rgba(20, 20, 20, 0.45); display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.gb-tape { position: absolute; top: -18px; left: 50%; width: 120px; height: 30px; margin-left: -60px; background: url(/figma/tape.png) center / 100% 100%; transform: rotate(3deg); opacity: 0.9; }
+.gb-label .t1 { font: 600 11px var(--pixel); letter-spacing: 0.32em; color: var(--brown); }
+.gb-label .t2 { font: 700 30px/1.05 var(--pixel); letter-spacing: 0.02em; font-variant-ligatures: none; }
+.gb-label .t3 { font: italic 400 14px var(--body); color: var(--brown-2); }
+.gb-cover .t4 { margin-top: 14px; font: 600 10px var(--pixel); letter-spacing: 0.3em; opacity: 0.75; }
+.gb-glint { position: absolute; inset: -12px -2px -12px -14px; border-radius: 22px 4px 4px 22px; background: linear-gradient(115deg, transparent 35%, rgba(255, 240, 200, 0.28) 48%, transparent 60%); background-size: 250% 100%; background-position: 120% 0; pointer-events: none; mix-blend-mode: screen; }
+.gb-book.sealed .gb-glint { animation: gb-glint 1.6s 0.3s ease-out both; }
+@keyframes gb-glint { to { background-position: -60% 0; } }
+.gb-seal { position: absolute; left: 50%; top: 86%; width: 96px; height: 92px; margin: -46px 0 0 -48px; background: url(/figma/seal.png) center / contain no-repeat; opacity: 0; transform: translateZ(40px) scale(3) rotate(-25deg); }
+.gb-book.sealed .gb-seal { animation: gb-stamp 0.55s cubic-bezier(0.6, 0, 0.9, 0.6) forwards; }
+.gb-book.instant.sealed .gb-seal { animation-duration: 0s; }
+@keyframes gb-stamp { 0% { opacity: 0; transform: translateZ(40px) scale(3) rotate(-25deg); } 60% { opacity: 1; } 100% { opacity: 1; transform: translateZ(2px) scale(1) rotate(-8deg); } }
+
+/* The title page. */
+.gb-title { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; padding: 54px 48px 40px; color: var(--ink); text-align: center; }
+.gb-title .k { font: 600 12px var(--pixel); letter-spacing: 0.32em; color: var(--brown); }
+.gb-title .h { font: italic 400 44px/1.05 var(--body); margin: 18px 0 6px; }
+.gb-title .rule { width: 70%; height: 1px; background: var(--brown); margin: 14px 0; position: relative; }
+.gb-title .rule::after { content: "❦"; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -54%); background: var(--paper); padding: 0 10px; color: var(--brown); font-size: 18px; }
+.gb-title .d { font: 400 15px/1.6 var(--body); }
+.gb-title .gb-kindly { margin-top: auto; font: 400 26px var(--hand); color: var(--brown-2); transform: rotate(-2deg); }
+.gb-title .num { position: absolute; bottom: 18px; font: 400 11px var(--body); color: var(--brown); }
+
+/* The register: one line per guest, in the order they signed. */
+.gb-reg { position: absolute; inset: 0; padding: 36px 34px 24px 46px; color: var(--ink); }
+.gb-reg-head { display: grid; grid-template-columns: 44px 1fr 74px; gap: 10px; font: 600 10px var(--pixel); letter-spacing: 0.2em; color: var(--brown); padding-bottom: 6px; border-bottom: 2px solid rgba(70, 45, 20, 0.7); text-transform: uppercase; }
+.gb-reg-head span:last-child { text-align: right; }
+.gb-row { display: grid; grid-template-columns: 44px 1fr 74px; gap: 10px; align-items: end; height: 66px; border-bottom: 1px solid rgba(90, 60, 30, 0.38); position: relative; }
+.gb-pic { width: 40px; height: 50px; margin-bottom: 6px; background: center / cover; filter: sepia(0.5) contrast(1.05); border: 2px solid var(--ink); transform: rotate(-3deg) scale(0.4); opacity: 0; transition: transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1), opacity 0.25s; box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.25); }
+.gb-row:nth-child(odd) .gb-pic { transform: rotate(2deg) scale(0.4); }
+.gb-row.pinned .gb-pic { opacity: 1; transform: rotate(-3deg); }
+.gb-row.pinned:nth-child(odd) .gb-pic { transform: rotate(2deg); }
+.gb-sig { width: 100%; height: 60px; overflow: visible; }
+.gb-sig text { fill: #1d1630; }
+.gb-row.pinned .gb-sig text.wet { animation: gb-dry 3s ease-out forwards; }
+@keyframes gb-dry { from { filter: drop-shadow(0 0 1.5px rgba(30, 20, 60, 0.8)); fill: #1a1840; } to { filter: none; } }
+.gb-when { font: italic 400 13px var(--body); color: var(--brown-2); text-align: right; padding-bottom: 8px; opacity: 0; transition: opacity 0.5s; }
+.gb-row.done .gb-when { opacity: 1; }
+.gb-ribbon { position: absolute; left: 432px; top: 470px; width: 14px; height: 70px; background: linear-gradient(90deg, #7d1a14, #a5281e 50%, #7d1a14); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 84%, 0 100%); transform: translateZ(1px) rotate(-6deg); transform-origin: top; transition: opacity 0.5s; }
+.gb-book.closed .gb-ribbon { opacity: 0; }
+
+/* Loose pages that flutter over as the book opens and closes. */
+.gb-flips { position: absolute; left: 440px; top: 0; width: 436px; height: 500px; transform-style: preserve-3d; pointer-events: none; }
+.gb-flip { position: absolute; inset: 0; transform-origin: 0 50%; transform-style: preserve-3d; }
+.gb-fface { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; overflow: hidden; background: linear-gradient(90deg, #d8c59c 0, var(--paper-light) 7%, var(--paper) 70%, #e2d2ad); box-shadow: 1px 0 0 #bfa877; }
+.gb-fface.ff { background-image: linear-gradient(90deg, rgba(60, 35, 10, 0.3), transparent 46px), repeating-linear-gradient(transparent 0 101px, rgba(90, 60, 30, 0.35) 101px 102px, transparent 102px 167px), linear-gradient(90deg, #d8c59c 0, var(--paper-light) 7%, var(--paper) 70%, #e2d2ad); }
+.gb-fface.fb { transform: rotateY(180deg); box-shadow: -1px 0 0 #bfa877; }
+.gb-fshade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(40, 25, 8, 0.55), rgba(40, 25, 8, 0.1) 60%, rgba(255, 245, 220, 0.15)); opacity: 0; }
+
+/* The quill and the dust. */
+.gb-quill { position: absolute; left: 0; top: 0; width: 120px; height: 190px; pointer-events: none; transform-origin: 10px 182px; opacity: 0; transition: opacity 0.4s; filter: drop-shadow(6px 10px 6px rgba(0, 0, 0, 0.5)); transform: translate(970px, 420px); }
+.gb-quill.on { opacity: 1; }
+.gb-quill svg { width: 100%; height: 100%; }
+.gb-dust { position: absolute; inset: 0; pointer-events: none; }
+.gb-foot { display: flex; align-items: center; justify-content: center; gap: 18px; flex-wrap: wrap; text-align: center; }
+.gb-foot .narration { max-width: 70ch; }

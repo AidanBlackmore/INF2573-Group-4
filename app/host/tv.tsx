@@ -13,6 +13,9 @@ import { sound, type SoundSettings, type Track } from "@/lib/gathering/sound";
 import { ensureSignedIn, errorMessage, supabase } from "@/lib/supabase";
 import { Art, Avatar, Line, Ring, Tag, ageOf, colorOf, since } from "../_ui/bits";
 import { HousePlan } from "../_ui/house";
+import { INTRO, bookMs, guestsOf, introAt, remember, seen } from "@/lib/gathering/onboarding";
+import { GuestBook } from "./guestbook";
+import { PHONE_FOR, marloweFocus } from "@/lib/gathering/focus";
 import { Weather, type WeatherHandle } from "../_ui/weather";
 import { TbBackdrop, TrappedTv, useTrappedTv } from "./trapped";
 
@@ -125,15 +128,55 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
   // Stepping into a story: a flash and the title (1.8 s), then the manor fades up from black.
   const [, redraw] = useState(0);
   const entered = phase === "lobby" ? ageOf(view.room.phase_at) : Infinity;
+  // Then the guest book (guestbook.tsx), then the intro (lib/gathering/onboarding.ts): four short
+  // beats on what's going on. Both run on a timetable from entering the story, so the phones know
+  // when they end. Once per room on this TV, and skippable.
+  // "Next" and "Skip" jump ahead on this TV only: `jump` is how far ahead of the clock the TV has got.
+  // (Phones keep their own clock; they show "Eyes on the TV" and can carry on whenever the TV is done.)
+  const bookLen = bookMs(guestsOf(view));
+  const [jump, setJump] = useState({ at: "", ms: 0 });
+  const ahead = jump.at === view.room.phase_at ? jump.ms : 0;
+  const clock = entered + ahead;
+  const bookOn = phase === "lobby" && clock < bookLen && seen("book", view.room.id) === null;
+  const intro = introAt(clock - bookLen);
+  const [, setIntroSkip] = useState(0);
+  const introOn = phase === "lobby" && !bookOn && !intro.done && seen("intro", view.room.id) === null;
+  const skipBook = () => {
+    remember("book", view.room.id, "skipped");
+    setJump({ at: view.room.phase_at, ms: ahead + Math.max(0, bookLen - clock) + 30 });
+  };
+  const skipIntro = () => {
+    remember("intro", view.room.id, "skipped");
+    track("marlowe_intro_skipped", { room_id: view.room.id, story: "marlowe", beat: intro.beat + 1 });
+    setIntroSkip((n) => n + 1);
+  };
+  const nextBeat = () => {
+    if (intro.beat === INTRO.length - 1) {
+      remember("intro", view.room.id, "watched");
+      setIntroSkip((n) => n + 1);
+      return;
+    }
+    const left = (1 - intro.frac) * INTRO[intro.beat].secs * 1000;
+    setJump({ at: view.room.phase_at, ms: ahead + Math.ceil(left) + 30 });
+  };
   useEffect(() => {
     if (phase !== "lobby") return;
-    const timers = [1800, 3300].map((ms) => setTimeout(() => redraw((n) => n + 1), ms));
+    const at = new Date(view.room.phase_at).getTime() - ahead;
+    let t = bookLen;
+    const marks = [1800, 3300, t, ...INTRO.map((b) => (t += b.secs * 1000))];
+    const timers = marks.map((ms) => setTimeout(() => redraw((n) => n + 1), Math.max(0, at + ms - Date.now())));
     return () => timers.forEach(clearTimeout);
-  }, [phase, view.room.phase_at]);
+  }, [phase, view.room.phase_at, bookLen, ahead]);
+  useEffect(() => {
+    if (phase === "lobby" && !bookOn && clock >= bookLen && seen("book", view.room.id) === null) remember("book", view.room.id, "watched");
+  });
+  useEffect(() => {
+    if (phase === "lobby" && intro.done && seen("intro", view.room.id) === null) remember("intro", view.room.id, "watched");
+  });
 
   // The narrator reads this screen's lines once.
   useLayoutEffect(() => {
-    const ids = phase === "lobby" ? [] : [...new Set([...(tv.current?.querySelectorAll<HTMLElement>("[data-line]") ?? [])].map((el) => el.dataset.line!))];
+    const ids = phase === "lobby" && !introOn && !bookOn ? [] : [...new Set([...(tv.current?.querySelectorAll<HTMLElement>("[data-line]") ?? [])].map((el) => el.dataset.line!))];
     sound().narrate(`${phase}:${round}:${ids.join("|")}`, ids);
   });
 
@@ -144,7 +187,14 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
     tb_hands: deepScreen, tb_talk: deepScreen, tb_vote: deepScreen, tb_verdict: deepScreen, tb_end: deepScreen,
     join: () => <Join view={view} busy={busy} onGo={() => run("we_are_in")} />,
     browse: () => <Browse view={view} busy={busy} onGo={go} onEnter={() => run("enter_story")} />,
-    lobby: () => <Lobby view={view} busy={busy} onStart={() => run("start_game")} />,
+    lobby: () =>
+      bookOn ? (
+        <GuestBook view={view} onSkip={skipBook} />
+      ) : introOn ? (
+        <Intro beat={intro.beat} onSkip={skipIntro} onNext={nextBeat} />
+      ) : (
+        <Lobby view={view} busy={busy} onStart={() => run("start_game")} />
+      ),
     roles: () => <Roles view={view} />,
     tasks: () => <Tasks view={view} busy={busy} onNext={next} />,
     quiet: () => <Quiet view={view} busy={busy} onNext={next} />,
@@ -170,13 +220,13 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
           </div>
         )}
         {screens[phase]()}
-        {world === "marlowe" && <MarloweFocus view={view} />}
         {entered < 1800 && (
           <div className="entering" style={{ "--t": since(view.room.phase_at) } as CSSProperties}>
             <span>{TITLE}</span>
           </div>
         )}
         {error && <p className="report">{error}</p>}
+        {world === "marlowe" && !introOn && !bookOn && <PhoneCue view={view} />}
         {TIMED.includes(phase) && <Ring left={left} total={view.room.total_secs} big />}
       </section>
     </div>
@@ -184,33 +234,6 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
 }
 
 // ---------- sound ----------
-
-// Marlowe Manor's "look at your phone" tag: who should be on their phone right now. It appears when a
-// phone needs its player and goes as soon as they're done (the murderer's secret moves are never shown).
-function phoneNeeded(view: View): string[] {
-  const p = view.room.phase;
-  if (p === "lobby") return view.players.filter((x) => !x.picked || !x.answered).map((x) => x.id);
-  if (p === "roles") return view.players.filter((x) => !x.ready).map((x) => x.id);
-  if (p === "tasks") return [...new Set((view.pairs ?? []).filter((x) => !x.solved).flatMap((x) => x.members))];
-  if (p === "meeting") return view.players.filter((x) => !x.dead && !x.voted).map((x) => x.id);
-  return [];
-}
-function MarloweFocus({ view }: { view: View }) {
-  const ids = phoneNeeded(view);
-  if (!ids.length) return null;
-  const names = ids.map((id) => view.players.find((x) => x.id === id)?.name ?? "Someone");
-  const label = ids.length === view.players.length ? "Everyone" : names.length > 1 ? `${names.slice(0, -1).join(", ")} & ${names.at(-1)}` : names[0];
-  return (
-    <div className="m-focus" key={ids.join()} role="status">
-      <span className="phicon" />
-      <span>
-        <b>Look at your phone</b>
-        <br />
-        {label}
-      </span>
-    </div>
-  );
-}
 
 function SpeakerIcon({ off }: { off: boolean }) {
   return (
@@ -487,13 +510,30 @@ function useAnalytics(view: View) {
 
 type ScreenProps = { view: View; busy: boolean; onNext: () => void };
 
-// Where phones join: the live site on Vercel, unless NEXT_PUBLIC_SITE_URL says otherwise (e.g. testing on a local network).
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://the-gatheringg.vercel.app").replace(/\/$/, "");
+// Where phones join: the same site the TV is on (the live site, a branch preview, or the project under a
+// new name), so phones always run the same code as the TV. A preview's QR code used to send phones to the
+// live site, where a branch's phone screens (e.g. Marlowe Manor's practice round) don't exist yet.
+// On localhost phones can't reach the laptop, so NEXT_PUBLIC_SITE_URL (e.g. the laptop's network
+// address) or the live site is used instead.
+const FALLBACK_SITE = (process.env.NEXT_PUBLIC_SITE_URL || "https://the-gatheringg.vercel.app").replace(/\/$/, "");
+function siteUrl(): string {
+  if (typeof window === "undefined") return FALLBACK_SITE;
+  const { origin, hostname } = window.location;
+  return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(hostname) ? FALLBACK_SITE : origin;
+}
+// The "or go to" address, split before its first dot so a long Vercel name wraps onto two lines inside the card.
+function joinAt(site: string): [string, string] {
+  const host = site.replace(/^https?:\/\//, "");
+  const dot = host.indexOf(".");
+  return dot < 0 ? [host, ""] : [host.slice(0, dot), host.slice(dot)];
+}
 
 // The Gathering's lobby: scan the QR code (or go to the address) and type the code.
 // Each guest arrives as the portrait drawn on their phone.
 function Join({ view, busy, onGo }: { view: View; busy: boolean; onGo: () => void }) {
-  const url = `${SITE_URL}/play/${view.room.code}`;
+  const site = siteUrl();
+  const url = `${site}/play/${view.room.code}`;
+  const at = joinAt(site);
   const joined = view.players.filter((p) => p.joined);
   const n = joined.length;
   return (
@@ -535,7 +575,7 @@ function Join({ view, busy, onGo }: { view: View; busy: boolean; onGo: () => voi
           <span className="lbl">Scan to join</span>
           <QRCodeSVG className="qr-svg" value={url} size={240} marginSize={2} bgColor="#ffffff" fgColor="#111113" title={`Scan to join: ${url}`} />
           <span className="url">
-            or go to <b>{SITE_URL.replace(/^https?:\/\//, "")}/join</b>
+            or go to <b>{at[0]}<wbr />{at[1]}/join</b>
           </span>
           <p className="bigcode">{view.room.code}</p>
         </div>
@@ -641,7 +681,67 @@ function Browse({ view, busy, onGo, onEnter }: { view: View; busy: boolean; onGo
             <button aria-label="Next story" onClick={() => onGo(focus + 1, 1)}>
               ›
             </button>
-            <span>Browse stories</span>
+            <span>Swipe on any phone to browse</span>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// Marlowe Manor's "look at your phone" tag, bottom left: who should be on their phone, and what for
+// (lib/gathering/focus.ts). Everyone else watches the TV. Hidden while the guest book and intro play,
+// and the murderer's secret moves are never shown.
+function PhoneCue({ view }: { view: View }) {
+  const who = view.players.filter((p) => marloweFocus(view, p.id));
+  const what = PHONE_FOR[view.room.phase];
+  if (!who.length || !what) return null;
+  const label = who.length === view.players.length ? "Everyone" : names(who.map((p) => p.name ?? "Someone"));
+  return (
+    <div className="m-focus" key={`${view.room.phase}:${view.room.round}:${who.map((p) => p.id).join()}`} role="status">
+      <span className="phicon" />
+      <span>
+        <b>Look at your phone</b>
+        <br />
+        {label}
+        <small className="m-focus-what">{what}</small>
+      </span>
+    </div>
+  );
+}
+
+// Stepping into Marlowe Manor: what's going on, in four beats. Phones show "Eyes on the TV" meanwhile.
+function Intro({ beat, onSkip, onNext }: { beat: number; onSkip: () => void; onNext: () => void }) {
+  const b = INTRO[beat];
+  return (
+    <>
+      <span className="eyebrow">How tonight works</span>
+      <div className="tv-grid intro" key={b.id}>
+        <div className="intro-art">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`/figma/${b.art}.jpg`} alt="" />
+        </div>
+        <div>
+          <span className="intro-kicker">{b.eyebrow}</span>
+          <p className="chapter">{b.title}</p>
+          <Line id={b.id} text={b.text} />
+          <div className="intro-dots" aria-label={`Part ${beat + 1} of ${INTRO.length}`}>
+            {INTRO.map((x, i) => (
+              <i key={x.id} className={i < beat ? "past" : i === beat ? "on" : ""} style={i === beat ? ({ "--secs": `${x.secs}s` } as CSSProperties) : undefined} />
+            ))}
+          </div>
+          <p className="todo">
+            <b>Eyes on the TV.</b> Your phone carries on when this ends.
+          </p>
+          <div className="row">
+            <button className="btn" onClick={onNext}>
+              {beat === INTRO.length - 1 ? "Done" : "Next ›"}
+            </button>
+            {beat < INTRO.length - 1 && (
+              <button className="btn quiet" onClick={onSkip}>
+                Skip intro
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -670,6 +770,7 @@ function Lobby({ view, busy, onStart }: { view: View; busy: boolean; onStart: ()
         <p>Lord Fenwick invites you to his birthday dinner at Marlowe Manor. He likes to know his guests, so he has three questions for you.</p>
         <span className="tone ink">What to do</span>
         <p>Answer three questions on your phone. Your answers get hidden around the house, and one of you will be the murderer.</p>
+        <p className="hint">First time here? Your phone has a short practice round first. Played before? Skip it.</p>
         <div className="row">
           <button className="btn" disabled={!ready || busy} onClick={onStart}>
             Start the night

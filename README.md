@@ -20,19 +20,24 @@ Phones and the laptop never talk to each other directly. Every action goes to Su
 
 1. **Join The Gathering.** Open the site on the laptop. It shows the title, a QR code, the address (`the-gatheringg.vercel.app/join`) and a room code (like `OAK47`). Every time the page loads it opens a new room with a new code. Each phone scans the QR code, which takes it straight in (or goes to `/join` and types the code into the five boxes), then types a **name** and **what they look like** ("curly hair, round glasses, a big scarf") and taps **Draw me**. A pen-and-ink portrait is drawn from it (up to 3 tries), and once they tap **I'm in** it appears on the TV. Each player also gets a colour automatically for their name tag. With 3 or more in, the host taps **We're in** (on the TV, or on the host's phone: the first player in is the host). Anyone who joined the room but didn't finish is left out of this gathering.
 2. **Pick a story.** The TV becomes a full-screen story browser. Anyone can swipe on their phone (or use the arrows and thumbnails on the TV) and every screen follows, with the new story wiping in over the old one. Marlowe Manor brings rain, lightning and its music; Trapped Below has rising bubbles and its deep-water ambience. The host taps **Enter this story** to step in.
-3. **Inside Marlowe Manor**, each player picks one of six detective portraits and answers **three questions** ("What's your most irrational fear?"). Players can shuffle to a different question but must answer to continue. Answers are private and final.
-4. **Start the night** (on the TV, or on the host's phone: the first player to join gets host controls). Each phone opens a sealed envelope with its secret role: one **murderer**, everyone else **detectives**. The night starts once everyone has tapped **Got it**.
-5. **Each round is an hour of the night** (nine o'clock to dawn). Everyone is split into pairs (a trio if odd), with new partners each round. Each pair goes to a room of the house and opens a **lock** together. Each lock needs both phones:
+3. **Stepping into Marlowe Manor**, the first thing is the **guest book** on the TV ([`app/host/guestbook.tsx`](app/host/guestbook.tsx)). Lord Fenwick's visitors' book opens and its pages flutter past; a quill writes each guest's name (as typed when they joined) into the book, one handwriting font per guest, beside their portrait and an arrival time. Then the pages flutter back, the book shuts, slides to the middle and is sealed with wax. It runs on a fixed timetable (about 6.5 s, plus 2.9 s per guest, plus 7.4 s to close), so it needs no database; the TV can **Skip** it. Phones show "Eyes on the TV" meanwhile.
+   Then the TV plays a short **intro** (four beats, about 45 seconds, read by the narrator): the storm and the dinner, the murder, how your answers become the clues, and how you catch the murderer. Phones show "Eyes on the TV" meanwhile. The TV has **Next** (the next beat) and **Skip intro**; a phone carries on by itself when the intro would end, or with **Done on the TV? Continue**.
+   Then each phone offers a **practice round** (**Start practice** or **I know how to play**). Players who know how go straight on. New players get a **practice round** on their phone, under a minute: one round in seven glances on mock screens (open your role, see you're a detective, the four partner locks that come later in one line each, cut a fuse-box wire, your half of a clue about the murder with your partner holding the other half, vote, done). Each step is a spotlight and one short line; steps with something to do wait for you to do it, the rest move on by themselves. Nothing in it is saved and nobody else sees it; it can be skipped at any point. Both are remembered per room, so coming back to the manor doesn't repeat them. No database changes: see [`lib/gathering/onboarding.ts`](lib/gathering/onboarding.ts) and [`app/play/[code]/practice.tsx`](app/play/[code]/practice.tsx).
+4. **Inside Marlowe Manor**, each player picks one of six detective portraits and answers **three questions** ("What's your most irrational fear?"). Players can shuffle to a different question but must answer to continue. Answers are private and final.
+5. **Start the night** (on the TV, or on the host's phone: the first player to join gets host controls). Each phone opens a sealed envelope with its secret role: one **murderer**, everyone else **detectives**. The night starts once everyone has tapped **Got it**.
+6. **Each round is an hour of the night** (nine o'clock to dawn). Everyone is split into pairs (a trio if odd), with new partners each round. Each pair goes to a room of the house and opens a **lock** together. Each lock needs both phones:
    - **Fuse box:** one phone sees the wires, the other has the manual.
    - **Charades** and **Sketch:** one phone sees what to act or draw, the other types the guess.
    - **Two truths and a lie:** one player tells three things about themselves, the others spot the lie. Every round, one pair gets this lock.
-6. **Behind every lock is a torn note**, and each partner sees half. Every answer from the start is a note somewhere in the house; the murderer's say "the murderer" and everyone else's say "an innocent person". One pair finds one of the murderer's notes each round, while they last. Locks nobody opens keep their notes for later rounds.
-7. **The murderer** has secret moves on their phone: **forge a note** once (a fake secret that turns up as one of theirs) and **strike someone** in even rounds. The person who was with the victim looks guilty.
-8. **The meeting.** When time runs out (or the host calls it), everyone gathers. If a murderer's note turned up or someone died, the TV shows the notes and the group talks it through, then everyone **votes** on their phone (or skips). The TV counts the votes one mark at a time, then the verdict. If nothing turned up, there's no vote that round.
-9. **Ghosts.** Killed or voted out players become ghosts: they still pair up and open locks, but can't vote.
-10. **The end.** The detectives win by voting out the murderer. The murderer wins when only one detective is left. The TV then reveals whose every note was. **Play again** starts a new night with the same players and answers; **Choose another story** goes back to the story browser with the same group.
+7. **Behind every lock is a torn note**, and each partner sees half. Every answer from the start is a note somewhere in the house; the murderer's say "the murderer" and everyone else's say "an innocent person". One pair finds one of the murderer's notes each round, while they last. Locks nobody opens keep their notes for later rounds.
+8. **The murderer** has secret moves on their phone: **forge a note** once (a fake secret that turns up as one of theirs) and **strike someone** in even rounds. The person who was with the victim looks guilty.
+9. **The meeting.** When time runs out (or the host calls it), everyone gathers. If a murderer's note turned up or someone died, the TV shows the notes and the group talks it through, then everyone **votes** on their phone (or skips). The TV counts the votes one mark at a time, then the verdict. If nothing turned up, there's no vote that round.
+10. **Ghosts.** Killed or voted out players become ghosts: they still pair up and open locks, but can't vote.
+11. **The end.** The detectives win by voting out the murderer. The murderer wins when only one detective is left. The TV then reveals whose every note was. **Play again** starts a new night with the same players and answers; **Choose another story** goes back to the story browser with the same group.
 
 Every timer is 2 minutes (locks, discussion and vote). The host's phone can add a minute.
+
+**Where to look.** Whenever the game moves between the TV and the phones, both say so. The TV shows a tag in the corner naming who should check their phone and what for (picking a detective and answering, reading your role, opening your lock, voting). A phone that isn't needed shows an **Eyes on the TV** bar at the top; a phone that just started needing its player flashes **Your move** (and vibrates on Android). See [`lib/gathering/focus.ts`](lib/gathering/focus.ts).
 
 ### Trapped Below
 
@@ -75,7 +80,7 @@ Sound: the deep-water ambience loops all game. Each room of the sub has its own 
   - `public/audio/deep.mp3`: Trapped Below's deep-water ambience. It plays on its page in the story browser and all game inside the story, under the captain.
   - `public/trapped/`: Trapped Below's art: `bg/` (the rooms of the sub), `crew/` (the six crew portraits), `kit/` (brass and steel buttons, panels, the air tank, the porthole) and `sub.webp` (the blueprint).
   - Both loop by crossfading the end of the track into the start. Switching stories fades one out and the other in.
-  - `public/narration/<line>.mp3`: the narrator (ElevenLabs, "Harry"). One file per line in `NARRATION` in `content.ts`. If a file is missing, the browser's own voice reads that line. Trapped Below's captain (ElevenLabs, "Oswald") is `tb-*.mp3`, one file per line in `TB_NARRATION` in `trapped.ts`.
+  - `public/narration/<line>.mp3`: the narrator (ElevenLabs, "Harry"). One file per line in `NARRATION` in `content.ts`. If a file is missing, the browser's own voice reads that line. The intro's four lines (`intro-1` to `intro-4`) aren't recorded yet, so for now the browser reads them. Trapped Below's captain (ElevenLabs, "Oswald") is `tb-*.mp3`, one file per line in `TB_NARRATION` in `trapped.ts`.
   - `public/sfx/<name>.mp3` (optional): recorded sound effects (`thunder`, `lock`, `chime`, `scream`, `sting`, `gavel`, `bark`, `heartbeat`, `tick`). Without them, the sounds are synthesised in the browser.
 
 ## Privacy and server rules
@@ -126,7 +131,7 @@ Each drawing is reported to PostHog as an `$ai_generation` ([`lib/gathering/obse
 | `NEXT_PUBLIC_POSTHOG_KEY` | no | PostHog project API key. Without it, analytics is skipped. |
 | `NEXT_PUBLIC_POSTHOG_HOST` | no | `https://us.i.posthog.com` (default) or `https://eu.i.posthog.com` |
 | `FEEDBACK_URL` | no | "Give feedback" link on the TV's ending screen. Hidden if empty. |
-| `NEXT_PUBLIC_SITE_URL` | no | Where the TV's QR code and "or go to" line send phones. Defaults to `https://the-gatheringg.vercel.app`. |
+| `NEXT_PUBLIC_SITE_URL` | no | Only used when the TV is on `localhost`: where its QR code and "or go to" line send phones (e.g. your laptop's network address). Defaults to `https://the-gatheringg.vercel.app`. Anywhere else the QR code points to the address the TV is on, so a branch preview's phones get that branch's code. |
 | `CLOUDFLARE_ACCOUNT_ID` | no | Cloudflare account for drawing portraits (see Character portraits). Server only. |
 | `CLOUDFLARE_API_TOKEN` | no | Cloudflare API token with Workers AI permission. Server only: never prefix it with `NEXT_PUBLIC_`. |
 
@@ -168,6 +173,9 @@ The events come in two layers, so you can look at the whole game or at one story
 
 | Event | Sent by | When | Properties |
 |---|---|---|---|
+| `marlowe_intro_skipped` | TV | The TV skips the intro | `beat` (which of the four was showing) |
+| `marlowe_practice_choice` | phone | A player answers "Have you played before?" | `played_before` |
+| `marlowe_practice_finished` | phone | A player finishes or skips the practice round | `completed`, `step` (where they stopped), `steps`, `seconds` |
 | `marlowe_answers_submitted` | phone | A player locks in their three answers | `shuffles` (questions skipped), `seconds` |
 | `marlowe_round_started` | TV | Each round (hour) starts | `round`, `players`, `pairs` |
 | `marlowe_lock_opened` | TV | A pair opens their lock | `lock_type` (`fuse`, `charade`, `sketch` or `lie`), `tries` (failed tries first), `seconds`, `pair_size`, `round`, `players` |
@@ -255,7 +263,7 @@ First-time setup:
 
 1. On [vercel.com](https://vercel.com), sign in with GitHub, click **Add New > Project**, and import the repository.
 2. Before clicking Deploy, open **Environment Variables** and add the variables from the table above.
-3. Click **Deploy**. Open `https://the-gatheringg.vercel.app` on the laptop. The QR code points to that address, so phones can join from any network. If the project lives at a different address, set `NEXT_PUBLIC_SITE_URL` to it.
+3. Click **Deploy**. Open `https://the-gatheringg.vercel.app` on the laptop. The QR code points to that address, so phones can join from any network. The QR code always points to the address the TV is open on, so this also works for branch previews and if the project is renamed.
 
 ## Test checklist
 

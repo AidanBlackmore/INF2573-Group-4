@@ -27,6 +27,7 @@ The story list lives in `STORIES` in `lib/gathering/content.ts`. Its order match
 - **More stories over time.** Marlowe Manor and Trapped Below are playable, and story-viewing analytics are there to show which story to build next.
 - **Say which device.** Every TV screen lists numbered steps marked Phone, TV or Talk, and a big banner says who should look at their phone. Explain each mechanic when it first appears (progressive disclosure), not all at once.
 - **One place to look.** At any moment each player looks at either the TV or their phone, never both. Idle phones go dark and point up; phones that need you chime and glow ("Your move").
+  - **Marlowe Manor and The Gathering** (`lib/gathering/focus.ts`): the TV shows a "<names>, check your phone" tag with what to do there (detective and questions, secret role, lock, vote); phones that aren't needed show an "Eyes on the TV" bar; phones that start being needed flash "Your move" (and vibrate on Android). The story browser says "Swipe on any phone". **Trapped Below** does the same with `phoneFocus` in `app/host/trapped.tsx`.
 - **Measure what matters** with PostHog (below): can groups get in, which stories they want, whether the game is balanced and the right length, where groups give up, and whether they play again.
 
 ## How a game flows
@@ -36,6 +37,8 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
 1. **Join** (`join` phase): every TV page load creates a new room with a random code (e.g. `OAK47`). Phones join with a name and a few words about what they look like, and get a pen-and-ink portrait drawn by Cloudflare Workers AI (free plan; a pre-drawn one if that fails). Colours are given automatically. With 3+ in, the host taps **We're in**. The first player in is the host, and the TV can also press every host button. Unfinished joiners are dropped.
 2. **Browse** (`browse`): a full-screen story browser. Anyone can swipe and every screen follows. Only the host or the TV can **Enter this story**.
 3. **Marlowe Manor:**
+   - **Guest book** (start of `lobby`, no database changes): the TV opens Lord Fenwick's visitors' book and a quill writes each guest's name in, one handwriting font per guest (`--font-sig-a/b/c` and Kalam), then the book shuts and is sealed. Fixed timetable from `phase_at` and the number of guests (`bookMs` in `lib/gathering/onboarding.ts`); the intro and the phones' "Eyes on the TV" follow the same timetable. An earlier version had everyone sign on their phone, which needed new database columns; it was taken out for testing.
+   - **Onboarding** (after the guest book, no database changes): a 45-second intro on the TV with **Next** and **Skip intro** (phones show "Eyes on the TV" and carry on by themselves, or with **Done on the TV? Continue**), then each phone offers a practice round ("Start practice" or "I know how to play"). New players get a practice round on their phone (under a minute): seven steps, each a spotlight and one short line, learning by doing (open, cut, vote, "Got it"), the rest moving on by themselves. One step lists all four partner locks (fuse box, charades, sketch, two truths and a lie) as what comes later with a partner; the clue step says it's a clue about the murder and the partner has the other half; it happens before picking a detective, so **Start the night** also waits for it. Remembered per room in `sessionStorage`.
    - **`lobby`:** each player picks a detective portrait and answers 3 questions. They can shuffle a question, but must answer. Answers are final.
    - **`roles`:** a secret role arrives in an envelope: one murderer, the rest detectives.
    - **`tasks`:** rounds are hours of the night. Players pair up (a trio if odd) to open locks: fuse box, charades, sketch, or two truths and a lie. Behind each lock is a torn note, and each partner sees half. Every answer is a note somewhere in the house, and the murderer's notes are the clues.
@@ -77,6 +80,10 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
 | `app/trapped.css` | Trapped Below's look, scoped to `[data-world="deep"]` |
 | `lib/gathering/trapped.ts` | Trapped Below's text: questions, briefing timing, captain's lines, rooms, evidence board columns, pipes |
 | `lib/gathering/deep.ts` | Trapped Below's synthesised sounds (rooms, creaks, heartbeat, chime, Morse), `shake()` and `buzz()` |
+| `lib/gathering/onboarding.ts` | Marlowe Manor's intro beats (text, art, timing) and the per-room "seen" flags |
+| `app/play/[code]/practice.tsx` | Marlowe Manor on the phone before picking a detective: "Eyes on the TV", "Have you played before?", and the practice round with its spotlight (`Coach`) |
+| `app/host/guestbook.tsx`, `app/guestbook.css` | Marlowe Manor's guest book on the TV: the 3D book (open, pages flipping, names written in by a quill, close and seal) |
+| `lib/gathering/focus.ts` | Marlowe Manor's "one place to look": who needs their phone in each phase, and what for |
 | `lib/analytics.ts` | `track()`; adds `screen: tv/phone` |
 | `lib/gathering/observe.ts` | Reports each portrait drawing to PostHog AI observability for evaluations |
 | `app/api/portrait/route.ts` | Draws a portrait with Cloudflare Workers AI (needs `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`) |
