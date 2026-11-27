@@ -216,7 +216,11 @@ class Sound {
   private applyLevels() {
     const l = this.level();
     this.voice.volume = l;
-    if (this.out && this.audio) this.out.gain.setTargetAtTime(l, this.audio.currentTime, 0.03);
+    // Set straight away: a ramp wouldn't move while the browser has the audio engine suspended.
+    if (this.out && this.audio) {
+      this.out.gain.cancelScheduledValues(this.audio.currentTime);
+      this.out.gain.value = l;
+    }
     if (this.hiss && this.settings.muted) this.radioOff();
     for (const f of this.fx) {
       f.a.volume = f.vol * l;
@@ -728,7 +732,7 @@ class Sound {
     f.Q.value = 1.4;
     const g = c.createGain();
     g.gain.value = 0;
-    src.connect(f).connect(g).connect(c.destination);
+    src.connect(f).connect(g).connect(this.out ?? c.destination);
     src.start();
     return {
       set: (v) => {
