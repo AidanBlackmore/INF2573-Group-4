@@ -70,9 +70,6 @@ export const COMPARTMENTS: [string, string, number, number, number, number][] = 
 export const BOLT_PLACES = ["engine", "oxygen", "sonar", "ballast", "control"];
 
 // ---------- the emergencies ----------
-export const MORSE: Record<string, string> = {
-  A: ".-", B: "-...", C: "-.-.", D: "-..", E: ".", F: "..-.", I: "..", K: "-.-", L: ".-..", O: "---", P: ".--.", R: ".-.", S: "...", U: "..-", Y: "-.--",
-};
 // Pipes: tiles 0 to 8, straight (I) or corner (L), the turn that carries the water, and which tiles carry it.
 export const PIPE_TYPE = ["I", "L", "I", "L", "L", "L", "I", "L", "L"] as const;
 export const PIPE_TARGET = [0, 2, 1, 1, 0, 2, 0, 3, 0];
@@ -111,7 +108,7 @@ export const TB_NARRATION: Record<string, string> = {
   "tb-watch-4": "Last watch. Hold her together a little longer.",
   "tb-engine": "Engine room, report. Talk to each other.",
   "tb-oxygen": "Oxygen bay. Say your guess out loud.",
-  "tb-sonar": "All hands. Sonar contact. Somebody tell me what's out there.",
+  "tb-riddle": "All hands. Identity check. The computer found a crew file the saboteur didn't touch, but the name is gone. Whose is it? Get it right, and that one is cleared.",
   "tb-ballast": "All hands. We're taking on water. Route it to the ballast tank.",
   "tb-breach": "Hull breach! Pump, clear the intake, keep her level, and hold that hatch!",
   "tb-logs-first": "Crew meeting. Every system we fixed brought back a piece of the file the saboteur wiped. Read it. Does it sound like anyone? Then vote.",
@@ -161,3 +158,11 @@ export function drillPairs(players: { id: string }[]): string[][] {
   }
   return groups;
 }
+
+// The evidence board's columns: the four crew file answers.
+export const FIELDS = [
+  { key: "colour", label: "Colour" },
+  { key: "num", label: "Number" },
+  { key: "bring", label: "Would bring" },
+  { key: "deep", label: "Deeper answer" },
+] as const;
