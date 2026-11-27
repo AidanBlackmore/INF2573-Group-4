@@ -4,10 +4,11 @@
 // the phone goes dark and points up; when the phone needs them, it chimes and lights up.
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { secondsSince, track } from "@/lib/analytics";
 import { buzz, deep, shake } from "@/lib/gathering/deep";
 import { nameOf, playerOf, type View } from "@/lib/gathering/game";
 import {
-  BOLT_PLACES, BRING_Q, CREW, DEEP_QUESTIONS, LEAK_JOB, MORSE, PIPE_TARGET, PLACE_BG, PLACE_NAME, WIRE_COLOURS, WIRE_HEX, bg, crewPic, fmtAir, type Place,
+  BOLT_PLACES, CREW_FILE, DEEP_QUESTIONS, LEAK_JOB, PIPE_TARGET, PLACE_BG, PLACE_NAME, SUB, WIRE_COLOURS, WIRE_HEX, bg, drillPairs, fmtAir, type Place,
 } from "@/lib/gathering/trapped";
 import { PipeTile, airNow, lowAir, phoneFocus } from "../../host/trapped";
 
@@ -24,20 +25,20 @@ export function phonePlace(view: View, id: string | null, now: number): Place {
     const r = tb.repairs.find((x) => id && x.members.includes(id));
     return r ? (PLACE_BG[r.place] ?? "control") : "control";
   }
-  if (phase === "tb_hands") return tb.hands?.kind === "sonar" ? "sonar" : tb.hands?.kind === "pipes" ? "pipewall" : "flooded";
+  if (phase === "tb_hands") return tb.hands?.kind === "riddle" ? "sonar" : tb.hands?.kind === "pipes" ? "pipewall" : "flooded";
   return ((
     { tb_brief: "control", tb_dive: "exterior", tb_crew: "quarters", tb_orders: "corridor", tb_talk: "galley", tb_vote: "galley", tb_verdict: "escape" } as Record<string, Place>
   )[phase] ?? "control");
 }
 
 const LOOK: Record<string, string> = {
-  tb_brief: "The captain is explaining how to play.",
+  tb_brief: "The captain is explaining how to play. Everything you'll do is on the board.",
   tb_dive: "We're diving.",
   tb_crew: "Your crew file is in. Waiting for the others.",
   tb_orders: "Waiting for the others to read their orders.",
   tb_watch: "Your repair is done. Watch the others.",
   tb_hands: "Done. Watch the TV.",
-  tb_talk: "Read the logs on the TV and talk it through.",
+  tb_talk: "Look at the evidence board on the TV. Here's your own file, to check.",
   tb_vote: "Vote's in. Watch the TV.",
   tb_verdict: "The airlock is opening.",
   tb_end: "Here's how it ended.",
@@ -46,13 +47,17 @@ const LOOK: Record<string, string> = {
 function LookUp({ text, children }: { text: string; children?: ReactNode }) {
   return (
     <div className="tb-lookup">
-      <span className="chev">
-        <i />
-        <i />
-        <i />
-      </span>
-      <b>Eyes on the TV</b>
-      <p>{text}</p>
+      <div className="tb-lookcard">
+        <span className="chev">
+          <i />
+          <i />
+          <i />
+        </span>
+        <b>
+          <span className="tvicon" /> Eyes on the TV
+        </b>
+        <p>{text}</p>
+      </div>
       {children}
     </div>
   );
@@ -141,10 +146,11 @@ export function TrappedPhone({ ctx, now }: { ctx: Ctx; now: () => number }) {
       style={{ "--room": `url(${bg(place)})` } as CSSProperties}
       data-place={place}
     >
-      {wake > 0 && focus && (
-        <span className="tb-ymove" key={wake}>
-          Your move
-        </span>
+      {focus && (
+        <div className="tb-useph" key={wake}>
+          <span className="phicon" />
+          Your turn: use this phone
+        </div>
       )}
       <PhoneBody ctx={ctx} now={now} focus={focus} />
     </div>
@@ -223,7 +229,7 @@ function PhoneBody({ ctx, now, focus }: { ctx: Ctx; now: () => number; focus: bo
           <div className="tb-card small">
             <span className="lbl">Your crew file</span>
             <p>
-              Colour <b>{f.colour}</b> · number <b>{f.num}</b>
+              Colour <b>{f.colour}</b> · spice <b>{f.num}</b>/9
               <br />
               Would bring: <b>{f.bring}</b>
               <br />
@@ -273,10 +279,16 @@ function HatchBolt({ ctx }: { ctx: Ctx }) {
     };
   }, [down, send]);
   const others = view.players.filter((p) => p.id !== me);
+  const partners = (drillPairs(view.players).find((g) => g.includes(me)) ?? []).filter((id) => id !== me).map((id) => nameOf(view, id));
   return (
     <>
       <Head left="Seal the hatch" />
       <p className="tb-q">{sealed ? "Sealed. Nice work." : "Hold your bolt at the same time as everyone else."}</p>
+      {!sealed && partners.length > 0 && (
+        <p className="p-small">
+          Drill {partners.length > 1 ? "partners" : "partner"}: <b>{partners.join(" & ")}</b>. Down there, the TV pairs you up like this for every repair.
+        </p>
+      )}
       <button
         className={`tb-boltbtn${down || held || sealed ? " on" : ""}`}
         style={{ "--pc": `var(--player-${playerOf(view, me)?.color ?? 1})` } as CSSProperties}
@@ -306,51 +318,33 @@ function HatchBolt({ ctx }: { ctx: Ctx }) {
 
 function CrewFile({ ctx }: { ctx: Ctx }) {
   const { view, run, busy, error } = ctx;
-  const me = playerOf(view, view.me)!;
   const [step, setStep] = useState(0);
   const [colour, setColour] = useState<string | null>(null);
   const [num, setNum] = useState<number | null>(null);
   const [bring, setBring] = useState("");
   const [qi, setQi] = useState(() => Math.floor(Math.random() * DEEP_QUESTIONS.length));
   const [deepA, setDeepA] = useState("");
-  if (!me.picked) {
-    return (
-      <>
-        <Head left="Crew file" />
-        <p className="tb-q">Who are you aboard?</p>
-        <div className="tb-portraits">
-          {CREW.map((c, i) => {
-            const taken = view.players.find((p) => p.id !== me.id && p.picked && p.portrait === i + 1);
-            return (
-              <button key={c.key} disabled={busy || Boolean(taken)} className={me.portrait === i + 1 ? "on" : ""} onClick={() => void run("tb_portrait", { p_portrait: i + 1 })}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={crewPic(i + 1)} alt="" />
-                {taken ? taken.name : c.name}
-              </button>
-            );
-          })}
-        </div>
-        <p className="p-small">Just a look. Your real orders come later.</p>
-        {error && <div className="err">{error}</div>}
-      </>
-    );
-  }
+  // For analytics: question shuffles and time on the file (never the answers).
+  const shuffles = useRef(0);
+  const [started] = useState(() => Date.now());
   const steps = [
     {
-      q: "What's your favourite colour?",
-      note: "Pick one of the wire colours.",
+      q: CREW_FILE[0].q,
+      note: CREW_FILE[0].note,
       body: (
         <div className="tb-swatches">
           {WIRE_COLOURS.map((c) => (
-            <button key={c} aria-label={c} className={colour === c ? "on" : ""} style={{ background: WIRE_HEX[c] }} onClick={() => setColour(c)} />
+            <button key={c} aria-label={c} className={`${c}${colour === c ? " on" : ""}`} style={{ "--wc": WIRE_HEX[c] } as CSSProperties} onClick={() => setColour(c)}>
+              <span>{c}</span>
+            </button>
           ))}
         </div>
       ),
       ok: Boolean(colour),
     },
     {
-      q: "Pick a number from 1 to 9.",
-      note: "Your lucky number.",
+      q: CREW_FILE[1].q,
+      note: CREW_FILE[1].note,
       body: (
         <div className="tb-nums">
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((k) => (
@@ -363,18 +357,18 @@ function CrewFile({ ctx }: { ctx: Ctx }) {
       ok: num !== null,
     },
     {
-      q: BRING_Q,
-      note: "Be honest. Someone will need this.",
+      q: CREW_FILE[2].q,
+      note: CREW_FILE[2].note,
       body: <textarea className="tb-text" rows={2} maxLength={80} value={bring} onChange={(e) => setBring(e.target.value)} placeholder="One thing" />,
       ok: bring.trim().length > 0,
     },
     {
       q: DEEP_QUESTIONS[qi],
-      note: "",
+      note: CREW_FILE[3].note,
       body: (
         <>
           <textarea className="tb-text" rows={3} maxLength={120} value={deepA} onChange={(e) => setDeepA(e.target.value)} placeholder="Your answer" />
-          <button className="p-btn2" onClick={() => setQi((qi + 1) % DEEP_QUESTIONS.length)}>
+          <button className="p-btn2" onClick={() => { shuffles.current++; setQi((qi + 1) % DEEP_QUESTIONS.length); }}>
             Shuffle question
           </button>
         </>
@@ -386,6 +380,12 @@ function CrewFile({ ctx }: { ctx: Ctx }) {
   return (
     <>
       <Head left={`Crew file ${step + 1} of 4`} />
+      {step === 0 && (
+        <div className="tb-card small">
+          <span className="lbl">Why these questions</span>
+          <p>Four quick questions about you. In repairs, your crewmates will need to know your answers, so answer honestly. Nobody knows who the saboteur is yet, not even the saboteur.</p>
+        </div>
+      )}
       <p className="tb-q">{s.q}</p>
       {s.note && <p className="p-small">{s.note}</p>}
       {s.body}
@@ -398,7 +398,11 @@ function CrewFile({ ctx }: { ctx: Ctx }) {
         <button
           className="p-btn"
           disabled={!s.ok || busy}
-          onClick={() => void run("tb_crew_file", { p_colour: colour, p_num: num, p_bring: bring.trim(), p_deep_q: DEEP_QUESTIONS[qi], p_deep_a: deepA.trim() })}
+          onClick={() =>
+            void run("tb_crew_file", { p_colour: colour, p_num: num, p_bring: bring.trim(), p_deep_q: DEEP_QUESTIONS[qi], p_deep_a: deepA.trim() }).then((ok) => {
+              if (ok) track("trapped_crew_file_submitted", { room_id: view.room.id, story: "station", shuffles: shuffles.current, seconds: secondsSince(started) });
+            })
+          }
         >
           File it
         </button>
@@ -448,8 +452,8 @@ function Orders({ ctx }: { ctx: Ctx }) {
         <>
           <div className="tb-card secret pop">
             <span className="lbl">Saboteur</span>
-            <h3>Let the air run out.</h3>
-            <p>Nobody else knows. Act like crew.</p>
+            <h3>Sink the {SUB}.</h3>
+            <p>Let the air run out without getting caught. Nobody else knows. Act like crew.</p>
           </div>
           <div className="tb-card">
             <span className="lbl">What you can do</span>
@@ -462,16 +466,16 @@ function Orders({ ctx }: { ctx: Ctx }) {
             <p>
               <b>Loosen a bolt.</b> Once a watch, pick a system to fail at the start of the next (−0:30).
             </p>
-            <p className="p-small">Careful: every watch with a fix recovers a log about you, from your real answers.</p>
+            <p className="p-small">Careful: every watch with a fix turns up a clue about you (one of your real crew file answers), shown at the meeting.</p>
           </div>
         </>
       ) : (
         <div className="tb-card pop">
           <span className="lbl">Crew</span>
-          <h3>Keep everyone breathing.</h3>
+          <h3>Keep the {SUB} afloat.</h3>
           <p>
             {view.tb?.saboteur_mode
-              ? "Fix what breaks and listen to your crewmates' answers. Someone aboard is lying about theirs. Vote them into the airlock before the air runs out."
+              ? "Fix what breaks, and find the saboteur before the air runs out. Each fix turns up a clue about them. At each meeting, check the clues against what you know about each other, then vote."
               : "No saboteur this time. Fix what breaks and keep the air up for four watches to reach the surface."}
           </p>
         </div>
@@ -492,19 +496,35 @@ function Watch({ ctx, focus }: { ctx: Ctx; focus: boolean }) {
   const rep = mine?.repair;
   const bolt = mine?.can_bolt || mine?.bolt ? <BoltPanel ctx={ctx} /> : null;
   if (!rep || !focus) {
-    return (
-      <LookUp text={rep?.solved ? (rep.result === "ok" ? "Fixed. Watch the others." : "Half a fix. Watch the others.") : LOOK.tb_watch}>{bolt}</LookUp>
-    );
+    const done = rep?.solved
+      ? rep.result === "ok"
+        ? `Fixed. ${rep.target_name ?? "Their"}'s answers are on the evidence board now. Watch the others.`
+        : "Out of tries. That repair failed. Watch the others."
+      : LOOK.tb_watch;
+    return <LookUp text={done}>{bolt}</LookUp>;
   }
+  const role = rep.kind === "wires" ? (rep.is_lead ? "panel" : "manual") : rep.is_lead ? "controls" : "log";
   return (
     <>
-      <Head left={`${PLACE_NAME[rep.place] ?? rep.place} · ${rep.kind === "wires" ? (rep.is_lead ? "panel" : "manual") : rep.is_lead ? "operator" : "guide"}`} right={`Watch ${view.room.round}`} />
+      <Head left={`${PLACE_NAME[rep.place] ?? rep.place} · ${role}`} right={`Watch ${view.room.round}`} />
       {rep.kind === "wires" ? rep.is_lead ? <WirePanel ctx={ctx} /> : <WireManual ctx={ctx} /> : rep.is_lead ? <Operator ctx={ctx} /> : <Guide ctx={ctx} />}
       {bolt}
     </>
   );
 }
 
+// What happens if it goes wrong, the same words on both phones.
+function Tries({ used, max, msg, cost }: { used: number; max: number; msg: string; cost: string }) {
+  const left = Math.max(0, max - used);
+  return (
+    <p className="p-small">
+      {msg && <b style={{ color: "var(--bad)" }}>{msg}. </b>}
+      {left} {left === 1 ? "try" : "tries"} left. Each wrong one costs {cost}; run out and the repair fails.
+    </p>
+  );
+}
+
+// Wires: the panel holder has the wires and the keypad, but not whose they are.
 function WirePanel({ ctx }: { ctx: Ctx }) {
   const { view, run, busy, error } = ctx;
   const rep = view.tb!.mine!.repair!;
@@ -513,85 +533,119 @@ function WirePanel({ ctx }: { ctx: Ctx }) {
   const readers = rep.members.filter((m) => m !== rep.lead).map((m) => nameOf(view, m));
   return (
     <>
-      <p className="p-small">{readers.join(" & ")} {readers.length > 1 ? "have" : "has"} the manual. It&apos;s all about you. Answer their questions.</p>
-      <span className="lbl">Wires · tap to cut one</span>
+      <div className="tb-card small">
+        <span className="lbl">Your job</span>
+        <p>
+          These wires are keyed to one crewmate. <b>{readers.join(" & ")}</b> {readers.length > 1 ? "have" : "has"} the manual: ask who. Then cut <b>that crewmate&apos;s favourite colour</b> and type <b>their spice level</b> (how spicy they like food, 1 to 9).
+        </p>
+      </div>
+      <span className="lbl">Wires · tap one to cut it</span>
       <div className="tb-wires">
         {WIRE_COLOURS.map((c) => (
-          <button key={c} className={`wire${cut === c ? " cut" : ""}`} style={{ background: WIRE_HEX[c] }} aria-label={`${c} wire`} onClick={() => setCut(cut === c ? null : c)} />
+          <button key={c} className={`tb-wire ${c}${cut === c ? " cut" : ""}`} style={{ "--wc": WIRE_HEX[c] } as CSSProperties} aria-label={`${c} wire`} aria-pressed={cut === c} onClick={() => setCut(cut === c ? null : c)}>
+            <span>{cut === c ? `${c} · cut` : c}</span>
+          </button>
         ))}
       </div>
-      <span className="lbl">Code lock</span>
-      <div className="tb-lcd">{(code + "__").slice(0, 2)}</div>
+      <span className="lbl">Code lock · their spice level (1 to 9)</span>
+      <div className="tb-lcd">{code || "_"}</div>
       <div className="tb-keys">
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((k) => (
-          <button key={k} onClick={() => setCode(code.length >= 2 ? String(k) : code + k)}>
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((k) => (
+          <button key={k} className={code === String(k) ? "on" : ""} onClick={() => setCode(String(k))}>
             {k}
           </button>
         ))}
       </div>
-      <button className="p-btn" disabled={busy || !cut || code.length < 2} onClick={() => void run("tb_restart", { p_cut: cut, p_code: code }).then(() => setCode(""))}>
-        Restart engine
+      <button className="p-btn" disabled={busy || !cut || !code} onClick={() => void run("tb_restart", { p_cut: cut, p_code: code })}>
+        Restart engine{cut ? ` · ${cut} wire, ${code || "?"}` : ""}
       </button>
-      {rep.msg && <p className="p-small" style={{ color: "var(--bad)" }}>{rep.msg}. Something&apos;s still off. −0:10</p>}
+      <Tries used={rep.tries} max={3} msg={rep.msg} cost="0:10" />
       {error && <div className="err">{error}</div>}
     </>
   );
 }
 
+// Wires: the manual knows whose wires they are, and has two hints from the crew file.
 function WireManual({ ctx }: { ctx: Ctx }) {
-  const rep = ctx.view.tb!.mine!.repair!;
-  const who = rep.lead_name;
+  const { view } = ctx;
+  const rep = view.tb!.mine!.repair!;
+  const who = rep.target_name ?? "?";
+  const mine = who === nameOf(view, view.me);
   return (
     <>
       <div className="tb-card">
-        <span className="lbl">Repair manual · about {who}</span>
-        {rep.riddles?.includes("wire") && (
-          <p className="riddle">
-            Cut the wire in <b>{who}&apos;s favourite colour</b>. Only that one.
-          </p>
-        )}
-        {rep.riddles?.includes("code") && (
-          <p className="riddle">
-            The code is <b>{who}&apos;s lucky number</b>, then the <b>number of letters in the first word</b> of {who}&apos;s answer to “{rep.lead_q}”. (Ten letters or more: use the last digit.)
+        <span className="lbl">Repair manual</span>
+        <p className="riddle">
+          These wires are keyed to <b>{mine ? "you" : who}</b>.
+        </p>
+        <p className="riddle">
+          1. Cut the wire in <b>{mine ? "your" : `${who}'s`} favourite colour</b>.
+          <br />
+          2. The code is <b>{mine ? "your" : `${who}'s`} spice level</b>: how spicy {mine ? "you like" : "they like"} food, 1 to 9.
+        </p>
+        {rep.hint && (
+          <p>
+            From the crew file: the colour is <b>not {rep.hint.not.join(" or ")}</b>, and the number is <b>{rep.hint.parity}</b>.
           </p>
         )}
       </div>
-      <p className="p-small">You can&apos;t see the panel. Ask {who}, or guess and check: a failed restart costs 10 seconds.</p>
-      {rep.riddles?.length === 1 && <p className="p-small">Your partner has the other half of the manual.</p>}
+      <p className="p-small">
+        You can&apos;t see the panel: tell {rep.lead_name} what to cut and type.{" "}
+        {mine ? "These are your own answers." : `Not sure? Think about what you know of ${who}, or ask them across the room. If ${who} is the saboteur, they may lie.`}
+      </p>
+      <Tries used={rep.tries} max={3} msg={rep.msg} cost="0:10" />
     </>
   );
 }
 
+// Oxygen bay: the log can see the question and one answer that's wrong, but not the others.
 function Guide({ ctx }: { ctx: Ctx }) {
   const rep = ctx.view.tb!.mine!.repair!;
   return (
     <>
       <div className="tb-card">
-        <span className="lbl">Question about {rep.lead_name}</span>
-        <p className="riddle">
-          Trapped underwater for a week, what one thing would <b>{rep.lead_name}</b> bring?
-        </p>
+        <span className="lbl">Scrubber override · the question</span>
+        <p className="riddle">{rep.question}</p>
       </div>
-      <p className="p-small">Say your guess out loud. {rep.lead_name} has everyone&apos;s answers, but not this question, and presses the closest one.</p>
+      {rep.struck && (
+        <div className="tb-card small">
+          <span className="lbl">Your log</span>
+          <p>
+            “{rep.struck.a}” is <b>{rep.struck.owner}</b>&apos;s answer, not {rep.target_name}&apos;s. Tell {rep.lead_name} to rule it out.
+          </p>
+        </div>
+      )}
+      <p className="p-small">{rep.lead_name} has the answers and presses one. Ask them to read the answers out, and decide together which sounds like {rep.target_name}.</p>
+      <Tries used={rep.wrong.length} max={rep.max_wrong} msg={rep.msg} cost="0:15" />
     </>
   );
 }
 
+// Oxygen bay: the operator has the answers from the crew file, and presses the target's.
 function Operator({ ctx }: { ctx: Ctx }) {
   const { view, run, busy } = ctx;
   const rep = view.tb!.mine!.repair!;
   const guides = rep.members.filter((m) => m !== rep.lead).map((m) => nameOf(view, m));
   return (
     <>
-      <p className="tb-q">Press the one closest to what {guides.join(" & ")} {guides.length > 1 ? "say" : "says"}.</p>
-      <div className="tb-opts">
-        {(rep.options ?? []).map((o, i) => (
-          <button key={i} className="p-btn2" disabled={busy} onClick={() => void run("tb_pick", { p_pick: i })}>
-            {o}
-          </button>
-        ))}
+      <div className="tb-card">
+        <span className="lbl">Scrubber override · the question</span>
+        <p className="riddle">{rep.question}</p>
       </div>
-      <p className="p-small">You can&apos;t see the question. Right answer: +air. Wrong: a little.</p>
+      <p className="p-small">
+        These are real answers from the crew file. Only one is {rep.target_name}&apos;s. {guides.join(" & ")}&apos;s log rules one out: read these out and talk it through.
+      </p>
+      <div className="tb-opts">
+        {(rep.options ?? []).map((o, i) => {
+          const wrong = rep.wrong.includes(i);
+          return (
+            <button key={i} className={`p-btn2${wrong ? " struck" : ""}`} disabled={busy || wrong} onClick={() => void run("tb_pick", { p_pick: i })}>
+              {wrong ? <s>{o}</s> : o}
+            </button>
+          );
+        })}
+      </div>
+      <Tries used={rep.wrong.length} max={rep.max_wrong} msg={rep.msg} cost="0:15" />
     </>
   );
 }
@@ -624,71 +678,66 @@ function BoltPanel({ ctx }: { ctx: Ctx }) {
 
 function Hands({ ctx, now }: { ctx: Ctx; now: () => number }) {
   const h = ctx.view.tb!.hands!;
-  if (h.done) return <LookUp text={h.ok ? "Fixed. Watch the TV." : "Watch the TV."} />;
-  if (h.kind === "sonar") return <Sonar ctx={ctx} />;
+  if (h.done) {
+    const text =
+      h.kind === "riddle"
+        ? h.ok
+          ? `It was ${nameOf(ctx.view, h.subject)}. Cleared: not the saboteur. Watch the TV.`
+          : "No majority. The computer can't vouch for anyone this time. Watch the TV."
+        : h.ok
+          ? "Done. Watch the TV."
+          : "Out of time. Watch the TV.";
+    return <LookUp text={text} />;
+  }
+  if (h.kind === "riddle") return <Riddle ctx={ctx} />;
   if (h.kind === "pipes") return <Pipes ctx={ctx} />;
   return <Leak ctx={ctx} now={now} />;
 }
 
-function Sonar({ ctx }: { ctx: Ctx }) {
+// Identity check: security cleared someone but only kept their crew file. Whose is it?
+function Riddle({ ctx }: { ctx: Ctx }) {
   const { view, run, busy } = ctx;
-  const mine = view.tb!.mine!;
   const h = view.tb!.hands!;
-  const [pulse, setPulse] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  const [word, setWord] = useState("");
-  if (mine.listener && mine.signal) {
-    return (
-      <>
-        <Head left="Sonar · headset" />
-        <p className="tb-q">Play the signal. Read it out to the crew: short or long.</p>
-        <button
-          className={`tb-listen${pulse ? " pulse" : ""}`}
-          disabled={playing}
-          onClick={() => {
-            setPlaying(true);
-            const secs = deep().morse(mine.signal!, setPulse);
-            setTimeout(() => setPlaying(false), secs * 1000 + 300);
-          }}
-        >
-          {playing ? "···" : "Play signal"}
-        </button>
-        <p className="p-small">Android phones vibrate too. Play it as often as you need.</p>
-      </>
-    );
-  }
+  const mine = view.tb!.mine?.guess ?? null;
+  const left = view.players.length - h.guessed.length;
   return (
     <>
-      <Head left="Sonar · code book" />
-      <p className="tb-q">{nameOf(view, h.listener)} reads out shorts and longs. Turn them into letters.</p>
+      <Head left="All hands · identity check" />
       <div className="tb-card">
-        <div className="tb-morse">
-          {Object.entries(MORSE).map(([l, c]) => (
-            <span key={l}>
-              <b>{l}</b>
-              {c.replace(/\./g, "·").replace(/-/g, "–")}
-            </span>
-          ))}
-        </div>
+        <span className="lbl">Cleared crew file · name scrambled</span>
+        {(h.riddle ?? []).map((l, i) => (
+          <p key={i} className="riddle">
+            {l}
+          </p>
+        ))}
+        <p>Who am I?</p>
       </div>
-      <input className="tb-text tb-word" maxLength={h.letters} value={word} onChange={(e) => setWord(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""))} placeholder={"_".repeat(h.letters)} />
-      <button className="p-btn" disabled={busy || word.length !== h.letters} onClick={() => void run("tb_sonar", { p_word: word }).then(() => setWord(""))}>
-        Send
-      </button>
-      {h.tries > 0 && <p className="p-small">{h.tries} wrong so far. −0:10 each.</p>}
+      <p className="p-small">Security says whoever wrote this is not the saboteur. Pick who you think it is: if most of you are right, they&apos;re cleared on the evidence board.</p>
+      <div className="tb-opts">
+        {view.players.map((p) => (
+          <button key={p.id} className={`p-btn2${mine === p.id ? " on" : ""}`} disabled={busy} onClick={() => void run("tb_riddle", { p_target: p.id })}>
+            {p.id === view.me ? `${p.name} (me)` : p.name}
+          </button>
+        ))}
+      </div>
+      <p className="p-small">{mine ? `You said ${nameOf(view, mine)}. You can change it until everyone has answered (${left} to go).` : "Tap a name."}</p>
     </>
   );
 }
 
+// Ballast: this phone shows one row of the route and turns the valves of another row on the TV.
 function Pipes({ ctx }: { ctx: Ctx }) {
   const { view, run, busy } = ctx;
   const mine = view.tb!.mine!;
   const h = view.tb!.hands!;
   const see = mine.see ?? 0, turn = mine.turn ?? 1;
+  const who = (row: number, k: 0 | 1) =>
+    view.players.filter((p) => p.id !== view.me && h.roles[p.id]?.rows[k] === row).map((p) => p.name).join(" & ") || "nobody else";
   return (
     <>
-      <Head left="Ballast" />
-      <span className="lbl">Your map: row {see + 1}</span>
+      <Head left="All hands · ballast" />
+      <p className="tb-q">Make one orange path from the sea intake to the tank, on the TV.</p>
+      <span className="lbl">Your map · row {see + 1} of the route</span>
       <div className="tb-ptiles">
         {[0, 1, 2].map((c) => (
           <div key={c} className="ptile">
@@ -696,8 +745,10 @@ function Pipes({ ctx }: { ctx: Ctx }) {
           </div>
         ))}
       </div>
-      <p className="p-small">Orange pipes carry the water. Tell whoever turns row {see + 1}.</p>
-      <span className="lbl">Your valves: row {turn + 1}</span>
+      <p className="p-small">
+        This is how row {see + 1} should look. Only the orange pipes matter. Tell <b>{who(see, 1)}</b>: they turn row {see + 1}.
+      </p>
+      <span className="lbl">Your valves · they turn row {turn + 1} on the TV</span>
       <div className="tb-ptiles">
         {[0, 1, 2].map((c) => {
           const i = turn * 3 + c;
@@ -708,7 +759,9 @@ function Pipes({ ctx }: { ctx: Ctx }) {
           );
         })}
       </div>
-      <p className="p-small">Tap to turn. You can&apos;t see this row&apos;s map: ask.</p>
+      <p className="p-small">
+        Tap a valve to turn that pipe a quarter turn. <b>{who(turn, 0)}</b> {who(turn, 0).includes("&") ? "have" : "has"} the map for row {turn + 1}: listen to them. Done when the water flows all the way through.
+      </p>
     </>
   );
 }
@@ -854,6 +907,7 @@ function Leak({ ctx, now }: { ctx: Ctx; now: () => number }) {
     <>
       <Head left="Hull breach" right={`Water ${Math.round(water)}%`} />
       <p className="tb-q">{info.title}</p>
+      <p className="p-small">Everyone has a different job. Together, get the water down to 0% before it reaches 100%.</p>
       {job !== "hatch" && sensor === "off" && (
         <button className="p-btn2" onClick={() => void askSensor()}>
           {job === "blow" ? "Use the microphone" : job === "pump" ? "Use shaking" : "Use tilting"}
@@ -908,6 +962,7 @@ function Vote({ ctx }: { ctx: Ctx }) {
     <>
       <Head left="Vote" />
       <p className="tb-q">Who goes in the airlock?</p>
+      <p className="p-small">Pick who you think is the saboteur, or Nobody yet. Most votes goes in; a tie means nobody. The wrong person costs everyone a minute of air.</p>
       <div className="tb-opts">
         {others.map((p) => (
           <button key={p.id} className={`p-btn2${pick === p.id ? " on" : ""}`} onClick={() => setPick(p.id)}>

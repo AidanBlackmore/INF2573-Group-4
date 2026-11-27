@@ -7,14 +7,14 @@ A short brief for anyone (or any AI session) picking up this project, so the bac
 **The Gathering** is a party game for a group in one room: a shared screen (a laptop on a TV) plus everyone's phones. The TV shows a QR code; phones scan it to join, pick a name and a colour, then the group browses **stories** together and picks one. Each story is its own game world. The tagline is "How well do you know your friends?": the games are built on what players reveal about themselves.
 
 - **Course:** INF2573, Group 4. Repo: `AidanBlackmore/INF2573-Group-4`.
-- **Live site:** https://thegathering-inf-2573-alternate-universes.vercel.app. The front page is the TV screen.
+- **Live site:** https://the-gatheringg.vercel.app. The front page is the TV screen.
 - **Design:** Figma file "Alternative Universe" (https://www.figma.com/design/B2zj8NNZnGIC4sfuUkCJyz/Alternative-Universe?node-id=159-2). Exported art is in `public/figma/`.
 - **Demo:** an interactive HTML demo of the whole flow was built as a Claude artifact (https://claude.ai/artifact/7QkRaGpmPjU6zF775igHt9). The app was then built to match it.
 
 ### Stories
 
 1. **Murder at Marlowe Manor** (playable). 1891, a storm, Lord Fenwick face-down in the trifle. One player is secretly the murderer. Rain, lightning, the manor music and a recorded narrator. 3–6 players, about 25 minutes.
-2. **Trapped Below** (playable; was "Sabotage on Station Zero", and its story key is still `station`). A research submarine 412 m down, a saboteur aboard, an air clock running out. 3 players play co-op; 4 to 6 have a saboteur. Prototyped first as a Claude artifact (https://claude.ai/artifact/Ljifein59CEf6rEGJMrbGC).
+2. **Trapped Below** (playable; was "Sabotage on Station Zero", and its story key is still `station`). A research submarine 412 m down, a saboteur aboard, an air clock running out. Always one saboteur, 3 to 6 players. The sub is the *Meridian*; the saboteur wants her to sink, and the air clock (fixes add air, breakdowns cost it) is the crew's time to find them. Prototyped first as a Claude artifact (https://claude.ai/artifact/Ljifein59CEf6rEGJMrbGC).
 3. Two "Coming soon" placeholder cards.
 
 The story list lives in `STORIES` in `lib/gathering/content.ts`. Its order matches `rooms.focus` in the database.
@@ -25,6 +25,7 @@ The story list lives in `STORIES` in `lib/gathering/content.ts`. Its order match
 - **The TV is the stage, phones are private.** Secrets (roles, notes, lock answers) only ever appear on the phone they belong to.
 - **Atmosphere matters:** music per story, narration, weather, animated transitions between stories, following the Figma design closely.
 - **More stories over time.** Marlowe Manor and Trapped Below are playable, and story-viewing analytics are there to show which story to build next.
+- **Say which device.** Every TV screen lists numbered steps marked Phone, TV or Talk, and a big banner says who should look at their phone. Explain each mechanic when it first appears (progressive disclosure), not all at once.
 - **One place to look.** At any moment each player looks at either the TV or their phone, never both. Idle phones go dark and point up; phones that need you chime and glow ("Your move").
   - **Marlowe Manor and The Gathering** (`lib/gathering/focus.ts`): the TV shows a "<names>, check your phone" tag with what to do there (detective and questions, secret role, lock, vote); phones that aren't needed show an "Eyes on the TV" bar; phones that start being needed flash "Your move" (and vibrate on Android). The story browser says "Swipe on any phone". **Trapped Below** does the same with `phoneFocus` in `app/host/trapped.tsx`.
 - **Measure what matters** with PostHog (below): can groups get in, which stories they want, whether the game is balanced and the right length, where groups give up, and whether they play again.
@@ -45,7 +46,7 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
    - **`discuss` / `meeting` / `tally` / `revealed`:** discussion and a vote when a clue or a body turned up; otherwise a `quiet` round.
    - **Ghosts** (killed or voted out) still open locks but can't vote.
    - **`ended`:** detectives win by voting out the murderer; the murderer wins when one detective is left.
-4. **Trapped Below** (phases `tb_*`): how to play (the captain explains, all can skip), seal the hatch together (hold on every phone for 3 s, safe to fail), dim the lights and dive, crew file (portrait plus four questions from its own bank), sealed orders, four watches of repairs (wires, "who said it?") with an air clock, all-hands emergencies (sonar Morse, ballast pipes, hull breach with phone sensors), meetings with logs about the saboteur and a vote, then the ending with everyone's crew file.
+4. **Trapped Below** (phases `tb_*`): how to play (the captain explains, all can skip), seal the hatch together (hold on every phone for 3 s, safe to fail), dim the lights and dive, crew file (four light get-to-know questions, each saying what it's for; everyone keeps their joining portrait), sealed orders (always one saboteur), four watches of repairs about a crewmate outside the pair (wires: cut their colour, enter their number; oxygen bay: pick their real answer) with an air clock, all-hands emergencies (identity check riddle that clears someone, ballast pipes, hull breach with phone sensors), meetings at the evidence board (clues about the saboteur against every checked answer) and a vote, then the ending with everyone's crew file.
 5. **Ending:** **Play again** keeps the same story; **Choose another story** goes back to the browser with the same group.
 
 ## Tech
@@ -57,6 +58,8 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
   - **Views:** each screen reads its own slice through `get_view(room_id)`. The database is the source of truth, so screens reload on Realtime events, on waking up, and every 4 s.
 - **Vercel:** deploys the `claude/lucid-heisenberg-cgg0ll` branch.
 - **PostHog:** `posthog-js`, set up in `instrumentation-client.ts`. Only pageviews and our own events.
+- **Fonts:** Jersey 15 (labels and headings; replaced Pixelify Sans) is self-hosted in `app/fonts/` and loaded twice in `app/layout.tsx`: 118% for The Gathering and Marlowe, plain for Trapped Below (`--pixel` is redefined under `[data-world="deep"]`). Literata for body, Kalam for handwriting.
+- **Dark pages:** the viewport declares `colorScheme: "dark"` so phones' automatic dark mode doesn't recolour the site (it hid wire colours).
 
 ### Key files
 
@@ -74,13 +77,14 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
 | `app/host/trapped.tsx` | Trapped Below on the TV: every `tb_*` screen, the blueprint, room backdrop, its sound and analytics hook (`useTrappedTv`) |
 | `app/play/[code]/trapped.tsx` | Trapped Below on the phone: look-up screens, hatch, crew file, orders, repairs, emergencies (shake/mic/tilt sensors), vote |
 | `app/trapped.css` | Trapped Below's look, scoped to `[data-world="deep"]` |
-| `lib/gathering/trapped.ts` | Trapped Below's text: questions, briefing timing, captain's lines, rooms, Morse, pipes |
+| `lib/gathering/trapped.ts` | Trapped Below's text: questions, briefing timing, captain's lines, rooms, evidence board columns, pipes |
 | `lib/gathering/deep.ts` | Trapped Below's synthesised sounds (rooms, creaks, heartbeat, chime, Morse), `shake()` and `buzz()` |
 | `lib/gathering/onboarding.ts` | Marlowe Manor's intro beats (text, art, timing) and the per-room "seen" flags |
 | `app/play/[code]/practice.tsx` | Marlowe Manor on the phone before picking a detective: "Eyes on the TV", "Have you played before?", and the practice round with its spotlight (`Coach`) |
 | `app/host/guestbook.tsx`, `app/guestbook.css` | Marlowe Manor's guest book on the TV: the 3D book (open, pages flipping, names written in by a quill, close and seal) |
 | `lib/gathering/focus.ts` | Marlowe Manor's "one place to look": who needs their phone in each phase, and what for |
 | `lib/analytics.ts` | `track()`; adds `screen: tv/phone` |
+| `lib/gathering/observe.ts` | Reports each portrait drawing to PostHog AI observability for evaluations |
 | `app/api/portrait/route.ts` | Draws a portrait with Cloudflare Workers AI (needs `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`) |
 | `lib/gathering/look.ts`, `portrait.ts` | Portrait prompt, word list, pre-drawn library matching; the phone's ink-on-paper clean-up and upload |
 | `supabase/migrations/0001_the_gathering.sql` | The whole database: tables, RLS, RPCs, game rules |
@@ -91,16 +95,23 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
   - **Zero clicks:** set the TV laptop's browser to allow sound for the site once. The README's "Sound on the TV" section has the steps.
   - **Otherwise:** the first click or key press anywhere on the TV wakes the audio engine and starts every audio element once (Safari needs that). Lines blocked before then are read at that moment.
 - **Narrator:** reads every `[data-line]` on the TV screen once per screen.
+- **Captions:** every narrated line is captioned word by word (`Caption` in `app/_ui/bits.tsx`), TikTok style: the spoken word is highlighted, words still to come are dimmed. `sound().progress(id)` says how far through a line the narrator is (the recording's playback position, or the browser voice's word events).
 - **Music:** ducks under the narrator and during lock solving.
+- **Mute and volume (TV bar):** the slider is a master volume for everything the TV plays (music at a quarter of it, the narrator, effects, Trapped Below's room sounds), applied live. Mute silences all of it at once, stops the narrator mid-line, and turns red; unmuting reads the screen's line again. Settings are saved per browser (`gathering:sound:v2`). Phones have their own quiet room sounds and vibration, not controlled by the TV.
+- **"Look at your phone" on the TV:** Trapped Below's green banner (top right) and Marlowe's paper tag (bottom left) name who needs their phone right now and disappear as each person finishes.
 - **Trapped Below:** its deep-water ambience (`public/audio/deep.mp3`) plays in the browser and all game. The narrator is the captain (`tb-*.mp3`) through a radio filter. Room sounds, creaks, the heartbeat and the phones' chime are made in the browser (`lib/gathering/deep.ts`).
 
 ## Analytics (PostHog)
 
 - **Project:** "Default project", id 654207.
-- **Dashboard:** "The Gathering: game health" (https://us.posthog.com/project/654207/dashboard/2231394), with 14 charts. The headline is a funnel counted **per room**: `room_created → lobby_completed → story_entered → game_started → game_ended`.
-- **Who sends what:** group events come from the TV only, so each counts once per room; per-player events come from phones. Nothing players type is sent.
+- **Dashboards:**
+  - "The Gathering: game health" (https://us.posthog.com/project/654207/dashboard/2231394): the whole game, every story, charts split by `story_name`. The headline is a funnel counted **per room**: `room_created → lobby_completed → story_entered → game_started → game_ended`.
+  - "The Gathering: Murder at Marlowe Manor" (https://us.posthog.com/project/654207/dashboard/2397465): the `marlowe_*` events.
+  - "The Gathering: Trapped Below" (https://us.posthog.com/project/654207/dashboard/2397473): the `trapped_*` events, including the air clock.
+- **Two layers of events:** game-wide events (`game_started`, `game_ended`, `replay_chosen`...) have the same names and core properties in every story (`story`, `story_name`, `winner` = `group`/`traitor`, `game_number`); story events start with `marlowe_` or `trapped_`. A new story should send the game-wide ones from `useAnalytics` in `app/host/tv.tsx` and its own prefixed ones from its own hook.
+- **Who sends what:** group events come from the TV only, so each counts once per room; per-player events come from phones. Nothing players type is sent, except the portrait description: each drawing goes to PostHog AI observability (`lib/gathering/observe.ts`) as an `$ai_generation` so the **Evaluations** tab can score it (README, "Evaluating the portraits"). The two AI judges need a Gemini key added in PostHog (Bring your own key); the free "Portrait was drawn" check is on.
 - **Events:** the full list and their properties are in the README (Analytics section).
-- **Old events:** events from the old "Alternate Universes" version (`universe_*`, `round_N_started`, `act_started`, `vote_submitted`, `choice_auto_selected`) are still in PostHog and not yet hidden.
+- **Old events:** before November 2026 the story events had no prefix (`lock_opened`, `repair_done`...); that data stays under the old names. Events from the old "Alternate Universes" version (`universe_*`, `round_N_started`, `act_started`, `vote_submitted`, `choice_auto_selected`) are still in PostHog and not yet hidden.
 
 ## How we work (preferences)
 
@@ -133,6 +144,8 @@ Things to know when testing:
 
 ## Open items
 
-- **Trapped Below:** the air numbers (8:00 start, bonuses) need tuning from real games (see `game_ended` with `story = station`).
+- **Trapped Below narration:** new captain lines have no recordings yet, so the browser's voice reads them: `tb-brief-pairs`, `tb-brief-hands`, `tb-brief-sab2`, `tb-brief-vote`, `tb-brief-win`, `tb-brief-hatch2`, `tb-skip2`, `tb-logs-first`, `tb-riddle`. Record them (ElevenLabs) into `public/narration/`. If a recording's length changes, update `BRIEF_BEATS`/`BRIEF_SECS` and `tb_brief_secs()` together.
+- **Trapped Below with 3 players:** everyone is in the one trio, so each repair is about someone in it (a partner of the lead). Those repairs test honesty more than friendship.
+- **Trapped Below:** the air numbers (8:00 start, bonuses) need tuning from real games (see the Trapped Below dashboard: `trapped_game_ended` and `trapped_round_ended`).
 - **Old PostHog events:** hide them (see Analytics).
 - **The dashboard:** fills in once games are played on the live site.

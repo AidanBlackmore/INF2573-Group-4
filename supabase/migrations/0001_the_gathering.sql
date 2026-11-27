@@ -41,7 +41,7 @@
 -- ---------------------------------------------------------------------------
 
 drop table if exists
-  public.tb_repairs, public.tb_crew, public.tb_games,
+  public.tb_facts, public.tb_repairs, public.tb_crew, public.tb_games,
   public.mystery_events, public.mysteries, public.icebreaker_answers,
   public.choices, public.votes, public.pairs, public.notes, public.answers,
   public.games, public.players, public.rooms
@@ -66,7 +66,7 @@ begin
         'forge_note', 'strike', 'cast_vote', 'host_next', 'add_time', 'advance_if_due', 'get_view',
         'pick_color', 'set_name_color', 'use_draw', 'set_name_look', 'we_are_in', 'browse_story', 'enter_story', 'another_story',
         'tb_skip', 'tb_hold', 'tb_dive', 'tb_portrait', 'tb_crew_file', 'tb_start', 'tb_orders', 'tb_restart',
-        'tb_pick', 'tb_bolt', 'tb_sonar', 'tb_rotate', 'tb_leak', 'tb_vote', 'tb_next', 'tb_tick'
+        'tb_pick', 'tb_bolt', 'tb_sonar', 'tb_riddle', 'tb_rotate', 'tb_leak', 'tb_vote', 'tb_next', 'tb_tick'
       )
   loop
     execute 'drop function ' || r.sig || ' cascade';
@@ -998,6 +998,7 @@ begin
   if v_room.focus = 1 then
     -- Trapped Below: the captain's briefing first. Each story has its own questions.
     delete from public.tb_repairs where room_id = p_room_id;
+    delete from public.tb_facts where room_id = p_room_id;
     delete from public.tb_crew where room_id = p_room_id;
     delete from public.tb_games where room_id = p_room_id;
     insert into public.tb_games (room_id) values (p_room_id);
@@ -1028,6 +1029,7 @@ begin
   end if;
   delete from public.votes where room_id = p_room_id;
   delete from public.tb_repairs where room_id = p_room_id;
+  delete from public.tb_facts where room_id = p_room_id;
   delete from public.tb_games where room_id = p_room_id;
   delete from public.pairs where room_id = p_room_id;
   delete from public.notes where room_id = p_room_id;
@@ -1665,30 +1667,56 @@ $$;
 -- Trapped Below (story 1): a submarine, a crew, and a saboteur.
 -- ===========================================================================
 --
+-- The story: the research sub Meridian creeps along the trench floor. One of
+-- the crew is a saboteur who wants her to sink. Fixes buy air, breakdowns and
+-- mistakes cost it: the air clock is the crew's time to find the saboteur.
+--
 -- How it works
--- - Onboarding (tb_brief): the captain explains the game on the TV while the
---   board fills in. Everyone tapping "We know how to play" skips to the hatch.
---   Then everyone holds their bolt on their phone at the same time for three
---   seconds to seal the hatch. A bolt that slips costs nothing.
+-- - Onboarding (tb_brief): the captain explains every part of the game on the
+--   TV, one card at a time: the air, repairs in pairs, all hands, the
+--   saboteur, the meetings and vote, and how it ends. Everyone tapping "We know how to play" skips to
+--   the hatch. Then everyone holds their bolt on their phone at the same time
+--   for three seconds to seal the hatch (the TV groups the bolts in drill
+--   pairs, to show how repairs will work). A bolt that slips costs nothing.
 -- - Dim the lights (tb_dive): the host starts the dive; eight seconds later
---   everyone fills in their crew file (tb_crew): a portrait, a favourite wire
---   colour, a number from 1 to 9, what they'd bring if trapped underwater, and
---   one deeper question.
--- - Sealed orders (tb_orders): with 4 or more players, one is the saboteur.
---   With 3 it's co-op: reach the surface before the air runs out.
+--   everyone fills in their crew file (tb_crew): four light get-to-know
+--   questions (favourite colour, how spicy they like food from 1 to 9, what
+--   they'd bring on a sub for a week, and one picked from a bank). Everyone
+--   plays as the portrait drawn when they joined. (The spice level is stored
+--   in the num column.)
+-- - Sealed orders (tb_orders): one player is always the saboteur (3 to 6
+--   players). Orders come after the crew file, so nobody can tailor answers.
 -- - Four watches (tb_watch). Each pair (a trio if odd) gets one repair:
---   wires (one phone has the panel, the other the riddles about the panel
---   holder) or "who said it?" (the guide has a question about the operator,
---   the operator has everyone's answers). Repairs add air; mistakes cost some.
--- - After watches 1 to 3, an all-hands emergency (tb_hands): sonar Morse,
---   ballast pipes, then a hull breach.
--- - With a saboteur, the crew meets (tb_talk), reads the logs (every fix
---   recovers a line about the saboteur, from their own answers) and votes
---   (tb_vote, tb_verdict). A wrong vote costs a minute of air.
+--   every repair is about a crewmate, chosen from outside the pair when there
+--   is one (the "target"), so it tests how well you know each other:
+--   * Wires (engine, control, sonar): the manual (one phone) names the target
+--     and gives two hints; the panel (the other phone) has six wires and a
+--     keypad. Cut the target's favourite colour and enter their spice level.
+--     Three tries, each wrong one costs 0:10, then the repair fails.
+--   * Oxygen bay (also galley, quarters): the operator's phone asks a question
+--     about the target with up to four answers from the crew file; the log
+--     (the other phone) shows the question and rules out one answer. Wrong
+--     picks cost 0:15 and are crossed out; too many and the repair fails.
+--     Watches 1 and 2 ask what they'd bring, 3 and 4 their last answer.
+--   A fixed repair adds air, brings the sub up and puts the target's answers
+--   on the evidence board (tb_facts): checked against the crew file, so true.
+-- - After watches 1 to 3, an all-hands emergency (tb_hands):
+--   * Identity check (riddle): security has cleared one crew member (never
+--     the saboteur) but kept only their crew file, not their name. Everyone
+--     votes on their phone; a majority for the right name clears them and
+--     puts their answers on the evidence board.
+--   * Ballast pipes: each phone shows one row of the route and turns the
+--     valves of another row; the TV shows the real pipes.
+--   * Hull breach: shake, blow, tilt, hold, until the water is at 0%.
+-- - The crew meets (tb_talk) at the evidence board: clues about the
+--   saboteur (the first fix of each watch turns up one of their answers) next
+--   to every answer checked so far. A checked answer that doesn't match the
+--   saboteur's rules that person out. Then they vote (tb_vote, tb_verdict).
+--   A wrong vote costs a minute of air.
 -- - The air clock runs from the first watch, and stops for meetings.
---   The crew wins by voting out the saboteur (or, in co-op, by surviving four
---   watches). The saboteur wins if the air runs out, if they reach the
---   surface undiscovered, or if only one crew member is left.
+--   The crew wins by voting out the saboteur. The saboteur wins if the air
+--   runs out, if they reach the surface undiscovered, or if only one crew
+--   member is left. (The code still copes with no saboteur, from before.)
 
 -- Secret: one row per Trapped Below game.
 create table public.tb_games (
@@ -1709,12 +1737,15 @@ create table public.tb_games (
   air_left int not null default 480,
   depth int not null default 412,
   -- The all-hands emergency after this watch.
-  hands_kind text check (hands_kind in ('sonar', 'pipes', 'leak')),
+  hands_kind text check (hands_kind in ('riddle', 'pipes', 'leak')),
   hands_done boolean not null default false,
   hands_ok boolean,
   hands_tries int not null default 0,
-  sonar_word text,
-  sonar_listener uuid,
+  -- Identity check: whose crew file is read out, and each phone's guess {player: target}.
+  riddle_subject uuid,
+  riddle_votes jsonb not null default '{}',
+  -- Cleared by an identity check: not the saboteur.
+  cleared uuid[] not null default '{}',
   pipe_rot int[],
   leak_water real not null default 60,
   leak_at timestamptz,
@@ -1753,33 +1784,72 @@ create table public.tb_repairs (
   idx int not null,
   kind text not null check (kind in ('wires', 'guide')),
   members uuid[] not null,
-  -- Wires: the panel holder (the riddles are about them). Guide: the operator (the question is about them).
+  -- Wires: the panel holder. Guide: the operator (presses the answer).
   lead uuid not null,
+  -- The crewmate the repair is about.
+  target uuid not null,
   place text not null,
   solved boolean not null default false,
-  -- 'ok' (fixed) or 'half' (a guide pick that was wrong).
-  result text,
+  -- 'ok' (fixed) or 'fail' (out of tries).
+  result text check (result in ('ok', 'fail')),
   tries int not null default 0,
   msg text not null default '',
-  -- Guide: the shown answers [{a, owner}] and which one was picked.
+  -- Wires: two hints for the manual {not: [colour, colour], parity: 'odd'|'even'}.
+  hint jsonb,
+  -- Guide: the answers shown [{a, owner}], the one the log rules out, the wrong picks, the right pick.
   options jsonb,
+  struck int,
+  wrong int[] not null default '{}',
   pick int,
   solved_at timestamptz,
   primary key (room_id, watch, idx)
 );
 
+-- Secret until shown on the evidence board: answers checked against the crew file.
+-- field: colour, num, bring or deep. source: wires, guide or riddle.
+create table public.tb_facts (
+  room_id uuid not null references public.rooms (id) on delete cascade,
+  player_id uuid not null references public.players (id) on delete cascade,
+  field text not null check (field in ('colour', 'num', 'bring', 'deep')),
+  value text not null,
+  source text not null,
+  watch int not null,
+  primary key (room_id, player_id, field)
+);
+
 alter table public.tb_games enable row level security;
 alter table public.tb_crew enable row level security;
 alter table public.tb_repairs enable row level security;
-revoke all on public.tb_games, public.tb_crew, public.tb_repairs from anon, authenticated;
+alter table public.tb_facts enable row level security;
+revoke all on public.tb_games, public.tb_crew, public.tb_repairs, public.tb_facts from anon, authenticated;
 
--- How long the captain's briefing lasts on the TV (the recorded lines plus pauses), in seconds.
+-- Put a crewmate's answer on the evidence board (once).
+create function private.tb_fact(p_room_id uuid, p_player uuid, p_field text, p_source text)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_value text;
+begin
+  select case p_field when 'colour' then colour when 'num' then num::text when 'bring' then bring else deep_a end
+  into v_value from public.tb_crew where player_id = p_player;
+  if v_value is null then
+    return;
+  end if;
+  insert into public.tb_facts (room_id, player_id, field, value, source, watch)
+  select p_room_id, p_player, p_field, v_value, p_source, r.round from public.rooms r where r.id = p_room_id
+  on conflict do nothing;
+end;
+$$;
+
+-- How long the captain's briefing lasts on the TV (the lines plus pauses), in seconds: BRIEF_SECS in lib/gathering/trapped.ts.
 create function private.tb_brief_secs()
 returns int
 language sql
 immutable
 set search_path = ''
-as $$ select 38 $$;
+as $$ select 92 $$;
 
 -- Air left right now, in seconds.
 create function private.tb_air(p_game public.tb_games)
@@ -1849,23 +1919,23 @@ begin
 end;
 $$;
 
--- The logs found so far: lines about the saboteur, from their own crew file.
+-- The clues found so far: the saboteur's own answers, one a watch with a fix.
 create function private.tb_logs(p_room_id uuid)
 returns jsonb
 language sql
 stable
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('watch', g.log_rounds[l.i], 'text', l.t) order by l.i), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('watch', g.log_rounds[l.i], 'text', l.t, 'field', l.f, 'value', l.v) order by l.i), '[]')
   from public.tb_games g
   join public.tb_crew c on c.player_id = g.saboteur_id
   cross join lateral (
     select * from (values
-      (1, 'The saboteur''s favourite colour is ' || c.colour || '.'),
-      (2, 'The saboteur''s lucky number is ' || c.num || '.'),
-      (3, 'Trapped underwater, the saboteur would bring: ' || c.bring || '.'),
-      (4, 'Asked “' || c.deep_q || '”, the saboteur answered: ' || c.deep_a || '.')
-    ) v(i, t)
+      (1, 'The saboteur''s favourite colour is ' || c.colour || '.', 'colour', c.colour),
+      (2, 'The saboteur likes their food ' || c.num || ' out of 9 spicy.', 'num', c.num::text),
+      (3, 'Stuck on a sub for a week, the saboteur would bring: ' || c.bring || '.', 'bring', c.bring),
+      (4, 'Asked “' || c.deep_q || '”, the saboteur answered: ' || c.deep_a || '.', 'deep', c.deep_a)
+    ) v(i, t, f, v)
   ) l
   where g.room_id = p_room_id and l.i <= g.logs_found;
 $$;
@@ -1903,7 +1973,7 @@ begin
 end;
 $$;
 
--- A watch: fresh pairs (a trio if odd), each with a repair in a room of the sub.
+-- A watch: fresh pairs (a trio if odd), each with a repair in a room of the sub, about a crewmate.
 create function private.tb_start_watch(p_room_id uuid)
 returns void
 language plpgsql
@@ -1919,11 +1989,14 @@ declare
   v_members uuid[];
   v_kind text;
   v_lead uuid;
+  v_target uuid;
   v_wires int := 0;
   v_guides int := 0;
   v_opts jsonb;
+  v_struck int;
+  v_hint jsonb;
+  v_crew public.tb_crew;
   v_watch int;
-  v_bonus int;
 begin
   select * into v_room from public.rooms where id = p_room_id;
   select * into v_game from public.tb_games where room_id = p_room_id;
@@ -1941,22 +2014,42 @@ begin
     end if;
     v_kind := case when (v_i + v_watch) % 2 = 0 then 'wires' else 'guide' end;
     v_lead := v_members[1];
-    v_opts := null;
-    if v_kind = 'guide' then
-      -- The operator's answer and up to three others, shuffled.
-      select jsonb_agg(jsonb_build_object('a', bring, 'owner', player_id) order by random()) into v_opts
-      from (
-        select c.bring, c.player_id from public.tb_crew c where c.player_id = v_lead
-        union all
-        (select c.bring, c.player_id from public.tb_crew c
-         where c.room_id = p_room_id and c.player_id <> v_lead order by random() limit 3)
-      ) o;
+    -- The repair is about someone outside the pair, so the pair has to know them (or ask them,
+    -- and the saboteur may lie). With only three aboard, it's about a partner of the lead.
+    select id into v_target from unnest(v_order) id where not id = any (v_members) order by random() limit 1;
+    if v_target is null then
+      v_target := v_members[2 + floor(random() * (array_length(v_members, 1) - 1))::int];
     end if;
-    insert into public.tb_repairs (room_id, watch, idx, kind, members, lead, place, options)
-    values (p_room_id, v_watch, v_i, v_kind, v_members, v_lead,
+    select * into v_crew from public.tb_crew where player_id = v_target;
+    v_opts := null;
+    v_struck := null;
+    v_hint := null;
+    if v_kind = 'guide' then
+      -- The target's answer and up to three others, shuffled. Watches 1 and 2 ask what they'd
+      -- bring; watches 3 and 4 their answer to the deeper question.
+      select jsonb_agg(jsonb_build_object('a', a, 'owner', player_id) order by random()) into v_opts
+      from (
+        select case when v_watch <= 2 then c.bring else c.deep_a end as a, c.player_id from public.tb_crew c where c.player_id = v_target
+        union all
+        (select case when v_watch <= 2 then c.bring else c.deep_a end, c.player_id from public.tb_crew c
+         where c.room_id = p_room_id and c.player_id <> v_target order by random() limit 3)
+      ) o;
+      -- The log rules out one wrong answer.
+      select i - 1 into v_struck from jsonb_array_elements(v_opts) with ordinality e(o, i)
+      where (o ->> 'owner')::uuid <> v_target order by random() limit 1;
+    else
+      -- Two wire colours that aren't the target's, and whether their number is odd or even.
+      select jsonb_build_object(
+        'not', (select jsonb_agg(c) from (select c from unnest(array['red', 'blue', 'yellow', 'green', 'white', 'black']) c
+                where c <> v_crew.colour order by random() limit 2) x),
+        'parity', case when v_crew.num % 2 = 1 then 'odd' else 'even' end)
+      into v_hint;
+    end if;
+    insert into public.tb_repairs (room_id, watch, idx, kind, members, lead, target, place, options, struck, hint)
+    values (p_room_id, v_watch, v_i, v_kind, v_members, v_lead, v_target,
             case when v_kind = 'wires' then (array['engine', 'control', 'sonar'])[1 + v_wires % 3]
                  else (array['oxygen', 'galley', 'quarters'])[1 + v_guides % 3] end,
-            v_opts);
+            v_opts, v_struck, v_hint);
     if v_kind = 'wires' then v_wires := v_wires + 1; else v_guides := v_guides + 1; end if;
   end loop;
 
@@ -1994,8 +2087,7 @@ declare
   v_room public.rooms;
   v_game public.tb_games;
   v_kind text;
-  v_words text[] := array['EEL', 'RAY', 'COD', 'SUB', 'OAR', 'ICE', 'KELP', 'REEF'];
-  v_listener uuid;
+  v_subject uuid;
 begin
   select * into v_room from public.rooms where id = p_room_id;
   select * into v_game from public.tb_games where room_id = p_room_id;
@@ -2003,12 +2095,19 @@ begin
     perform private.tb_after_hands(p_room_id);
     return;
   end if;
-  v_kind := (array['sonar', 'pipes', 'leak'])[v_room.round];
-  select id into v_listener from public.players where room_id = p_room_id order by random() limit 1;
+  v_kind := (array['riddle', 'pipes', 'leak'])[v_room.round];
+  if v_kind = 'riddle' then
+    -- Someone security has cleared: anyone but the saboteur, not already cleared.
+    select p.id into v_subject from public.players p join public.tb_crew c on c.player_id = p.id
+    where p.room_id = p_room_id and p.id is distinct from v_game.saboteur_id and not p.id = any (v_game.cleared)
+    order by random() limit 1;
+    if v_subject is null then
+      v_kind := 'pipes';
+    end if;
+  end if;
   update public.tb_games set
     hands_kind = v_kind, hands_done = false, hands_ok = null, hands_tries = 0,
-    sonar_word = v_words[1 + floor(random() * array_length(v_words, 1))::int],
-    sonar_listener = v_listener,
+    riddle_subject = v_subject, riddle_votes = '{}',
     pipe_rot = array[1, 0, 0, 3, 2, 1, 1, 1, 3],
     leak_water = 60, leak_at = now() + interval '4 seconds', leak_holding = '{}', leak_floods = 0
   where room_id = p_room_id;
@@ -2202,35 +2301,6 @@ $$;
 -- Trapped Below: crew file and sealed orders
 -- ---------------------------------------------------------------------------
 
-create function public.tb_portrait(p_room_id uuid, p_portrait int)
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_room public.rooms := private.lock_room(p_room_id);
-  v_me public.players := private.me(p_room_id);
-  v_other uuid;
-begin
-  if v_me.id is null or v_room.phase <> 'tb_crew' then
-    raise exception 'The crew file is closed';
-  end if;
-  if p_portrait is null or p_portrait not between 1 and 6 then
-    raise exception 'Pick a portrait';
-  end if;
-  if exists (select 1 from public.players where room_id = p_room_id and id <> v_me.id and portrait = p_portrait and picked) then
-    raise exception 'Someone already picked that one';
-  end if;
-  -- Whoever had it (not yet confirmed) swaps to this player's old portrait.
-  select id into v_other from public.players where room_id = p_room_id and id <> v_me.id and portrait = p_portrait;
-  update public.players set portrait = null where id = v_other;
-  update public.players set portrait = p_portrait, picked = true where id = v_me.id;
-  update public.players set portrait = v_me.portrait where id = v_other;
-  perform private.touch(p_room_id);
-end;
-$$;
-
 create function public.tb_crew_file(p_room_id uuid, p_colour text, p_num int, p_bring text, p_deep_q text, p_deep_a text)
 returns void
 language plpgsql
@@ -2283,15 +2353,17 @@ begin
     return;
   end if;
   select count(*) into v_n from public.players where room_id = p_room_id;
-  if exists (select 1 from public.players where room_id = p_room_id and (not picked or not answered)) then
+  if exists (select 1 from public.players where room_id = p_room_id and not answered) then
     raise exception 'Waiting for everyone''s crew file';
   end if;
-  if v_n >= 4 then
+  -- Always one saboteur (3 to 6 players).
+  if v_n >= 3 then
     select id into v_saboteur from public.players where room_id = p_room_id order by random() limit 1;
   end if;
   delete from public.votes where room_id = p_room_id;
   delete from public.tb_repairs where room_id = p_room_id;
-  update public.tb_games set saboteur_id = v_saboteur, air_running = false, air_at = null, air_left = 480, depth = 412,
+  delete from public.tb_facts where room_id = p_room_id;
+  update public.tb_games set saboteur_id = v_saboteur, cleared = '{}', riddle_subject = null, riddle_votes = '{}', air_running = false, air_at = null, air_left = 480, depth = 412,
     hands_kind = null, hands_done = false, hands_ok = null, bolt = null, bolt_watch = null, bolt_report = null,
     logs_found = 0, log_rounds = '{}', fixes = 0, result = null, outcome = null, reason = null, started_at = now()
   where room_id = p_room_id;
@@ -2376,7 +2448,8 @@ begin
 end;
 $$;
 
--- Wires: the panel holder restarts the engine with the wire they cut and the code they set.
+-- Wires: the panel holder restarts the engine with the wire they cut and the code they set:
+-- the target's favourite colour and spice level. Three tries.
 create function public.tb_restart(p_room_id uuid, p_cut text, p_code text)
 returns boolean
 language plpgsql
@@ -2388,24 +2461,24 @@ declare
   v_me public.players := private.me(p_room_id);
   v_rep public.tb_repairs := private.tb_my_repair(p_room_id);
   v_crew public.tb_crew;
-  v_word text;
-  v_code text;
   v_right int := 0;
 begin
   if v_rep.kind <> 'wires' or v_me.id <> v_rep.lead then
     raise exception 'Only the panel holder can restart';
   end if;
-  select * into v_crew from public.tb_crew where player_id = v_rep.lead;
-  v_word := (regexp_match(v_crew.deep_a, '[[:alpha:]]+'))[1];
-  v_code := v_crew.num::text || (char_length(coalesce(v_word, '')) % 10)::text;
+  select * into v_crew from public.tb_crew where player_id = v_rep.target;
   if p_cut = v_crew.colour then v_right := v_right + 1; end if;
-  if p_code = v_code then v_right := v_right + 1; end if;
+  if p_code = v_crew.num::text then v_right := v_right + 1; end if;
   if v_right = 2 then
     update public.tb_repairs set solved = true, result = 'ok', tries = tries + 1, msg = '', solved_at = now()
     where room_id = p_room_id and watch = v_rep.watch and idx = v_rep.idx;
     perform private.tb_fixed(p_room_id, private.tb_bonus(p_room_id));
+    perform private.tb_fact(p_room_id, v_rep.target, 'colour', 'wires');
+    perform private.tb_fact(p_room_id, v_rep.target, 'num', 'wires');
   else
-    update public.tb_repairs set tries = tries + 1, msg = v_right || ' of 2 right'
+    update public.tb_repairs set tries = tries + 1, msg = v_right || ' of 2 right',
+      solved = tries + 1 >= 3, result = case when tries + 1 >= 3 then 'fail' end,
+      solved_at = case when tries + 1 >= 3 then now() end
     where room_id = p_room_id and watch = v_rep.watch and idx = v_rep.idx;
     perform private.tb_add_air(p_room_id, -10);
   end if;
@@ -2414,7 +2487,8 @@ begin
 end;
 $$;
 
--- Who said it: the operator presses the answer closest to the guide's guess.
+-- Oxygen bay: the operator presses the target's answer. A wrong one costs 0:15 and is crossed
+-- out; with four answers two wrong picks fail the repair, with three answers one does.
 create function public.tb_pick(p_room_id uuid, p_pick int)
 returns boolean
 language plpgsql
@@ -2425,22 +2499,29 @@ declare
   v_room public.rooms := private.lock_room(p_room_id);
   v_me public.players := private.me(p_room_id);
   v_rep public.tb_repairs := private.tb_my_repair(p_room_id);
+  v_n int;
   v_ok boolean;
+  v_fail boolean;
 begin
   if v_rep.kind <> 'guide' or v_me.id <> v_rep.lead then
     raise exception 'Only the operator can press';
   end if;
-  if p_pick is null or p_pick < 0 or p_pick >= jsonb_array_length(v_rep.options) then
+  v_n := jsonb_array_length(v_rep.options);
+  if p_pick is null or p_pick < 0 or p_pick >= v_n or p_pick = any (v_rep.wrong) then
     raise exception 'Pick one';
   end if;
-  v_ok := (v_rep.options -> p_pick ->> 'owner')::uuid = v_rep.lead;
-  update public.tb_repairs set solved = true, pick = p_pick, result = case when v_ok then 'ok' else 'half' end,
-    tries = 1, solved_at = now()
-  where room_id = p_room_id and watch = v_rep.watch and idx = v_rep.idx;
+  v_ok := (v_rep.options -> p_pick ->> 'owner')::uuid = v_rep.target;
   if v_ok then
+    update public.tb_repairs set solved = true, pick = p_pick, result = 'ok', tries = tries + 1, msg = '', solved_at = now()
+    where room_id = p_room_id and watch = v_rep.watch and idx = v_rep.idx;
     perform private.tb_fixed(p_room_id, private.tb_bonus(p_room_id));
+    perform private.tb_fact(p_room_id, v_rep.target, case when v_rep.watch <= 2 then 'bring' else 'deep' end, 'guide');
   else
-    perform private.tb_add_air(p_room_id, 20);
+    v_fail := cardinality(v_rep.wrong) + 1 >= greatest(1, v_n - 2);
+    update public.tb_repairs set wrong = wrong || p_pick, tries = tries + 1, msg = 'Wrong answer',
+      solved = v_fail, result = case when v_fail then 'fail' end, solved_at = case when v_fail then now() end
+    where room_id = p_room_id and watch = v_rep.watch and idx = v_rep.idx;
+    perform private.tb_add_air(p_room_id, -15);
   end if;
   perform private.tb_watch_check(p_room_id);
   return v_ok;
@@ -2496,9 +2577,38 @@ begin
 end;
 $$;
 
--- Sonar: anyone but the listener types what the signal spells.
-create function public.tb_sonar(p_room_id uuid, p_word text)
-returns boolean
+-- Identity check: settle it with the guesses so far. A majority of the guesses for the right
+-- name clears that crewmate (never the saboteur) and puts their whole file on the evidence board.
+create function private.tb_riddle_resolve(p_room_id uuid)
+returns void
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_game public.tb_games;
+  v_total int;
+  v_right int;
+begin
+  select * into v_game from public.tb_games where room_id = p_room_id for update;
+  select count(*), count(*) filter (where value #>> '{}' = v_game.riddle_subject::text)
+  into v_total, v_right from jsonb_each(v_game.riddle_votes);
+  if v_total > 0 and v_right * 2 > v_total then
+    update public.tb_games set cleared = array_append(array_remove(cleared, riddle_subject), riddle_subject) where room_id = p_room_id;
+    perform private.tb_fact(p_room_id, v_game.riddle_subject, 'colour', 'riddle');
+    perform private.tb_fact(p_room_id, v_game.riddle_subject, 'num', 'riddle');
+    perform private.tb_fact(p_room_id, v_game.riddle_subject, 'bring', 'riddle');
+    perform private.tb_fact(p_room_id, v_game.riddle_subject, 'deep', 'riddle');
+    perform private.tb_hands_done(p_room_id, true);
+  else
+    update public.tb_games set hands_done = true, hands_ok = false where room_id = p_room_id;
+    update public.rooms set deadline = now() + interval '6 seconds', total_secs = 6, version = version + 1 where id = p_room_id;
+  end if;
+end;
+$$;
+
+-- Identity check: each phone guesses whose file it is (and can change its mind until everyone has).
+create function public.tb_riddle(p_room_id uuid, p_target text)
+returns void
 language plpgsql
 security definer
 set search_path = ''
@@ -2509,17 +2619,19 @@ declare
   v_game public.tb_games;
 begin
   select * into v_game from public.tb_games where room_id = p_room_id for update;
-  if v_me.id is null or v_room.phase <> 'tb_hands' or v_game.hands_kind <> 'sonar' or v_game.hands_done then
-    return false;
+  if v_me.id is null or v_room.phase <> 'tb_hands' or v_game.hands_kind <> 'riddle' or v_game.hands_done then
+    return;
   end if;
-  if upper(btrim(coalesce(p_word, ''))) = v_game.sonar_word then
-    perform private.tb_hands_done(p_room_id, true);
-    return true;
+  if not exists (select 1 from public.players where id::text = p_target and room_id = p_room_id) then
+    raise exception 'Pick someone aboard';
   end if;
-  update public.tb_games set hands_tries = hands_tries + 1 where room_id = p_room_id;
-  perform private.tb_add_air(p_room_id, -10);
-  perform private.touch(p_room_id);
-  return false;
+  update public.tb_games set riddle_votes = riddle_votes || jsonb_build_object(v_me.id::text, p_target)
+  where room_id = p_room_id returning * into v_game;
+  if not exists (select 1 from public.players p where p.room_id = p_room_id and not v_game.riddle_votes ? p.id::text) then
+    perform private.tb_riddle_resolve(p_room_id);
+  else
+    perform private.touch(p_room_id);
+  end if;
 end;
 $$;
 
@@ -2775,8 +2887,7 @@ begin
       if v_game.dive_at is null or v_game.dive_at > now() - interval '8 seconds' then
         return false;
       end if;
-      -- Everyone keeps their portrait from the browser (or picks another) and fills in the crew file.
-      update public.players set picked = false where room_id = p_room_id and not answered;
+      -- Everyone plays as the portrait drawn when they joined, straight into the crew file.
       perform private.set_phase(p_room_id, 'tb_crew');
     when 'tb_watch' then
       if private.tb_out_of_air(p_room_id) then
@@ -2796,6 +2907,11 @@ begin
       end if;
       if not v_late then
         return false;
+      end if;
+      -- Time's up on an identity check: settle it with the guesses so far, then show the result.
+      if v_game.hands_kind = 'riddle' and not v_game.hands_done then
+        perform private.tb_riddle_resolve(p_room_id);
+        return true;
       end if;
       if not v_game.hands_done then
         update public.tb_games set hands_done = true, hands_ok = false where room_id = p_room_id;
@@ -2834,6 +2950,8 @@ declare
   v_mine jsonb;
   v_lead_name text;
   v_lead_q text;
+  v_target_name text;
+  v_question text;
   v_due timestamptz;
   v_rows int[];
   v_n int;
@@ -2869,18 +2987,22 @@ begin
     'depth', v_game.depth, 'saboteur_mode', v_game.saboteur_id is not null,
     'bolt_report', v_game.bolt_report, 'fixes', v_game.fixes,
     'logs', private.tb_logs(p_room.id),
+    -- The evidence board: answers checked against the crew file, and who an identity check cleared.
+    'facts', coalesce((select jsonb_agg(jsonb_build_object('player', f.player_id, 'field', f.field, 'value', f.value, 'source', f.source, 'watch', f.watch) order by f.watch, f.field)
+      from public.tb_facts f where f.room_id = p_room.id), '[]'),
+    'cleared', to_jsonb(v_game.cleared),
     'due_at', v_due,
     'crew_done', coalesce((select jsonb_agg(player_id) from public.tb_crew where room_id = p_room.id), '[]'),
     'voted', case when p_room.phase = 'tb_vote' then coalesce((
       select jsonb_agg(voter_id) from public.votes where room_id = p_room.id and round = p_room.round and not auto), '[]') end,
     'result', case when p_room.phase in ('tb_verdict', 'tb_end') then v_game.result end,
-    -- The repairs: who is where, and how it went. A "who said it?" shows whose answers they were once it's done.
+    -- The repairs: who is where, and how it went. Who a repair was about shows once it's done.
     'repairs', coalesce((
       select jsonb_agg(jsonb_build_object(
         'idx', r.idx, 'kind', r.kind, 'members', to_jsonb(r.members), 'lead', r.lead, 'place', r.place,
-        'solved', r.solved, 'result', r.result, 'tries', r.tries, 'solved_at', r.solved_at
-      ) || case when r.kind = 'guide' and r.solved then jsonb_build_object('options', r.options, 'pick', r.pick) else '{}' end
-      order by r.idx)
+        'solved', r.solved, 'result', r.result, 'tries', r.tries, 'solved_at', r.solved_at,
+        'target', case when r.solved then r.target end
+      ) order by r.idx)
       from public.tb_repairs r where r.room_id = p_room.id and r.watch = p_room.round
     ), '[]')
   );
@@ -2888,12 +3010,21 @@ begin
   if p_room.phase = 'tb_hands' then
     v_out := v_out || jsonb_build_object('hands', jsonb_build_object(
       'kind', v_game.hands_kind, 'done', v_game.hands_done, 'ok', v_game.hands_ok, 'tries', v_game.hands_tries,
-      'listener', v_game.sonar_listener, 'letters', char_length(v_game.sonar_word),
+      -- Identity check: the crew file without its name, who has guessed, and (once done) whose it was.
+      'riddle', case when v_game.hands_kind = 'riddle' then (
+        select jsonb_build_array(
+          'My favourite colour is ' || c.colour || '.',
+          'I like my food ' || c.num || ' out of 9 spicy.',
+          'Stuck on a sub for a week, I''d bring: ' || c.bring || '.',
+          'Asked “' || c.deep_q || '”, I said: ' || c.deep_a || '.')
+        from public.tb_crew c where c.player_id = v_game.riddle_subject) end,
+      'guessed', (select coalesce(jsonb_agg(k), '[]') from jsonb_object_keys(v_game.riddle_votes) k),
+      'subject', case when v_game.hands_done and v_game.hands_ok then v_game.riddle_subject end,
+      'guesses', case when v_game.hands_done then v_game.riddle_votes end,
       'rot', to_jsonb(v_game.pipe_rot),
       'water', private.tb_water(v_game), 'leak_at', v_game.leak_at, 'floods', v_game.leak_floods,
       'hatch_held', cardinality(v_game.leak_holding) > 0,
       'rate', private.tb_leak_rate(v_game),
-      'word', case when v_game.hands_done then v_game.sonar_word end,
       'roles', coalesce((
         select jsonb_object_agg(p.id, jsonb_build_object(
           'leak', private.tb_leak_role(p_room.id, p.id), 'rows', to_jsonb(private.tb_pipe_rows(p_room.id, p.id))))
@@ -2926,36 +3057,35 @@ begin
       select * into v_rep from public.tb_repairs where room_id = p_room.id and watch = p_room.round and p_me.id = any (members);
       if found then
         select name into v_lead_name from public.players where id = v_rep.lead;
-        select deep_q into v_lead_q from public.tb_crew where player_id = v_rep.lead;
+        select name into v_target_name from public.players where id = v_rep.target;
+        select deep_q into v_lead_q from public.tb_crew where player_id = v_rep.target;
         v_n := array_length(v_rep.members, 1);
         v_k := array_position(v_rep.members, p_me.id);
+        v_question := case when v_rep.watch <= 2 then 'Stuck on a sub for a week, what one thing would ' || v_target_name || ' bring?'
+                           else v_target_name || ' was asked “' || v_lead_q || '” What did they answer?' end;
         v_mine := v_mine || jsonb_build_object('repair', jsonb_build_object(
           'kind', v_rep.kind, 'place', v_rep.place, 'members', to_jsonb(v_rep.members), 'lead', v_rep.lead,
           'lead_name', v_lead_name, 'solved', v_rep.solved, 'result', v_rep.result, 'tries', v_rep.tries, 'msg', v_rep.msg,
           'is_lead', p_me.id = v_rep.lead,
-          -- Wires: the readers' riddles (in a trio, each reader gets one of the two).
-          'riddles', case when v_rep.kind = 'wires' and p_me.id <> v_rep.lead then
-              case when v_n = 3 then to_jsonb(array[case when v_k = 2 then 'wire' else 'code' end])
-                   else to_jsonb(array['wire', 'code']) end end,
-          'lead_q', case when v_rep.kind = 'wires' and p_me.id <> v_rep.lead then v_lead_q end,
-          -- Guide: the operator sees the answers but not whose; the guide sees the question.
+          -- Wires: the manual knows whose wires these are, and two hints. The panel holder has to be told.
+          'target_name', case when v_rep.kind = 'guide' or p_me.id <> v_rep.lead then v_target_name end,
+          'hint', case when v_rep.kind = 'wires' and p_me.id <> v_rep.lead then v_rep.hint end,
+          -- Oxygen bay: both see the question; the operator has the answers, the log rules one out.
+          'question', case when v_rep.kind = 'guide' then v_question end,
           'options', case when v_rep.kind = 'guide' and p_me.id = v_rep.lead then
-              (select jsonb_agg(o -> 'a') from jsonb_array_elements(v_rep.options) o) end
+              (select jsonb_agg(o -> 'a') from jsonb_array_elements(v_rep.options) o) end,
+          'wrong', to_jsonb(v_rep.wrong),
+          'max_wrong', case when v_rep.kind = 'guide' then greatest(1, jsonb_array_length(v_rep.options) - 2) else 3 end,
+          'struck', case when v_rep.kind = 'guide' and p_me.id <> v_rep.lead then jsonb_build_object(
+              'a', v_rep.options -> v_rep.struck ->> 'a',
+              'owner', (select name from public.players where id = (v_rep.options -> v_rep.struck ->> 'owner')::uuid)) end
         ));
       end if;
     end if;
     if p_room.phase = 'tb_hands' then
       v_rows := private.tb_pipe_rows(p_room.id, p_me.id);
       v_mine := v_mine || jsonb_build_object(
-        'listener', p_me.id = v_game.sonar_listener,
-        -- Only the listener's phone gets the signal (as shorts and longs, not letters).
-        'signal', case when p_me.id = v_game.sonar_listener and v_game.hands_kind = 'sonar' then (
-          select string_agg(case ch
-            when 'A' then '.-' when 'B' then '-...' when 'C' then '-.-.' when 'D' then '-..' when 'E' then '.'
-            when 'F' then '..-.' when 'I' then '..' when 'K' then '-.-' when 'L' then '.-..' when 'O' then '---'
-            when 'P' then '.--.' when 'R' then '.-.' when 'S' then '...' when 'U' then '..-' when 'Y' then '-.--'
-            else '' end, ' ')
-          from regexp_split_to_table(v_game.sonar_word, '') ch) end,
+        'guess', v_game.riddle_votes ->> p_me.id::text,
         'see', v_rows[1], 'turn', v_rows[2],
         'leak', private.tb_leak_role(p_room.id, p_me.id)
       );

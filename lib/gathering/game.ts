@@ -65,21 +65,26 @@ export type MyLock = {
 
 // Trapped Below's slice of the view (see tb_view() in the database).
 export type TbRepair = {
-  idx: number; kind: "wires" | "guide"; members: string[]; lead: string; place: string; solved: boolean; result: "ok" | "half" | null;
+  idx: number; kind: "wires" | "guide"; members: string[]; lead: string; place: string; solved: boolean; result: "ok" | "fail" | null;
   tries: number; solved_at: string | null;
-  // "Who said it?", once done: the answers shown and whose they were.
-  options?: { a: string; owner: string }[]; pick?: number;
+  // Who it was about, once it's done.
+  target: string | null;
 };
+// A crew file field: favourite colour, spice level (num), what they'd bring, the last answer.
+export type TbField = "colour" | "num" | "bring" | "deep";
 export type TbView = {
   stage: "talk" | "hatch" | "sealed"; brief_secs: number; skip: string[]; holds: string[];
   seal_at: string | null; sealed_at: string | null; slips: number; slip_at: string | null; dive_at: string | null;
   air: number; air_running: boolean; air_at: string | null; depth: number; saboteur_mode: boolean;
-  bolt_report: string | null; fixes: number; logs: { watch: number; text: string }[]; due_at: string | null;
+  bolt_report: string | null; fixes: number; logs: { watch: number; text: string; field: TbField; value: string }[]; due_at: string | null;
+  // The evidence board: answers checked against the crew file, and who an identity check cleared.
+  facts: { player: string; field: TbField; value: string; source: "wires" | "guide" | "riddle"; watch: number }[]; cleared: string[];
   crew_done: string[]; voted: string[] | null; result: (VoteResult & { was_saboteur?: boolean }) | null;
   repairs: TbRepair[];
   hands?: {
-    kind: "sonar" | "pipes" | "leak"; done: boolean; ok: boolean | null; tries: number; listener: string; letters: number;
-    rot: number[]; water: number; leak_at: string; floods: number; hatch_held: boolean; rate: number; word: string | null;
+    kind: "riddle" | "pipes" | "leak"; done: boolean; ok: boolean | null; tries: number;
+    riddle: string[] | null; guessed: string[]; subject: string | null; guesses: Record<string, string> | null;
+    rot: number[]; water: number; leak_at: string; floods: number; hatch_held: boolean; rate: number;
     roles: Record<string, { leak: string; rows: [number, number] }>;
   };
   outcome?: "crew" | "saboteur"; reason?: string; saboteur?: string | null;
@@ -89,10 +94,13 @@ export type TbView = {
     crew: { colour: string; num: number; bring: string; q: string; a: string } | null;
     bolt?: string | null; can_bolt?: boolean;
     repair?: {
-      kind: "wires" | "guide"; place: string; members: string[]; lead: string; lead_name: string; solved: boolean; result: string | null;
-      tries: number; msg: string; is_lead: boolean; riddles: ("wire" | "code")[] | null; lead_q: string | null; options: string[] | null;
+      kind: "wires" | "guide"; place: string; members: string[]; lead: string; lead_name: string; solved: boolean; result: "ok" | "fail" | null;
+      tries: number; msg: string; is_lead: boolean; target_name: string | null;
+      hint: { not: string[]; parity: "odd" | "even" } | null;
+      question: string | null; options: string[] | null; wrong: number[]; max_wrong: number;
+      struck: { a: string; owner: string } | null;
     };
-    listener?: boolean; signal?: string | null; see?: number; turn?: number; leak?: string;
+    guess?: string | null; see?: number; turn?: number; leak?: string;
   };
 };
 

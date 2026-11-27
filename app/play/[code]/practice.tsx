@@ -86,7 +86,7 @@ export function ManorWelcome({ view, now, onDone }: { view: View; now: () => num
         <button
           className="p-btn"
           onClick={() => {
-            track("practice_choice", { room_id: roomId, played_before: false });
+            track("marlowe_practice_choice", { room_id: roomId, story: "marlowe", played_before: false });
             setStage("practice");
           }}
         >
@@ -95,7 +95,7 @@ export function ManorWelcome({ view, now, onDone }: { view: View; now: () => num
         <button
           className="p-btn2 wide"
           onClick={() => {
-            track("practice_choice", { room_id: roomId, played_before: true });
+            track("marlowe_practice_choice", { room_id: roomId, story: "marlowe", played_before: true });
             finish("played");
           }}
         >
@@ -109,7 +109,7 @@ export function ManorWelcome({ view, now, onDone }: { view: View; now: () => num
     <Practice
       view={view}
       onEnd={(completed, step, seconds) => {
-        track("practice_finished", { room_id: roomId, completed, step, steps: BEATS.length, seconds });
+        track("marlowe_practice_finished", { room_id: roomId, story: "marlowe", completed, step, steps: BEATS.length, seconds });
         finish(completed ? "done" : "skipped");
       }}
     />
