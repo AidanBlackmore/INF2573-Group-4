@@ -81,7 +81,7 @@ export function ManorWelcome({ view, now, onDone }: { view: View; now: () => num
         <span className="p-eyebrow">Before you play</span>
         <Art name="sketch-candle" className="ask-art" />
         <h2>Practice round</h2>
-        <p className="p-small">Learn how to play in one quick round: about 30 seconds, only on your phone.</p>
+        <p className="p-small">Learn how to play in one quick round: under a minute, only on your phone.</p>
         <div className="spacer" />
         <button
           className="p-btn"
@@ -117,23 +117,32 @@ export function ManorWelcome({ view, now, onDone }: { view: View; now: () => num
 }
 
 // ---------- the practice round ----------
-// One hour of the night in five glances, about 30 seconds. Each step is one short line on the real
+// One hour of the night in seven glances, under a minute. Each step is one short line on the real
 // screen; you learn by doing (open, cut, vote), and the steps you only need to see move on by
 // themselves.
 
-type Spot = "open" | "role" | "lock" | "note" | "picker";
-type Screen = "envelope" | "role" | "lock" | "note" | "vote" | "end";
+type Spot = "open" | "role" | "locks" | "lock" | "note" | "picker";
+type Screen = "envelope" | "role" | "locks" | "lock" | "note" | "vote" | "end";
 // `say`: the one line. `hint`: a few words more, if needed. `act`: what the player must do to go on.
 // `auto`: steps without an action move on by themselves after this long (or on a tap).
-type Beat = { screen: Screen; spot?: Spot; say: string; hint?: string; act?: "open" | "cut" | "vote"; auto?: number };
+type Beat = { screen: Screen; spot?: Spot; say: string; hint?: string; act?: "open" | "ok" | "cut" | "vote"; auto?: number };
 
 const BEATS: Beat[] = [
   { screen: "envelope", spot: "open", say: "Open your secret role", act: "open" },
   { screen: "role", spot: "role", say: "You're a detective", hint: "One of you is the murderer.", auto: 2600 },
-  { screen: "lock", spot: "lock", say: "Cut the wire the rules say", hint: "In the game, your partner has the rules.", act: "cut" },
-  { screen: "note", spot: "note", say: "Behind the lock: a clue", hint: "Half a note. Your partner has the rest.", auto: 3000 },
+  { screen: "locks", spot: "locks", say: "Later: locks with a partner", hint: "Each round, you two open one of these.", act: "ok" },
+  { screen: "lock", spot: "lock", say: "Try one: cut the right wire", hint: "In the game, your partner has these rules.", act: "cut" },
+  { screen: "note", spot: "note", say: "A clue about the murder", hint: "You get half. Your partner has the other half.", act: "ok" },
   { screen: "vote", spot: "picker", say: "Who's the murderer? Vote", act: "vote" },
   { screen: "end", say: "That's one round", hint: "Repeat till the murderer is caught." },
+];
+
+// The four partner locks of the real game (app/play/[code]/phone.tsx), one line each.
+const LOCK_KINDS = [
+  { name: "Fuse box", how: "One sees the wires, one has the manual. Talk, then cut the right wire." },
+  { name: "Charades", how: "One acts out a word, no talking. The other types the guess." },
+  { name: "Sketch", how: "One draws a word, no letters. The other types the guess." },
+  { name: "Two truths and a lie", how: "One says three things. The other asks questions and finds the lie." },
 ];
 
 // The practice fuse box: blue, black, red, black. A red wire, the last isn't white, one blue: cut the first.
@@ -205,6 +214,24 @@ function Practice({ view, onEnd }: { view: View; onEnd: (completed: boolean, ste
         </div>
       </div>
     );
+  } else if (beat.screen === "locks") {
+    body = (
+      <div className="p-task lock-kinds" ref={spot("locks")}>
+        <span className="where">Later in the game · with a partner</span>
+        <b>Partner locks</b>
+        <ul className="lock-list">
+          {LOCK_KINDS.map((k) => (
+            <li key={k.name}>
+              <b>{k.name}</b>
+              <span>{k.how}</span>
+            </li>
+          ))}
+        </ul>
+        <button className="p-btn" onClick={() => did("ok")}>
+          Got it
+        </button>
+      </div>
+    );
   } else if (beat.screen === "lock") {
     body = (
       <div className="p-task" ref={spot("lock")}>
@@ -238,12 +265,19 @@ function Practice({ view, onEnd }: { view: View; onEnd: (completed: boolean, ste
     );
   } else if (beat.screen === "note") {
     body = (
-      <div className="p-task opened" onClick={next}>
+      <div className="p-task opened">
         <div className="room-scene" style={{ backgroundImage: `url(/figma/${ROOM_SCENE.billiards}.jpg)` }}>
           <span>Billiard Room</span>
         </div>
         <Art name="clue-letter" className="corner" />
-        <q ref={spot("note")}>…the murderer&apos;s biggest fear is: “Pige…</q>
+        <div className="torn-pair" ref={spot("note")}>
+          <span className="p-eyebrow">Your half of a clue</span>
+          <q>…the murderer&apos;s biggest fear is: “Pige…</q>
+          <span className="torn-other">Hollis has the other half</span>
+          <button className="p-btn" onClick={() => did("ok")}>
+            Got it
+          </button>
+        </div>
       </div>
     );
   } else if (beat.screen === "vote") {
@@ -340,7 +374,7 @@ function Coach({ target, find, beat, step, onNext, onSkip }: {
     : {};
   // The line goes above the spotlight if there's room (where the eye starts), otherwise below.
   // What to do sits between the line and the spotlight: big, red, with an arrow into the spotlit part.
-  const todo = beat.act === "vote" ? "Pick one, then Vote" : beat.act === "cut" ? "Tap a wire" : beat.act === "open" ? "Tap to open" : null;
+  const todo = beat.act === "vote" ? "Pick one, then Vote" : beat.act === "cut" ? "Tap a wire" : beat.act === "open" ? "Tap to open" : beat.act === "ok" ? "Tap Got it" : null;
   const gap = todo ? 70 : 12;
   let place: CSSProperties = {};
   let chip: CSSProperties | null = null;
