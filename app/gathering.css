@@ -291,10 +291,14 @@
 .steps i.on { width: 28px; background: var(--ink); }
 .ob-room { font: 500 0.85rem var(--label); letter-spacing: 0.1em; text-transform: uppercase; color: var(--brown); }
 .ob h2 { font-size: 1.45rem; }
-.screen .code-boxes { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
-.screen .code-boxes input { min-width: 0; height: 64px; padding: 0; text-align: center; font: 700 2rem var(--body); text-transform: uppercase;
-  caret-color: var(--action); border: 0; box-shadow: inset 0 -4px 0 var(--paper-shade); }
-.screen .code-boxes input:focus-visible { outline: 3px solid var(--ink); outline-offset: 0; }
+/* The room code: five boxes drawn over one real input (see CodeBoxes). The input covers the boxes,
+   invisible, so a tap anywhere focuses it and the phone's keyboard does the typing and deleting. */
+.screen .code-boxes { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; cursor: text; }
+.screen .code-boxes .code-input { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; margin: 0; border: 0; box-shadow: none; background: transparent; color: transparent; caret-color: transparent; font-size: 16px; opacity: 0.01; z-index: 1; }
+.screen .code-boxes .code-box { min-width: 0; height: 64px; display: grid; place-items: center; font: 700 2rem var(--body); text-transform: uppercase; color: var(--ink); background: var(--paper-light); border: 2px solid var(--ink); box-shadow: inset 0 -4px 0 var(--paper-shade); }
+.screen .code-boxes .code-box.cur { outline: 3px solid var(--action); outline-offset: 0; }
+.screen .code-boxes .code-box.cur:empty::after { content: ""; width: 2px; height: 1.4em; background: var(--action); animation: code-caret 1s steps(2) infinite; }
+@keyframes code-caret { 50% { opacity: 0; } }
 .hand { font: 1rem var(--hand); color: var(--brown); margin: 0; }
 .screen .name-line { background: transparent; border: 0; border-bottom: 2px solid var(--ink); box-shadow: none; font: 1.2rem var(--body); padding: 6px 0; }
 .picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }

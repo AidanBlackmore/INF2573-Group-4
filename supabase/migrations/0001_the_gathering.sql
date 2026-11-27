@@ -2356,10 +2356,11 @@ begin
   if exists (select 1 from public.players where room_id = p_room_id and not answered) then
     raise exception 'Waiting for everyone''s crew file';
   end if;
-  -- Always one saboteur (3 to 6 players).
-  if v_n >= 3 then
-    select id into v_saboteur from public.players where room_id = p_room_id order by random() limit 1;
+  -- Always exactly one saboteur, whatever the number of players (joining allows 3 to 6).
+  if v_n = 0 then
+    raise exception 'Nobody is aboard';
   end if;
+  select id into v_saboteur from public.players where room_id = p_room_id order by random() limit 1;
   delete from public.votes where room_id = p_room_id;
   delete from public.tb_repairs where room_id = p_room_id;
   delete from public.tb_facts where room_id = p_room_id;

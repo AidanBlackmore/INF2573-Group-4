@@ -551,10 +551,14 @@ function WirePanel({ ctx }: { ctx: Ctx }) {
       <div className="tb-lcd">{code || "_"}</div>
       <div className="tb-keys">
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((k) => (
-          <button key={k} className={code === String(k) ? "on" : ""} onClick={() => setCode(String(k))}>
+          <button key={k} className={code === String(k) ? "on" : ""} aria-pressed={code === String(k)} onClick={() => setCode(String(k))}>
             {k}
           </button>
         ))}
+        {/* Delete: clears the digit, so a wrong one can be taken back. */}
+        <button className="del" aria-label="Delete digit" disabled={!code} onClick={() => setCode("")}>
+          ⌫
+        </button>
       </div>
       <button className="p-btn" disabled={busy || !cut || !code} onClick={() => void run("tb_restart", { p_cut: cut, p_code: code })}>
         Restart engine{cut ? ` · ${cut} wire, ${code || "?"}` : ""}

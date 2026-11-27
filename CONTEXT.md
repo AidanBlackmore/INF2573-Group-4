@@ -56,6 +56,7 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
 - **Vercel:** deploys the `claude/lucid-heisenberg-cgg0ll` branch.
 - **PostHog:** `posthog-js`, set up in `instrumentation-client.ts`. Only pageviews and our own events.
 - **Fonts:** Jersey 15 (labels and headings; replaced Pixelify Sans) is self-hosted in `app/fonts/` and loaded twice in `app/layout.tsx`: 118% for The Gathering and Marlowe, plain for Trapped Below (`--pixel` is redefined under `[data-world="deep"]`). Literata for body, Kalam for handwriting.
+- **Typing on phones:** the room code is one real `<input>` drawn as five boxes (`CodeBoxes` in `app/play/[code]/phone.tsx`), so backspace and paste work with every phone keyboard. Don't go back to one input per box: Android keyboards don't report backspace on an empty box. Keypads (the wire code lock) have a delete key.
 - **Dark pages:** the viewport declares `colorScheme: "dark"` so phones' automatic dark mode doesn't recolour the site (it hid wire colours).
 
 ### Key files

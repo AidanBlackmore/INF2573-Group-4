@@ -370,6 +370,8 @@
 .tb-wire.cut { background: linear-gradient(90deg, var(--wc) 44%, #4a5a5e 44%, #4a5a5e 56%, var(--wc) 56%); box-shadow: 0 0 0 3px var(--alarm), 0 3px 0 rgba(0, 0, 0, 0.5); }
 .tb-lcd { background: #0b2b1d; color: var(--good); font: 400 2rem var(--pixel); letter-spacing: 0.4em; text-align: center; padding: 4px; box-shadow: 0 0 0 3px #071013; font-variant-numeric: tabular-nums; }
 .tb-keys { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+.tb-keys button.del { background: #a7b5b5; }
+.tb-keys button:disabled { opacity: 0.45; }
 .tb-porthole, .tb-listen { width: 170px; aspect-ratio: 222 / 228; align-self: center; border: 0; background: var(--kit-port) center / contain no-repeat; color: var(--glow); font: 400 1.3rem var(--pixel); letter-spacing: 0.08em; text-transform: uppercase; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.6)); }
 .tb-porthole.opening { animation: tb-unscrew 0.7s ease-in forwards; }
 @keyframes tb-unscrew { 40% { transform: rotate(-60deg); } 100% { transform: rotate(-120deg) scale(0.2); opacity: 0; } }
