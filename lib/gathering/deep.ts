@@ -74,6 +74,11 @@ class Deep {
     return (this.noise[type] = b);
   }
 
+  // The TV's mute or volume changed: apply it now (stop the room sound if muted, restart it after).
+  refresh() {
+    this.apply();
+  }
+
   // ---------- rooms ----------
   // Which room's sound should play (null for none). Crossfades.
   setRoom(name: Place | null) {
@@ -81,6 +86,8 @@ class Deep {
     this.apply();
   }
   private apply() {
+    // The volume (0 when the TV is muted) applies whether or not anything is playing.
+    if (this.master) this.master.gain.value = this.enabled() ? this.level : 0;
     if (!this.running()) {
       if (this.cur && !this.enabled()) {
         this.cur.stop();
@@ -89,7 +96,6 @@ class Deep {
       }
       return;
     }
-    if (this.master) this.master.gain.value = this.level;
     if (this.wanted === this.curName) return;
     this.cur?.stop();
     this.curName = this.wanted;

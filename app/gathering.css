@@ -105,8 +105,14 @@
 .tv-bar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: flex-end; padding: 8px 16px; background: var(--room); }
 .tool { background: transparent; color: var(--on-dark); border: 1px solid #3a332d; border-radius: 8px; padding: 6px 12px; font-size: 0.7rem; }
 .tool:hover:not(:disabled) { border-color: var(--tv-muted); }
-.tv-bar input[type="range"] { width: 90px; accent-color: var(--paper); }
-.tv-bar output { font: 0.8rem var(--label); color: var(--tv-muted); min-width: 3ch; }
+.tv-bar input[type="range"] { width: 120px; accent-color: var(--paper); cursor: pointer; }
+.tv-bar output { font: 0.9rem var(--label); color: var(--tv-muted); min-width: 5ch; }
+/* Mute: an unmistakable red state while muted. Volume: dimmed while muted (moving it unmutes). */
+.tv-bar .mute { display: inline-flex; align-items: center; gap: 6px; }
+.tv-bar .mute .spk { width: 18px; height: 18px; }
+.tv-bar .mute.is-muted { background: var(--action); border-color: var(--action); color: var(--on-action); }
+.tv-bar .vol { display: inline-flex; align-items: center; gap: 8px; font: 0.9rem var(--label); color: var(--tv-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.tv-bar .vol.is-muted input, .tv-bar .vol.is-muted output { opacity: 0.45; }
 .tv { flex: 1; position: relative; overflow: hidden; background: var(--fog-dark) center / cover no-repeat; padding: 24px clamp(16px, 3vw, 48px) 40px; display: flex; flex-direction: column; gap: 18px; }
 .tv::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(20, 20, 20, 0.55), rgba(20, 20, 20, 0.35) 45%, rgba(20, 20, 20, 0.6)); pointer-events: none; }
 .tv > * { position: relative; }
@@ -495,3 +501,10 @@
   .weather canvas { display: none; }
   .weather .flicker { animation: none; }
 }
+
+/* Marlowe Manor's "look at your phone" tag: a paper label with a red edge, bottom left of the TV. */
+.m-focus { position: absolute; left: clamp(16px, 3vw, 48px); bottom: 22px; z-index: 6; display: flex; align-items: center; gap: 12px; background: var(--paper); color: var(--ink); padding: 10px 16px 12px; border-left: 8px solid var(--action); box-shadow: 0 -4px 0 var(--ink), 0 4px 0 var(--ink), -4px 0 0 var(--ink), 4px 0 0 var(--ink); filter: drop-shadow(4px 4px 0 var(--ink)); font: clamp(0.95rem, 1.3vw, 1.25rem)/1.15 var(--label); text-transform: uppercase; letter-spacing: 0.06em; animation: m-focus-in 0.9s ease-out; }
+.m-focus b { font-size: 1.2em; color: var(--action); }
+.m-focus .phicon { border-color: var(--ink); width: 1.3em; height: 2.1em; }
+.m-focus .phicon::after { background: var(--ink); }
+@keyframes m-focus-in { 0% { transform: scale(0.6); opacity: 0; } 25% { transform: scale(1.08); opacity: 1; } 100% { transform: none; } }

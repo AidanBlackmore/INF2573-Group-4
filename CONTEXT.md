@@ -90,6 +90,8 @@ TV route `/` (also `/host`); phones use `/play/CODE` (QR link, joins straight aw
 - **Narrator:** reads every `[data-line]` on the TV screen once per screen.
 - **Captions:** every narrated line is captioned word by word (`Caption` in `app/_ui/bits.tsx`), TikTok style: the spoken word is highlighted, words still to come are dimmed. `sound().progress(id)` says how far through a line the narrator is (the recording's playback position, or the browser voice's word events).
 - **Music:** ducks under the narrator and during lock solving.
+- **Mute and volume (TV bar):** the slider is a master volume for everything the TV plays (music at a quarter of it, the narrator, effects, Trapped Below's room sounds), applied live. Mute silences all of it at once, stops the narrator mid-line, and turns red; unmuting reads the screen's line again. Settings are saved per browser (`gathering:sound:v2`). Phones have their own quiet room sounds and vibration, not controlled by the TV.
+- **"Look at your phone" on the TV:** Trapped Below's green banner (top right) and Marlowe's paper tag (bottom left) name who needs their phone right now and disappear as each person finishes.
 - **Trapped Below:** its deep-water ambience (`public/audio/deep.mp3`) plays in the browser and all game. The narrator is the captain (`tb-*.mp3`) through a radio filter. Room sounds, creaks, the heartbeat and the phones' chime are made in the browser (`lib/gathering/deep.ts`).
 
 ## Analytics (PostHog)

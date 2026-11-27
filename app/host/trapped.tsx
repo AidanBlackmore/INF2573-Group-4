@@ -981,10 +981,20 @@ export function useTrappedTv(view: View, now: () => number, tvRef: React.RefObje
   useEffect(() => {
     sound().setRadio(inStory);
     const d = deep();
-    d.enabled = () => !sound().settings.muted && sound().settings.effects;
-    d.level = 1;
+    d.enabled = () => !sound().settings.muted && sound().settings.effects && sound().level() > 0;
+    d.level = sound().level();
     d.setRoom(place);
   }, [inStory, place]);
+  // Mute and the volume slider apply to the room sounds straight away.
+  useEffect(
+    () =>
+      sound().subscribe(() => {
+        const d = deep();
+        d.level = sound().level();
+        d.refresh();
+      }),
+    [],
+  );
   useEffect(() => deep().muffle(low ? air : null));
 
   // Hull creaks now and then during the dive, with a small nudge of the screen.

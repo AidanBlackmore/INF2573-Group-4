@@ -170,6 +170,7 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
           </div>
         )}
         {screens[phase]()}
+        {world === "marlowe" && <MarloweFocus view={view} />}
         {entered < 1800 && (
           <div className="entering" style={{ "--t": since(view.room.phase_at) } as CSSProperties}>
             <span>{TITLE}</span>
@@ -183,6 +184,42 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
 }
 
 // ---------- sound ----------
+
+// Marlowe Manor's "look at your phone" tag: who should be on their phone right now. It appears when a
+// phone needs its player and goes as soon as they're done (the murderer's secret moves are never shown).
+function phoneNeeded(view: View): string[] {
+  const p = view.room.phase;
+  if (p === "lobby") return view.players.filter((x) => !x.picked || !x.answered).map((x) => x.id);
+  if (p === "roles") return view.players.filter((x) => !x.ready).map((x) => x.id);
+  if (p === "tasks") return [...new Set((view.pairs ?? []).filter((x) => !x.solved).flatMap((x) => x.members))];
+  if (p === "meeting") return view.players.filter((x) => !x.dead && !x.voted).map((x) => x.id);
+  return [];
+}
+function MarloweFocus({ view }: { view: View }) {
+  const ids = phoneNeeded(view);
+  if (!ids.length) return null;
+  const names = ids.map((id) => view.players.find((x) => x.id === id)?.name ?? "Someone");
+  const label = ids.length === view.players.length ? "Everyone" : names.length > 1 ? `${names.slice(0, -1).join(", ")} & ${names.at(-1)}` : names[0];
+  return (
+    <div className="m-focus" key={ids.join()} role="status">
+      <span className="phicon" />
+      <span>
+        <b>Look at your phone</b>
+        <br />
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function SpeakerIcon({ off }: { off: boolean }) {
+  return (
+    <svg className="spk" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 9h4l5-4v14l-5-4H3z" fill="currentColor" />
+      {off ? <path d="M16 9l5 6M21 9l-5 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" /> : <path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />}
+    </svg>
+  );
+}
 
 function SoundBar({ onNewRoom }: { onNewRoom: () => void }) {
   const [s, setS] = useState<SoundSettings | null>(null);
@@ -200,11 +237,16 @@ function SoundBar({ onNewRoom }: { onNewRoom: () => void }) {
       <button className="tool" aria-pressed={s.effects} onClick={() => set({ effects: !s.effects })}>
         {s.effects ? "Effects on" : "Effects off"}
       </button>
-      <button className="tool" aria-pressed={s.muted} aria-label={s.muted ? "Unmute" : "Mute"} onClick={() => set({ muted: !s.muted })}>
-        {s.muted ? "Unmute" : "Mute"}
+      {/* Mute silences everything the TV plays (music, narrator, effects); the slider is the master volume for all of it. */}
+      <button className={`tool mute${s.muted ? " is-muted" : ""}`} aria-pressed={s.muted} aria-label={s.muted ? "Sound is muted. Unmute" : "Mute all sound"} onClick={() => set({ muted: !s.muted })}>
+        <SpeakerIcon off={s.muted || s.volume === 0} />
+        {s.muted ? "Muted: tap to unmute" : "Mute"}
       </button>
-      <input type="range" min={0} max={100} value={s.volume} aria-label="Music volume" onChange={(e) => set({ volume: +e.target.value, muted: false })} />
-      <output>{s.volume}%</output>
+      <label className={`vol${s.muted ? " is-muted" : ""}`}>
+        <span>Volume</span>
+        <input type="range" min={0} max={100} step={5} value={s.volume} aria-label="Volume for music, narrator and effects" onInput={(e) => set({ volume: +e.currentTarget.value, muted: false })} onChange={(e) => set({ volume: +e.target.value, muted: false })} />
+        <output>{s.muted ? "muted" : `${s.volume}%`}</output>
+      </label>
       <button
         className="tool"
         onClick={() => {

@@ -11,9 +11,14 @@ import { TB_NARRATION } from "./trapped";
 
 const LINES: Record<string, string> = { ...NARRATION, ...TB_NARRATION };
 
+// volume is the master volume (0 to 100) for everything the TV plays: music, the narrator and the
+// sound effects. muted silences all of it at once (and stops the narrator mid-line).
 export type SoundSettings = { music: boolean; narrator: boolean; effects: boolean; muted: boolean; volume: number };
-const KEY = "gathering:sound";
-const DEFAULTS: SoundSettings = { music: true, narrator: true, effects: true, muted: false, volume: 20 };
+const KEY = "gathering:sound:v2";
+const OLD_KEY = "gathering:sound";
+const DEFAULTS: SoundSettings = { music: true, narrator: true, effects: true, muted: false, volume: 80 };
+// The music sits under everything else: this share of the master volume.
+const MUSIC_LEVEL = 0.25;
 
 type Listener = (s: SoundSettings) => void;
 
@@ -113,7 +118,10 @@ class Sound {
   constructor() {
     try {
       const saved = JSON.parse(localStorage.getItem(KEY) ?? "null");
+      // Settings from before the master volume: keep the switches, not the old music-only volume.
+      const old = saved ? null : JSON.parse(localStorage.getItem(OLD_KEY) ?? "null");
       if (saved) this.settings = { ...DEFAULTS, ...saved };
+      else if (old) this.settings = { ...DEFAULTS, music: old.music ?? true, narrator: old.narrator ?? true, effects: old.effects ?? true, muted: Boolean(old.muted) };
     } catch {
       // Private mode or blocked storage: use the defaults.
     }
@@ -148,7 +156,13 @@ class Sound {
     } catch {
       // Not saved; fine.
     }
-    if (patch.narrator === false) this.stopVoice();
+    if (patch.narrator === false || patch.muted === true) this.stopVoice();
+    // Turning the sound or the narrator back on reads the screen's lines again.
+    if ((patch.muted === false || patch.narrator === true) && this.audible() && this.settings.narrator && this.lastIds.length) {
+      this.said = "";
+      this.narrate(`again:${performance.now()}`, this.lastIds);
+    }
+    this.applyLevels();
     this.listeners.forEach((fn) => fn(this.settings));
   }
 
@@ -191,12 +205,34 @@ class Sound {
     }
   }
 
+  // The master level, 0 to 1 (0 when muted).
+  level() {
+    return this.settings.muted ? 0 : Math.max(0, Math.min(100, this.settings.volume)) / 100;
+  }
+  private audible() {
+    return !this.settings.muted && this.settings.volume > 0;
+  }
+  // The narrator's voice and the synthesised effects follow the master volume straight away.
+  private applyLevels() {
+    const l = this.level();
+    this.voice.volume = l;
+    if (this.out && this.audio) this.out.gain.setTargetAtTime(l, this.audio.currentTime, 0.03);
+    if (this.hiss && this.settings.muted) this.radioOff();
+    for (const f of this.fx) {
+      f.a.volume = f.vol * l;
+      if (l === 0) {
+        f.a.pause();
+        this.fx.delete(f);
+      }
+    }
+  }
+
   // The music dips under the narrator, sits lower while pairs work on locks,
   // and almost disappears while the votes are counted.
   private ramp() {
     // The deep-water ambience stays under the captain, just a little quieter.
     const duck = (this.speaking ? (this.track === "deep" ? 0.7 : 0.4) : 1) * ((({ tasks: 0.65, tally: 0.12 }) as Record<string, number>)[this.phase] ?? 1);
-    const base = this.settings.muted || !this.settings.music ? 0 : (this.settings.volume / 100) * duck;
+    const base = !this.settings.music ? 0 : this.level() * MUSIC_LEVEL * duck;
     for (const [key, loop] of Object.entries(this.loops) as [Track, Loop][]) {
       loop.target = key === this.track ? base : 0;
       loop.step(this.unlocked);
@@ -210,6 +246,8 @@ class Sound {
   // started it (Safari) then let it play each line.
   private voice: HTMLAudioElement;
   private blocked: [string, string[]] | null = null;
+  // The current screen's lines, to read again when the sound comes back on.
+  private lastIds: string[] = [];
   // What the narrator is saying right now, for the captions: a recording (its playback position),
   // or the browser's voice (its word events, or an estimate from the time when there are none).
   private live: { id: string; len: number; el?: HTMLAudioElement; base?: number; end?: number; at?: number; char?: number | null } | null = null;
@@ -231,10 +269,12 @@ class Sound {
     if (key === this.said) return;
     this.said = key;
     this.blocked = null;
+    if (!key.startsWith("cue:")) this.lastIds = ids;
     // stopVoice() starts a new run, so take the run number after it.
     this.stopVoice();
     const run = this.run;
-    if (!this.settings.narrator || !ids.length) return;
+    if (!this.settings.narrator || !this.audible() || !ids.length) return;
+    this.voice.volume = this.level();
     const next = (i: number) => {
       if (run !== this.run) return;
       if (i >= ids.length) {
@@ -328,7 +368,7 @@ class Sound {
     const c = this.ctx();
     if (!c) return;
     this.squelch();
-    if (this.hiss || this.settings.muted) return;
+    if (this.hiss || !this.audible()) return;
     const src = c.createBufferSource();
     src.buffer = this.noiseBuf(c);
     src.loop = true;
@@ -337,7 +377,7 @@ class Sound {
     f.Q.value = 1.2;
     const gain = c.createGain();
     gain.gain.value = 0.025;
-    src.connect(f).connect(gain).connect(c.destination);
+    src.connect(f).connect(gain).connect(this.out ?? c.destination);
     src.start();
     const iv = setInterval(() => gain.gain.setTargetAtTime(0.012 + Math.random() * 0.035, c.currentTime, 0.02), 60);
     this.hiss = { src, gain, iv };
@@ -381,7 +421,7 @@ class Sound {
     const say = (i: number) => {
       if (run !== this.run) return;
       if (i >= lines.length) return done();
-      const u = Object.assign(new SpeechSynthesisUtterance(lines[i]), { lang: "en-GB", rate: 0.95, pitch: 1 });
+      const u = Object.assign(new SpeechSynthesisUtterance(lines[i]), { lang: "en-GB", rate: 0.95, pitch: 1, volume: this.level() });
       if (voice) u.voice = voice;
       u.onstart = () => {
         this.speaking = true;
@@ -407,18 +447,26 @@ class Sound {
   private verb: ConvolverNode | null = null;
   private missing = new Set<string>();
 
+  // Every synthesised sound goes through this, at the master volume.
+  private out: GainNode | null = null;
+  // Recorded effects still playing.
+  private fx = new Set<{ a: HTMLAudioElement; vol: number }>();
+
   private ctx() {
     if (!this.audio) {
       const C = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!C) return null;
       this.audio = new C();
+      this.out = this.audio.createGain();
+      this.out.gain.value = this.level();
+      this.out.connect(this.audio.destination);
     }
     if (this.audio.state === "suspended") void this.audio.resume();
     return this.audio;
   }
 
   private ok() {
-    return this.settings.effects && !this.settings.muted;
+    return this.settings.effects && this.audible();
   }
 
   private noiseBuf(c: AudioContext) {
@@ -442,7 +490,7 @@ class Sound {
       this.verb.buffer = b;
       const g = c.createGain();
       g.gain.value = 0.5;
-      this.verb.connect(g).connect(c.destination);
+      this.verb.connect(g).connect(this.out ?? c.destination);
     }
     return this.verb;
   }
@@ -452,7 +500,7 @@ class Sound {
     g.gain.setValueAtTime(0.0001, at);
     g.gain.exponentialRampToValueAtTime(peak * 0.7, at + attack);
     g.gain.exponentialRampToValueAtTime(0.0001, at + attack + decay);
-    g.connect(c.destination);
+    g.connect(this.out ?? c.destination);
     if (wet) g.connect(this.room(c));
     return g;
   }
@@ -488,8 +536,13 @@ class Sound {
     };
     if (this.missing.has(name)) return fallback();
     const a = new Audio(`/sfx/${name}.mp3`);
-    a.volume = vol;
+    a.volume = vol * this.level();
+    // Kept while it plays, so mute and the slider reach a thunderclap already rolling.
+    const fx = { a, vol };
+    this.fx.add(fx);
+    a.onended = () => this.fx.delete(fx);
     a.onerror = () => {
+      this.fx.delete(fx);
       this.missing.add(name);
       fallback();
     };
@@ -533,7 +586,7 @@ class Sound {
       lp.type = "lowpass";
       lp.frequency.value = 3200;
       out.connect(lp);
-      lp.connect(c.destination);
+      lp.connect(this.out ?? c.destination);
       lp.connect(this.room(c));
       const o = c.createOscillator();
       o.type = "sawtooth";
