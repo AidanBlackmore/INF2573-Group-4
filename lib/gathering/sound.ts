@@ -159,8 +159,7 @@ class Sound {
     if (patch.narrator === false || patch.muted === true) this.stopVoice();
     // Turning the sound or the narrator back on reads the screen's lines again.
     if ((patch.muted === false || patch.narrator === true) && this.audible() && this.settings.narrator && this.lastIds.length) {
-      this.said = "";
-      this.narrate(`again:${performance.now()}`, this.lastIds);
+      this.say(this.lastIds);
     }
     this.applyLevels();
     this.listeners.forEach((fn) => fn(this.settings));
@@ -199,10 +198,7 @@ class Sound {
     // A screen the browser blocked before the click: read it now.
     const waiting = this.blocked;
     this.blocked = null;
-    if (waiting) {
-      this.said = "";
-      this.narrate(...waiting);
-    }
+    if (waiting) this.say(waiting);
   }
 
   // The master level, 0 to 1 (0 when muted).
@@ -249,7 +245,7 @@ class Sound {
   // One element for every line: browsers that trust an element once a click has
   // started it (Safari) then let it play each line.
   private voice: HTMLAudioElement;
-  private blocked: [string, string[]] | null = null;
+  private blocked: string[] | null = null;
   // The current screen's lines, to read again when the sound comes back on.
   private lastIds: string[] = [];
   // What the narrator is saying right now, for the captions: a recording (its playback position),
@@ -274,21 +270,40 @@ class Sound {
     return l && l.id === id && l.el ? l.el.currentTime : null;
   }
 
-  // Reads a screen's lines once: the recording if there is one, otherwise the browser's voice.
+  // Reads a screen's lines once. The TV calls this on every render; only a new screen starts it.
   narrate(key: string, ids: string[]) {
     if (key === this.said) return;
     this.said = key;
+    this.lastIds = ids;
+    this.cues = [];
+    this.say(ids);
+  }
+
+  // One line on its own, for things that happen rather than screens (a repair fixed, the air running low).
+  // It waits for whatever the narrator is saying, and it isn't a new screen, so the screen's line isn't read again.
+  cue(id: string) {
+    if (this.speaking) {
+      if (!this.cues.includes(id)) this.cues.push(id);
+      return;
+    }
+    this.say([id]);
+  }
+  private cues: string[] = [];
+
+  private say(ids: string[]) {
     this.blocked = null;
-    if (!key.startsWith("cue:")) this.lastIds = ids;
     // stopVoice() starts a new run, so take the run number after it.
     this.stopVoice();
     const run = this.run;
     if (!this.settings.narrator || !this.audible() || !ids.length) return;
+    this.speaking = true;
     this.voice.volume = this.level();
     const next = (i: number) => {
       if (run !== this.run) return;
       if (i >= ids.length) {
         this.speaking = false;
+        const more = this.cues.splice(0);
+        if (more.length) this.say(more);
         return;
       }
       const done = () => {
@@ -308,18 +323,14 @@ class Sound {
       };
       v.src = `/narration/${ids[i]}.mp3`;
       v.play().catch((e: Error) => {
-        // The browser wants a click first: keep the screen's lines for then.
+        // The browser wants a click first: keep these lines for then.
         if (e.name !== "NotAllowedError" || run !== this.run) return;
-        this.blocked = [this.said, ids];
+        this.speaking = false;
+        this.blocked = ids.slice(i);
         this.unlocked = false;
       });
     };
     next(0);
-  }
-
-  // One line on its own, for things that happen rather than screens (a repair fixed, the air running low).
-  cue(id: string) {
-    this.narrate(`cue:${id}:${performance.now()}`, [id]);
   }
 
   // ---------- the captain's radio ----------

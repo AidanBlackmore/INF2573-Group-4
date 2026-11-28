@@ -242,7 +242,7 @@ function Blueprint({ view, tour = false }: { view: View; tour?: boolean }) {
   const status = (key: string) => {
     if (tour) return "ok";
     const r = reps.filter((x) => x.place === key);
-    if (!r.length) return ["engine", "oxygen", "sonar", "ballast", "control"].includes(key) ? "ok" : "quiet";
+    if (!r.length) return "ok";
     return r.every((x) => x.solved) ? "fixed" : "broken";
   };
   return (
@@ -458,7 +458,8 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
           <div className="tb-gauge">
             <i style={{ width: `${k * 100}%` }} />
           </div>
-          <Captain id={k < 1 ? "tb-dive" : "tb-depth"} />
+          {/* "Flooding the tanks" (3.5 s), then "Four hundred and twelve metres" while the count finishes. */}
+          <Captain id={t < 4 ? "tb-dive" : "tb-depth"} />
         </div>
       );
     }
@@ -474,7 +475,7 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
             <Steps
               steps={[
                 ["phone", "Look at your phone. Answer the four questions."],
-                ["tv", "When everyone shows Filed, the host taps Hand out the orders."],
+                ["phone", "When everyone has filed, your secret orders arrive on your phone by themselves."],
               ]}
             />
           </div>
@@ -484,12 +485,7 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
                 <Crew key={p.id} view={view} player={p} note={p.answered ? "Filed" : "Answering"} dim={!p.answered} />
               ))}
             </div>
-            <div className="row">
-              <button className="btn" disabled={busy || waiting.length > 0} onClick={() => run("tb_start")}>
-                Hand out the orders
-              </button>
-              {waiting.length > 0 && <span className="tb-note">Waiting for {waiting.map((p) => p.name).join(", ")}.</span>}
-            </div>
+            {waiting.length > 0 && <span className="tb-note">Waiting for {waiting.map((p) => p.name).join(", ")}.</span>}
           </div>
         </div>
         <Captain id="tb-crewfile" />
@@ -703,19 +699,19 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
             <Evidence view={view} />
           </div>
           <div className="tb-col">
-            <span className="tag">{phase === "tb_talk" ? `Talk it through · ${fmtAir(left)}` : `Who goes in the airlock? · ${fmtAir(left)}`}</span>
+            <span className="tag">{phase === "tb_talk" ? `Talk it through · ${fmtAir(left)}` : `Vote someone off the sub · ${fmtAir(left)}`}</span>
             <div className="tb-crewrow">
               {view.players.map((p) => (
-                <Crew key={p.id} view={view} player={p} size="sm" note={p.dead ? "In the airlock" : phase === "tb_vote" ? ((tb.voted ?? []).includes(p.id) ? "Voted" : "Thinking") : undefined} />
+                <Crew key={p.id} view={view} player={p} size="sm" note={p.dead ? "Voted out" : phase === "tb_vote" ? ((tb.voted ?? []).includes(p.id) ? "Voted" : "Thinking") : undefined} />
               ))}
             </div>
             {phase === "tb_vote" ? (
               <>
                 <Steps
                   steps={[
-                    ["phone", "Look at your phone. Vote for who goes in the airlock, or Nobody yet."],
-                    ["tv", "Most votes goes in. A tie: nobody goes in."],
-                    ["tv", "Wrong person: −1:00 of air, and they can't vote any more (they still repair)."],
+                    ["phone", "Look at your phone. Vote out who you think is the saboteur, or pick Nobody yet."],
+                    ["tv", "Most votes is voted off the sub (out through the airlock). A tie: nobody is voted out."],
+                    ["tv", "Vote out the wrong person: −1:00 of air, and they can't vote any more (they still repair)."],
                   ]}
                 />
                 <p className="tb-note">
@@ -745,7 +741,7 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
     const n = (k: string) => r?.counts.find((c) => c.k === k)?.n ?? 0;
     body = (
       <>
-        <Hud view={view} now={now} label="The airlock" />
+        <Hud view={view} now={now} label="Voted out" />
         <div className="tb-meet">
           <div className="tb-col">
             <span className="tag">The vote</span>
@@ -769,13 +765,14 @@ export function TrappedTv({ view, now: nowFn, busy, run, onAnother, feedbackUrl 
           <div className="tb-col">
             {ej ? (
               <>
+                <span className="tag">{nameOf(view, ej)} is voted off the sub</span>
                 <h2 className={`tb-chapter ${r?.was_saboteur ? "good" : "bad"}`}>
                   {nameOf(view, ej)} {r?.was_saboteur ? "WAS the saboteur." : "was not the saboteur."}
                 </h2>
-                {!r?.was_saboteur && <p className="tb-narr">−1:00 of air. {nameOf(view, ej)} still repairs from the airlock, but can&apos;t vote.</p>}
+                {!r?.was_saboteur && <p className="tb-narr">−1:00 of air. {nameOf(view, ej)} is off the crew: they still help with repairs, but can&apos;t vote.</p>}
               </>
             ) : (
-              <h2 className="tb-chapter">{r?.tie ? "It's a tie. Nobody goes in." : "Nobody goes in."}</h2>
+              <h2 className="tb-chapter">{r?.tie ? "It's a tie. Nobody is voted out." : "Nobody is voted out."}</h2>
             )}
             <button className="btn" disabled={busy} onClick={next}>
               {r?.was_saboteur || view.room.round >= 4 ? "See the ending" : "Next watch"}
@@ -943,7 +940,7 @@ function Evidence({ view }: { view: View }) {
 
 // The room behind everything: two layers that crossfade when the room changes, a shade so text
 // reads, a red alarm when the air is low, and a red pulse with each heartbeat.
-export function TbBackdrop({ place, low }: { place: Place; low: boolean }) {
+export function TbBackdrop({ place, low, dark = 0 }: { place: Place; low: boolean; dark?: number }) {
   const [layers, setLayers] = useState<{
     a: Place;
     b: Place | null;
@@ -959,6 +956,7 @@ export function TbBackdrop({ place, low }: { place: Place; low: boolean }) {
       {layers.b && <img src={bg(layers.b)} alt="" className={layers.front === "b" ? "on" : ""} />}
       <i className={`shade${low ? " alarm" : ""}`} />
       <i className="tb-pulse" />
+      <i className="tb-dark" style={{ opacity: dark }} />
     </div>
   );
 }
@@ -983,6 +981,16 @@ export function useTrappedTv(view: View, now: () => number, tvRef: React.RefObje
   const place = inStory ? tvPlace(view, now()) : phase === "browse" && view.room.focus === 1 ? "exterior" : null;
   const air = inStory && tb ? airNow(view, now()) : null;
   const low = inStory && lowAir(view, now());
+  // Diving: the room fades to black while the depth counts down (6.5 s), and comes back on the next screen.
+  // The TV otherwise only redraws when something changes, so while diving it redraws ten times a second.
+  const diving = phase === "tb_dive" && Boolean(tb?.dive_at);
+  const [, frame] = useState(0);
+  useEffect(() => {
+    if (!diving) return;
+    const iv = setInterval(() => frame((n) => n + 1), 100);
+    return () => clearInterval(iv);
+  }, [diving]);
+  const dark = phase === "tb_dive" && tb?.dive_at ? Math.max(0, Math.min(1, (now() - new Date(tb.dive_at).getTime()) / 6500)) : 0;
 
   // The captain's radio, the room on screen, and the TV's own sound settings.
   useEffect(() => {
@@ -1239,5 +1247,5 @@ export function useTrappedTv(view: View, now: () => number, tvRef: React.RefObje
     });
   });
 
-  return { place, low };
+  return { place, low, dark };
 }

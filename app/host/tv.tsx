@@ -82,7 +82,7 @@ export default function TvScreen({ feedbackUrl }: { feedbackUrl: string | null }
   if (fatal) {
     return (
       <div className="gathering tv-page">
-        <section className="tv" data-scene="lobby">
+        <section className="tv" data-scene="join" data-world="shell">
           <p className="big">Something went wrong.</p>
           <p className="muted">{fatal}</p>
         </section>
@@ -93,7 +93,8 @@ export default function TvScreen({ feedbackUrl }: { feedbackUrl: string | null }
     <Tv view={view} reload={reload} now={now} onNewRoom={newRoom} feedbackUrl={feedbackUrl} />
   ) : (
     <div className="gathering tv-page">
-      <section className="tv" data-scene="lobby">
+      {/* The Gathering's own dark screen while the room is made, not a story's (Marlowe's hall used to flash up here). */}
+      <section className="tv" data-scene="join" data-world="shell">
         <p className="muted">Setting up The Gathering…</p>
       </section>
     </div>
@@ -236,7 +237,7 @@ function Tv({ view, reload, now, onNewRoom, feedbackUrl }: TvProps) {
     <div className="gathering tv-page">
       <SoundBar onNewRoom={() => { abandon("new_room"); onNewRoom(); }} />
       <section className={`tv${entered >= 1800 && entered < 3300 ? " arrive" : ""}`} data-scene={scene} data-world={world} ref={tv} aria-label="Shared TV screen">
-        {deepSea && trapped.place && <TbBackdrop place={trapped.place} low={trapped.low} />}
+        {deepSea && trapped.place && <TbBackdrop place={trapped.place} low={trapped.low} dark={trapped.dark} />}
         <Weather ref={weather} sky={sky} />
         {world === "marlowe" && (
           <div className="tv-head">

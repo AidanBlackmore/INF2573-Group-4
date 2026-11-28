@@ -40,6 +40,8 @@
 .tb-backdrop .shade.alarm { background: linear-gradient(180deg, rgba(60, 0, 0, 0.45), rgba(3, 12, 16, 0.3) 45%, rgba(40, 0, 0, 0.7)); animation: tb-alarm 1.6s ease-in-out infinite; }
 @keyframes tb-alarm { 50% { background-color: rgba(255, 30, 20, 0.18); } }
 .tb-backdrop .tb-pulse { position: absolute; inset: 0; }
+/* Diving: black comes down over the room as the depth counts, then lifts on the next screen. */
+.tb-backdrop .tb-dark { position: absolute; inset: 0; background: #000; opacity: 0; transition: opacity 1.2s linear; }
 .tb-backdrop .tb-pulse.on { animation: tb-beat 0.5s ease-out; }
 @keyframes tb-beat { 20% { box-shadow: inset 0 0 8em 1em rgba(255, 30, 20, 0.45); } }
 .tv[data-world="deep"] .weather { z-index: 1; }

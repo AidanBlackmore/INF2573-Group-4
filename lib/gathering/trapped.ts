@@ -52,14 +52,24 @@ export const facePic = (p: { portrait_url: string | null; portrait: number | nul
 // ---------- the sub ----------
 // Rooms with their own background (public/trapped/bg) and sound.
 export type Place = "exterior" | "corridor" | "control" | "engine" | "sonar" | "escape" | "pipewall" | "cargo" | "quarters" | "galley" | "torpedo" | "flooded" | "wreck" | "dawn";
-export const PLACE_NAME: Record<string, string> = {
-  engine: "Engine room", oxygen: "Oxygen bay", control: "Control room", sonar: "Sonar room", galley: "Galley", quarters: "Crew quarters",
-  ballast: "Ballast tanks",
+// Every compartment a repair can happen in: its name, its background, and what the repair is called
+// there (the wires panel's button, and the label over the oxygen-bay-style question).
+export const ROOMS: Record<string, { name: string; bg: Place; wires: string; guide: string }> = {
+  engine: { name: "Engine room", bg: "engine", wires: "Restart the engine", guide: "Engine override" },
+  oxygen: { name: "Oxygen bay", bg: "corridor", wires: "Restart the scrubbers", guide: "Scrubber override" },
+  control: { name: "Control room", bg: "control", wires: "Reboot the helm", guide: "Helm override" },
+  quarters: { name: "Crew quarters", bg: "quarters", wires: "Restart the heaters", guide: "Heating override" },
+  galley: { name: "Galley", bg: "galley", wires: "Restart the water pump", guide: "Water supply override" },
+  sonar: { name: "Sonar room", bg: "sonar", wires: "Restart the sonar", guide: "Sonar override" },
+  ballast: { name: "Ballast tanks", bg: "pipewall", wires: "Restart the ballast pumps", guide: "Ballast override" },
+  cargo: { name: "Cargo hold", bg: "cargo", wires: "Re-lock the cargo clamps", guide: "Cargo clamp override" },
+  airlock: { name: "Airlock", bg: "escape", wires: "Reseal the airlock", guide: "Airlock override" },
+  torpedo: { name: "Torpedo room", bg: "torpedo", wires: "Seal the tube doors", guide: "Tube door override" },
+  stores: { name: "Stores", bg: "cargo", wires: "Restart the freezer", guide: "Freezer override" },
 };
+export const PLACE_NAME: Record<string, string> = Object.fromEntries(Object.entries(ROOMS).map(([k, r]) => [k, r.name]));
 // Where each repair happens, as a background.
-export const PLACE_BG: Record<string, Place> = {
-  engine: "engine", oxygen: "torpedo", control: "control", sonar: "sonar", galley: "galley", quarters: "quarters",
-};
+export const PLACE_BG: Record<string, Place> = Object.fromEntries(Object.entries(ROOMS).map(([k, r]) => [k, r.bg]));
 export const bg = (p: Place) => `/trapped/bg/${p}.webp`;
 
 // The blueprint: each compartment's rectangle on the drawing (x, y, width, height, in the drawing's pixels).
@@ -103,7 +113,7 @@ export const TB_NARRATION: Record<string, string> = {
   "tb-depth": "Four hundred and twelve metres. Before the first watch, the sub needs to know who's aboard.",
   "tb-crewfile": "This is your captain. The sub needs to know who's aboard. Answer honestly. Your crew will need it.",
   "tb-orders": "Somebody aboard is cutting the lines. Your orders are sealed on your phone. Read them, and keep them to yourself.",
-  "tb-watch-1": "Watch one. The engine and the oxygen scrubber are down. Get to your stations.",
+  "tb-watch-1": "Watch one. Get to your stations.",
   "tb-watch-2": "Watch two. More trouble below decks. Check your phones.",
   "tb-watch-3": "Watch three. She's getting tired, and so are we. Stay sharp.",
   "tb-watch-4": "Last watch. Hold her together a little longer.",

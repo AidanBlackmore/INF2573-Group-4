@@ -8,7 +8,7 @@ import { secondsSince, track } from "@/lib/analytics";
 import { buzz, deep, shake } from "@/lib/gathering/deep";
 import { nameOf, playerOf, type View } from "@/lib/gathering/game";
 import {
-  BOLT_PLACES, CREW_FILE, DEEP_QUESTIONS, LEAK_JOB, PIPE_TARGET, PLACE_BG, PLACE_NAME, SUB, WIRE_COLOURS, WIRE_HEX, bg, drillPairs, fmtAir, type Place,
+  BOLT_PLACES, CREW_FILE, ROOMS, DEEP_QUESTIONS, LEAK_JOB, PIPE_TARGET, PLACE_BG, PLACE_NAME, SUB, WIRE_COLOURS, WIRE_HEX, bg, drillPairs, fmtAir, type Place,
 } from "@/lib/gathering/trapped";
 import { PipeTile, airNow, lowAir, phoneFocus } from "../../host/trapped";
 
@@ -34,13 +34,13 @@ export function phonePlace(view: View, id: string | null, now: number): Place {
 const LOOK: Record<string, string> = {
   tb_brief: "The captain is explaining how to play. Everything you'll do is on the board.",
   tb_dive: "We're diving.",
-  tb_crew: "Your crew file is in. Waiting for the others.",
+  tb_crew: "Your crew file is in. Your secret orders arrive as soon as everyone has filed.",
   tb_orders: "Waiting for the others to read their orders.",
   tb_watch: "Your repair is done. Watch the others.",
   tb_hands: "Done. Watch the TV.",
   tb_talk: "Look at the evidence board on the TV. Here's your own file, to check.",
   tb_vote: "Vote's in. Watch the TV.",
-  tb_verdict: "The airlock is opening.",
+  tb_verdict: "The votes are in. See who's voted off the sub on the TV.",
   tb_end: "Here's how it ended.",
 };
 
@@ -157,7 +157,7 @@ export function TrappedPhone({ ctx, now }: { ctx: Ctx; now: () => number }) {
       )}
       {ghost && (
         <p className="tb-ghost" role="status">
-          <b>You&apos;re out: the crew sent you to the airlock.</b> You still help with repairs and emergencies, but you can&apos;t vote.
+          <b>You&apos;re out: the crew voted you off the sub.</b> You still help with repairs and emergencies, but you can&apos;t vote.
         </p>
       )}
       <PhoneBody ctx={ctx} now={now} focus={focus} />
@@ -570,7 +570,7 @@ function WirePanel({ ctx }: { ctx: Ctx }) {
         </button>
       </div>
       <button className="p-btn" disabled={busy || !cut || !code} onClick={() => void run("tb_restart", { p_cut: cut, p_code: code })}>
-        Restart engine{cut ? ` · ${cut} wire, ${code || "?"}` : ""}
+        {ROOMS[rep.place]?.wires ?? "Restart"}{cut ? ` · ${cut} wire, ${code || "?"}` : ""}
       </button>
       <Tries used={rep.tries} max={3} msg={rep.msg} cost="0:10" />
       {error && <div className="err">{error}</div>}
@@ -617,7 +617,7 @@ function Guide({ ctx }: { ctx: Ctx }) {
   return (
     <>
       <div className="tb-card">
-        <span className="lbl">Scrubber override · the question</span>
+        <span className="lbl">{ROOMS[rep.place]?.guide ?? "Override"} · the question</span>
         <p className="riddle">{rep.question}</p>
       </div>
       {rep.struck && (
@@ -650,7 +650,7 @@ function Operator({ ctx }: { ctx: Ctx }) {
   return (
     <>
       <div className="tb-card">
-        <span className="lbl">Scrubber override · the question</span>
+        <span className="lbl">{ROOMS[rep.place]?.guide ?? "Override"} · the question</span>
         <p className="riddle">{rep.question}</p>
       </div>
       <p className="p-small">
@@ -997,8 +997,8 @@ function Vote({ ctx }: { ctx: Ctx }) {
   return (
     <>
       <Head left="Vote" />
-      <p className="tb-q">Who goes in the airlock?</p>
-      <p className="p-small">Pick who you think is the saboteur, or Nobody yet. Most votes goes in; a tie means nobody. The wrong person costs everyone a minute of air.</p>
+      <p className="tb-q">Who do you vote off the sub?</p>
+      <p className="p-small">Pick who you think is the saboteur, or Nobody yet. Whoever gets the most votes is voted out (through the airlock); a tie means nobody. The wrong person costs everyone a minute of air.</p>
       <div className="tb-opts">
         {others.map((p) => (
           <button key={p.id} className={`p-btn2${pick === p.id ? " on" : ""}`} onClick={() => setPick(p.id)}>

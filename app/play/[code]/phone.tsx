@@ -1229,13 +1229,8 @@ function HostPanel({ ctx }: { ctx: Ctx }) {
       {label}
     </button>
   );
-  const tbAllIn = view.players.every((p) => p.answered);
+  // The crew file needs no button: the orders go out by themselves once everyone has filed.
   Object.assign(buttons, {
-    tb_crew: (
-      <button disabled={busy || !tbAllIn} onClick={() => void run("tb_start")}>
-        Hand out the orders
-      </button>
-    ),
     tb_watch: tbNext("End the watch"),
     tb_talk: tbNext("Start the vote"),
     tb_vote: tbNext("Reveal the vote"),

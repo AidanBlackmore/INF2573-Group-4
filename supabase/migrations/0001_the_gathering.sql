@@ -2014,18 +2014,22 @@ declare
   v_kind text;
   v_lead uuid;
   v_target uuid;
-  v_wires int := 0;
-  v_guides int := 0;
   v_opts jsonb;
   v_struck int;
   v_hint jsonb;
   v_crew public.tb_crew;
   v_watch int;
   v_real text;
+  -- Every compartment on the blueprint, in an order that hops around the sub. Each repair takes the
+  -- next one along from a starting point that differs per dive, so over four watches the crew works
+  -- all over the boat instead of the same two rooms.
+  v_rooms text[] := array['engine', 'sonar', 'cargo', 'oxygen', 'torpedo', 'ballast', 'control', 'stores', 'galley', 'airlock', 'quarters'];
+  v_start int;
 begin
   select * into v_room from public.rooms where id = p_room_id;
   select * into v_game from public.tb_games where room_id = p_room_id;
   v_watch := v_room.round + 1;
+  v_start := abs(hashtext(p_room_id::text || coalesce(v_game.started_at::text, ''))::bigint) % array_length(v_rooms, 1);
 
   -- Everyone repairs, ghosts too.
   select array_agg(id order by random()) into v_order from public.players where room_id = p_room_id;
@@ -2095,10 +2099,8 @@ begin
     end if;
     insert into public.tb_repairs (room_id, watch, idx, kind, members, lead, target, place, options, struck, hint)
     values (p_room_id, v_watch, v_i, v_kind, v_members, v_lead, v_target,
-            case when v_kind = 'wires' then (array['engine', 'control', 'sonar'])[1 + v_wires % 3]
-                 else (array['oxygen', 'galley', 'quarters'])[1 + v_guides % 3] end,
+            v_rooms[1 + (v_start + (v_watch - 1) * v_groups + v_i) % array_length(v_rooms, 1)],
             v_opts, v_struck, v_hint);
-    if v_kind = 'wires' then v_wires := v_wires + 1; else v_guides := v_guides + 1; end if;
   end loop;
 
   update public.tb_games set bolt_report = null, result = null, hands_kind = null, hands_done = false, hands_ok = null,
@@ -2383,35 +2385,29 @@ begin
   insert into public.tb_crew (player_id, room_id, colour, num, bring, deep_q, deep_a)
   values (v_me.id, p_room_id, p_colour, p_num, btrim(p_bring), btrim(p_deep_q), btrim(p_deep_a));
   update public.players set answered = true where id = v_me.id;
-  perform private.touch(p_room_id);
+  -- The last crew file in: hand out the orders straight away, nobody has to press anything.
+  if not exists (select 1 from public.players where room_id = p_room_id and not answered) then
+    perform private.tb_deal(p_room_id);
+  else
+    perform private.touch(p_room_id);
+  end if;
 end;
 $$;
 
--- "Seal the orders": deal roles (and "Play again" from the end: same crew files, new roles).
-create function public.tb_start(p_room_id uuid)
+-- Deal the sealed orders: one saboteur, a fresh dive. The room is already locked by the caller.
+create function private.tb_deal(p_room_id uuid)
 returns void
 language plpgsql
-security definer
 set search_path = ''
 as $$
 declare
-  v_room public.rooms := private.lock_room(p_room_id);
-  v_n int;
   v_saboteur uuid;
 begin
-  perform private.require_controller(v_room);
-  if v_room.phase not in ('tb_crew', 'tb_end') then
-    return;
-  end if;
-  select count(*) into v_n from public.players where room_id = p_room_id;
-  if exists (select 1 from public.players where room_id = p_room_id and not answered) then
-    raise exception 'Waiting for everyone''s crew file';
-  end if;
   -- Always exactly one saboteur, whatever the number of players (joining allows 3 to 6).
-  if v_n = 0 then
+  select id into v_saboteur from public.players where room_id = p_room_id order by random() limit 1;
+  if v_saboteur is null then
     raise exception 'Nobody is aboard';
   end if;
-  select id into v_saboteur from public.players where room_id = p_room_id order by random() limit 1;
   delete from public.votes where room_id = p_room_id;
   delete from public.tb_repairs where room_id = p_room_id;
   delete from public.tb_facts where room_id = p_room_id;
@@ -2422,6 +2418,28 @@ begin
   update public.players set opened = false, ready = false, dead = null, dead_at = null where room_id = p_room_id;
   update public.rooms set round = 0 where id = p_room_id;
   perform private.set_phase(p_room_id, 'tb_orders');
+end;
+$$;
+
+-- "Play again" from the end: same crew files, new roles. (From the crew file the orders go out by
+-- themselves once everyone has filed; this is kept for that too, in case a screen asks first.)
+create function public.tb_start(p_room_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_room public.rooms := private.lock_room(p_room_id);
+begin
+  perform private.require_controller(v_room);
+  if v_room.phase not in ('tb_crew', 'tb_end') then
+    return;
+  end if;
+  if exists (select 1 from public.players where room_id = p_room_id and not answered) then
+    raise exception 'Waiting for everyone''s crew file';
+  end if;
+  perform private.tb_deal(p_room_id);
 end;
 $$;
 
@@ -2941,7 +2959,7 @@ begin
       end if;
       perform private.touch(p_room_id);
     when 'tb_dive' then
-      if v_game.dive_at is null or v_game.dive_at > now() - interval '8 seconds' then
+      if v_game.dive_at is null or v_game.dive_at > now() - interval '11 seconds' then
         return false;
       end if;
       -- Everyone plays as the portrait drawn when they joined, straight into the crew file.
@@ -3026,7 +3044,7 @@ begin
       when 'talk' then p_room.phase_at + make_interval(secs => private.tb_brief_secs())
       when 'hatch' then v_game.seal_at
       else v_game.sealed_at + interval '3 seconds' end
-    when 'tb_dive' then v_game.dive_at + interval '8 seconds'
+    when 'tb_dive' then v_game.dive_at + interval '11 seconds'
     when 'tb_watch' then least(p_room.deadline, case when v_game.air_running then v_game.air_at end)
     when 'tb_hands' then least(p_room.deadline, case when v_game.air_running then v_game.air_at end,
       case when v_game.hands_kind = 'leak' and not v_game.hands_done
