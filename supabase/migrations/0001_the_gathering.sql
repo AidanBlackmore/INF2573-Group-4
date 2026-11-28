@@ -1849,7 +1849,7 @@ returns int
 language sql
 immutable
 set search_path = ''
-as $$ select 96 $$;
+as $$ select 76 $$;
 
 -- Air left right now, in seconds.
 create function private.tb_air(p_game public.tb_games)

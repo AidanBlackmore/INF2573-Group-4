@@ -268,6 +268,12 @@ class Sound {
     return Math.min(1, (l.char ?? est) / l.len);
   }
 
+  // How many seconds into line `id`'s recording the narrator is, or null when it isn't playing that recording.
+  elapsed(id: string): number | null {
+    const l = this.live;
+    return l && l.id === id && l.el ? l.el.currentTime : null;
+  }
+
   // Reads a screen's lines once: the recording if there is one, otherwise the browser's voice.
   narrate(key: string, ids: string[]) {
     if (key === this.said) return;

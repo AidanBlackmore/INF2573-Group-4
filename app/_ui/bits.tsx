@@ -4,6 +4,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { fmt } from "@/lib/gathering/content";
 import type { Player, View } from "@/lib/gathering/game";
 import { sound } from "@/lib/gathering/sound";
+import { WORD_TIMES } from "@/lib/gathering/captions";
 
 // Each player's colour is the one they picked in the lobby (join order until they pick).
 export function colorOf(view: View, id: string | null | undefined) {
@@ -83,9 +84,17 @@ export function Caption({ id, text }: { id: string; text: string }) {
       n += w.length + 1;
       ends.push(n / Math.max(1, text.length));
     }
+    // When the recording's word timings are known, follow them; otherwise share the line out by length.
+    const times = WORD_TIMES[id]?.length === words.length ? WORD_TIMES[id] : null;
     const tick = () => {
+      const t = times ? sound().elapsed(id) : null;
       const p = sound().progress(id);
-      const i = p === null ? -1 : Math.min(words.length - 1, Math.max(0, ends.findIndex((e) => e > p)));
+      const i =
+        t !== null && times
+          ? Math.max(0, times.findLastIndex((x) => x <= t))
+          : p === null
+            ? -1
+            : Math.min(words.length - 1, Math.max(0, ends.findIndex((e) => e > p)));
       setAt((old) => (old === i ? old : i));
       raf = requestAnimationFrame(tick);
     };

@@ -145,7 +145,7 @@ Things to know when testing:
 
 ## Open items
 
-- **Trapped Below narration:** new captain lines have no recordings yet, so the browser's voice reads them: `tb-brief-pairs`, `tb-brief-hands`, `tb-brief-sab2`, `tb-brief-vote`, `tb-brief-win`, `tb-brief-hatch2`, `tb-skip2`, `tb-logs-first`, `tb-riddle`. Record them (ElevenLabs) into `public/narration/`. If a recording's length changes, update `BRIEF_BEATS`/`BRIEF_SECS` and `tb_brief_secs()` together.
+- **Trapped Below narration:** every captain line has a recording. Captions follow each recording word by word from `WORD_TIMES` in `lib/gathering/captions.ts` (made by force-aligning the recording with its text). When a recording or its wording changes, re-make its entry there, and for a briefing line also update `BRIEF_BEATS`/`BRIEF_SECS` and `tb_brief_secs()` together.
 - **Trapped Below with 3 players:** everyone is in the one trio, so each repair is about someone in it (a partner of the lead). Those repairs test honesty more than friendship.
 - **Trapped Below: a player who leaves for good stalls the game.** The hatch, the crew file and the orders wait for everyone, with no timeout or way to drop a player. A reload or a phone that slept is fine (they come back to the same screen); a dead phone isn't. Needs a host "carry on without them" that removes the player cleanly.
 - **Trapped Below:** the air numbers (8:00 start, 2:00 of repair air a watch since November 2026, +1:00 an emergency) need tuning from real games (see the Trapped Below dashboard: `trapped_game_ended` and `trapped_round_ended`).

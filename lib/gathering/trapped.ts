@@ -87,7 +87,6 @@ export const LEAK_JOB: Record<string, { title: string; how: string; fallback: st
 // Every line the captain says, word for word. Recordings are at /narration/<id>.mp3 (ElevenLabs);
 // the TV plays them through a radio filter. If one is missing, the browser's own voice reads it.
 export const TB_NARRATION: Record<string, string> = {
-  "tb-title": "Trapped Below. A submarine, four hundred metres down. Not everyone aboard wants to come back up.",
   "tb-brief-open": "This is your captain. Welcome aboard. We're heading for the bottom of the trench, and I'll be honest with you: not everyone on this boat wants to come back up.",
   "tb-brief-air": "We have eight minutes of air. Every repair buys more. Every mistake costs a little.",
   "tb-brief-pairs": "Things will break. Each watch, the TV splits you into pairs. Find your name on the board, then look at your phone. Each of you has half of the job, so talk it through.",
@@ -108,13 +107,10 @@ export const TB_NARRATION: Record<string, string> = {
   "tb-watch-2": "Watch two. More trouble below decks. Check your phones.",
   "tb-watch-3": "Watch three. She's getting tired, and so are we. Stay sharp.",
   "tb-watch-4": "Last watch. Hold her together a little longer.",
-  "tb-engine": "Engine room, report. Talk to each other.",
-  "tb-oxygen": "Oxygen bay. Say your guess out loud.",
   "tb-riddle": "All hands. Identity check. Security has cleared one of you, but the name got scrambled. All it kept is their crew file. Whose is it? Get it right, and that one is in the clear.",
   "tb-ballast": "All hands. We're taking on water. Route it to the ballast tank.",
   "tb-breach": "Hull breach! Pump, clear the intake, keep her level, and hold that hatch!",
   "tb-logs-first": "Crew meeting. Every system we fixed turned up a clue about the saboteur. Check the board. Does it sound like anyone? Then vote.",
-  "tb-meeting": "Crew meeting. Read the logs. Then decide who goes in the airlock.",
   "tb-logs": "We recovered something from the logs. Read it carefully.",
   "tb-no-logs": "No logs this time. You'll have to trust your instincts.",
   "tb-vote": "Time to vote. Who goes in the airlock?",
@@ -124,7 +120,6 @@ export const TB_NARRATION: Record<string, string> = {
   "tb-end-crew": "This is your captain. We're surfacing. Well done, crew.",
   "tb-end-saboteur": "This is your captain. It has been an honour.",
   "tb-airout": "That's the last of the air. I'm sorry, crew.",
-  "tb-quiet": "Quiet watch. Too quiet. Keep your eyes open.",
   "tb-fixed": "That's holding. Good work.",
   "tb-failed": "That's not right. Try again, and quickly.",
   "tb-air-low": "Air is getting thin. Breathe slow, work fast.",
@@ -132,18 +127,17 @@ export const TB_NARRATION: Record<string, string> = {
 };
 
 // The briefing, one thing at a time: the TV shows one big card per line, with a checklist of what's
-// been covered. Each beat starts this many seconds in (the recording's length, or a generous guess
-// for lines the browser's voice reads, plus a pause). BRIEF_SECS matches tb_brief_secs() in the database.
+// been covered. Each beat starts this many seconds in: the previous recording's length plus a short pause. BRIEF_SECS matches tb_brief_secs() in the database.
 export const BRIEF_BEATS = [
   { id: "tb-brief-open", at: 0, title: "Welcome aboard the Meridian", tick: "A research sub, 412 m down. Not everyone aboard wants to come back up." },
   { id: "tb-brief-air", at: 9.2, title: "Air is your time limit", tick: "Every fix adds air. Every breakdown or mistake takes some away." },
   { id: "tb-brief-pairs", at: 15.4, title: "Repairs: in pairs", tick: "1. Find your name on the TV. 2. Look at your phone. 3. Talk to your partner: you each have half the job." },
-  { id: "tb-brief-hands", at: 32.5, title: "All hands: everyone", tick: "Big breakdowns: everyone works on their own phone at once. The TV shows how it's going." },
-  { id: "tb-brief-sab2", at: 45.5, title: "One of you is the saboteur", tick: "They want the sub to sink: they lie, botch repairs and loosen bolts. Orders come to your phone, in secret." },
-  { id: "tb-brief-vote", at: 62.5, title: "Meet, then vote", tick: "Fixes turn up clues. After each watch: read them on the TV, talk, vote on your phone. Wrong vote: −1:00 of air." },
-  { id: "tb-brief-win", at: 84.5, title: "How it ends", tick: "Crew: vote out the saboteur within 4 watches. Saboteur: run the air out, or stay hidden all 4." },
+  { id: "tb-brief-hands", at: 27.4, title: "All hands: everyone", tick: "Big breakdowns: everyone works on their own phone at once. The TV shows how it's going." },
+  { id: "tb-brief-sab2", at: 36.7, title: "One of you is the saboteur", tick: "They want the sub to sink: they lie, botch repairs and loosen bolts. Orders come to your phone, in secret." },
+  { id: "tb-brief-vote", at: 49.8, title: "Meet, then vote", tick: "Fixes turn up clues. After each watch: read them on the TV, talk, vote on your phone. Wrong vote: −1:00 of air." },
+  { id: "tb-brief-win", at: 65.1, title: "How it ends", tick: "Crew: vote out the saboteur within 4 watches. Saboteur: run the air out, or stay hidden all 4." },
 ];
-export const BRIEF_SECS = 96;
+export const BRIEF_SECS = 76;
 export const beatAt = (secs: number) => BRIEF_BEATS.reduce((b, x, i) => (secs >= x.at ? i : b), 0);
 
 export const fmtAir = (secs: number) => `${Math.floor(Math.max(0, secs) / 60)}:${String(Math.max(0, secs) % 60).padStart(2, "0")}`;
